@@ -5,6 +5,13 @@ Row Level Security policy per table, as applied in
 enabled on all 14 tables (`001_initial_schema.sql`) — before 003 landed, every table
 was deny-all by default.
 
+**`profiles` has no client-facing `INSERT` policy at all** — the only way a row
+gets created is `fn_handle_new_user()` (`005_auth_profile_trigger.sql`), a
+`SECURITY DEFINER` trigger on `auth.users` that runs outside RLS entirely. This is
+deliberate: a client-writable profile insert would let a signed-up-but-unconfirmed
+user create arbitrary `profiles` rows (including for other ids) before the trigger
+ever runs.
+
 `fn_is_admin()` (`security definer`, checks `profiles.role = 'admin'` for
 `auth.uid()`) is the single check every admin-gated policy below calls into. Service
 role policies are documentation, not enforcement — the Supabase `service_role` key

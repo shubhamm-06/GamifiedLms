@@ -6,6 +6,17 @@ code belongs here until it is.
 
 ## Resolved
 
+- **Auth pages establish the design system — no login page existed to "match."**
+  The signup task assumed an existing login modal and `styles.css`; neither existed
+  in the repo. Rather than guess, both `/login` and `/signup` were built together as
+  the first implementation, in `src/styles.css`: a locked token set (`--cream
+  #FFF7EA`, `--gold #F2B233`, `--teal #2FA3A0`, `--coral #F0705A`, `--plum #7A5FA8`,
+  `--ink #3A2A1A`), Baloo 2 throughout, pure white page background, 26px-radius
+  off-white card, and a gold pill CTA with a candy 3D press effect. The `-d` (dark)
+  shadow shades for that press effect weren't specified — derived from each base
+  color at ~15pt-lower HSL lightness, same hue/saturation; treat those four as
+  provisional and free to hand-tune. Don't introduce new color tokens outside this
+  set without updating this entry. (2026-09-01)
 - **TypeScript over JavaScript.** The repo is TypeScript from Phase 0 onward;
   nothing new gets written as `.js`/`.jsx`. (2026-08-31)
 - **Tailwind v4**, CSS-first config (`@theme` in the main stylesheet, no

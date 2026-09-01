@@ -307,8 +307,12 @@ Which badges a user has unlocked, and when. Unique on `(user_id, badge_id)`.
 
 ## Trigger logic summary (implemented — see `business-logic.md` for full detail)
 
-All of the below is live as of migrations 002–004, not planned.
+All of the below is live as of migrations 002–005, not planned.
 
+0. `trg_auth_user_created` (`AFTER INSERT` on `auth.users`, calling
+   `fn_handle_new_user()`) creates the matching `profiles` row for every signup,
+   populating `display_name`/`phone_number` from `raw_user_meta_data` and hardcoding
+   `role = 'student'`. Added in `005_auth_profile_trigger.sql`.
 1. Any XP-earning event inserts one row into `xp_transactions`. The client never
    writes to `user_stats` directly — there is no client-facing write policy on
    `user_stats` at all.

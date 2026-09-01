@@ -16,10 +16,10 @@ business rules, security model, and open questions — without reading any code.
 change must update the relevant file in this folder in the same PR/session as the code change.
 If a doc and the code disagree, the code is probably wrong — these docs are the spec.
 
-## Current status (as of 2026-08-31)
+## Current status (as of 2026-09-01)
 
 - Supabase project provisioned: `Gamified LMS` (ref `dmmvftodhcdbubuljqme`, ap-northeast-1, Postgres 17)
-- Schema: **applied**. Four migrations are live and tracked in `supabase/migrations/`:
+- Schema: **applied**. Five migrations are live and tracked in `supabase/migrations/`:
   1. `001_initial_schema` — 14 tables, RLS enabled (deny-all) on every one, plus the
      `lesson_effective_xp` and `quiz_questions_public` views.
   2. `002_functions_and_triggers` — `fn_is_admin()`, XP/level/streak rollup, badge
@@ -31,10 +31,16 @@ If a doc and the code disagree, the code is probably wrong — these docs are th
      only); adds scoped `payments` reconciliation fields (`reconciliation_status`,
      `reconciliation_note`) with a guard trigger so an admin update can't touch the
      gateway-owned columns.
+  5. `005_auth_profile_trigger` — auto-creates the matching `profiles` row on every
+     `auth.users` signup (`fn_handle_new_user()`), since `signUp()` alone can't
+     satisfy `profiles`' `NOT NULL` columns.
 
   See `schema.md` for the full table reference and `decisions.md` for why 004 exists.
+- **Email confirmation is enabled** on this project (confirmed live, 2026-09-01) —
+  `signUp()` does not return a session until the user clicks the confirmation link.
 - No Edge Functions deployed yet.
 - Frontend: React + TypeScript + Capacitor scaffold in place (Vite). Locked stack
   (Tailwind v4, shadcn/ui, TanStack Query/Router, Framer Motion, lucide-react)
-  installed as of Phase 1. No admin features built yet — a single placeholder route
-  confirms the stack renders end-to-end.
+  installed as of Phase 1. Public `/login` and `/signup` pages exist (Baloo 2, the
+  cream/gold/teal/coral/plum/ink token set in `src/styles.css`); no admin shell or
+  route guards yet.

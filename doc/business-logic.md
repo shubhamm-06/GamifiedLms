@@ -1,9 +1,29 @@
 # Business Logic
 
-How XP, enrollment, payments, and grading actually work, as implemented in
-`supabase/migrations/002_functions_and_triggers.sql`, `003_rls_policies.sql`, and
-`004_admin_scoped_writes.sql`. If this disagrees with the migrations, the migrations
-are correct — update this file.
+How signup, XP, enrollment, payments, and grading actually work, as implemented in
+`supabase/migrations/002_functions_and_triggers.sql`, `003_rls_policies.sql`,
+`004_admin_scoped_writes.sql`, and `005_auth_profile_trigger.sql`. If this disagrees
+with the migrations, the migrations are correct — update this file.
+
+## Signup
+
+- `profiles.display_name` and `profiles.email` are `NOT NULL` with no column
+  default, so `supabase.auth.signUp()` on its own would succeed in `auth.users` and
+  leave the app broken with no matching `profiles` row.
+- `trg_auth_user_created` → `fn_handle_new_user()` (`SECURITY DEFINER`, `AFTER
+  INSERT` on `auth.users`) inserts the `profiles` row in the same transaction:
+  `email` from `auth.users.email`, `display_name` from
+  `raw_user_meta_data->>'display_name'` falling back to the email's local part if
+  the client didn't send one, `phone_number` from `raw_user_meta_data` if present
+  (else null), and `role` hardcoded to `'student'` — self-service signup can never
+  create an admin. `ON CONFLICT (id) DO NOTHING` guards retried delivery.
+- The client is responsible for actually putting `display_name` (and, if
+  collected, `phone_number`) into `raw_user_meta_data` via `signUp()`'s
+  `options.data` — the trigger only reads what's there.
+- **Email confirmation is enabled on this project** (confirmed by a live
+  `signUp()` call: `data.session` came back null and the user's
+  `email_confirmed_at` was unset until confirmed). The client must not assume a
+  session exists right after `signUp()` returns — branch on whether one came back.
 
 ## XP and leveling
 
