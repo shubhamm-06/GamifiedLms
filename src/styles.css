@@ -1,0 +1,198 @@
+@import "@fontsource-variable/baloo-2";
+
+/*
+ * Brand tokens for the auth pages (login/signup). Locked palette — do not
+ * add new colors here; derive from these. The "-d" (dark) variants are the
+ * shadow layer for the candy 3D button press effect and were not handed
+ * down explicitly — derived by dropping lightness ~15pts at the same
+ * hue/saturation.
+ */
+:root {
+  --cream: #FFF7EA;
+  --gold: #F2B233;
+  --gold-d: #C98A0D;
+  --teal: #2FA3A0;
+  --teal-d: #1E6765;
+  --coral: #F0705A;
+  --coral-d: #D73014;
+  --plum: #7A5FA8;
+  --plum-d: #57427A;
+  --ink: #3A2A1A;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #ffffff;
+  font-family: 'Baloo 2 Variable', 'Baloo 2', sans-serif;
+  color: var(--ink);
+}
+
+.auth-card {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  background: #fffefb;
+  border-radius: 26px;
+  padding: 40px 32px 32px;
+  box-shadow:
+    0 24px 48px -24px rgba(58, 42, 26, 0.28),
+    0 2px 10px rgba(58, 42, 26, 0.06);
+}
+
+.auth-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.auth-close:hover {
+  opacity: 1;
+  background: rgba(58, 42, 26, 0.06);
+}
+
+.auth-heading {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 6px;
+  text-align: center;
+}
+
+.auth-subheading {
+  font-size: 0.9rem;
+  color: rgba(58, 42, 26, 0.65);
+  text-align: center;
+  margin: 0 0 24px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-field label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.auth-field input {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(58, 42, 26, 0.15);
+  background: #ffffff;
+  color: var(--ink);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.auth-field input::placeholder {
+  color: rgba(58, 42, 26, 0.35);
+}
+
+.auth-field input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(47, 163, 160, 0.15);
+}
+
+.auth-field input[aria-invalid='true'] {
+  border-color: var(--coral-d);
+}
+
+.auth-field-error {
+  font-size: 0.8rem;
+  color: var(--coral-d);
+}
+
+.auth-form-error {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--coral-d);
+  background: rgba(240, 112, 90, 0.1);
+  border-radius: 12px;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+.auth-form-success {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--teal-d);
+  background: rgba(47, 163, 160, 0.1);
+  border-radius: 12px;
+  padding: 10px 14px;
+  text-align: center;
+}
+
+.auth-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 24px;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--gold);
+  box-shadow: 0 6px 0 var(--gold-d);
+  cursor: pointer;
+  transform: translateY(0);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.15s ease;
+}
+
+.auth-btn-primary:hover:not(:disabled) {
+  filter: brightness(1.03);
+}
+
+.auth-btn-primary:active:not(:disabled) {
+  transform: translateY(6px);
+  box-shadow: 0 0 0 var(--gold-d);
+}
+
+.auth-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.auth-footer {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.auth-link {
+  color: var(--teal);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.auth-link:hover {
+  text-decoration: underline;
+}

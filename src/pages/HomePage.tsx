@@ -1,5 +1,6 @@
 import { Sparkles } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { Link } from '@tanstack/react-router'
 import { Button } from '@/components/ui/button'
 import { useCourseCount } from '@/hooks/useCourseCount'
 
@@ -22,6 +23,14 @@ export function HomePage() {
         <Sparkles />
         Phase 1 scaffold
       </Button>
+      <div className="flex gap-4 text-sm">
+        <Link to="/login" className="text-muted-foreground hover:text-foreground underline">
+          Log in
+        </Link>
+        <Link to="/signup" className="text-muted-foreground hover:text-foreground underline">
+          Sign up
+        </Link>
+      </div>
     </motion.main>
   )
 }
