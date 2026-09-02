@@ -66,7 +66,25 @@ doc/                    older per-domain docs, superseded by this file
 14 tables across 5 domains, all with RLS enabled, plus 3 views.
 
 **Identity & access:** `profiles` (extends `auth.users`; `role` is `'student'` or
-`'admin'`, plain `text` with a `CHECK` constraint, not an enum).
+`'admin'`, plain `text` with a `CHECK` constraint, not an enum). Full column list,
+re-verified live 2026-09-02: `id` (uuid PK = `auth.users.id`), `display_name` (text,
+NOT NULL), `avatar_url` (text, null), `email` (text, NOT NULL, unique),
+`phone_number` (text, null), `role` (text, NOT NULL, default `'student'`),
+`created_at` (timestamptz, NOT NULL, default `now()`).
+
+⚠️ **XP and level are NOT on `profiles`** — they live on `user_stats`
+(`total_xp`, `level`), and that row only exists once a user has earned XP or
+completed a lesson, so it is legitimately absent for most accounts. Anything
+showing XP per user must join `user_stats` and handle the null.
+
+⚠️ **There is no soft-delete anywhere.** No `deleted_at` / `is_deleted` /
+`archived_at` column exists on any table in `public` — every delete is a hard
+delete, cascading from `auth.users` → `profiles` via `profiles_id_fkey`.
+
+⚠️ **`profiles.email` is not maintained by any trigger after signup.**
+`fn_handle_new_user` populates it once at signup; any later change to the auth
+email must update this column explicitly or the two drift (the
+`admin-user-management` Edge Function's `update_email` action does this).
 
 **Course content:** `courses`, `modules`, `lessons`, `games`.
 
@@ -151,14 +169,18 @@ that order, every time.**
   - "Any admin can promote another user to admin" — **implemented** (migration
     004's `profiles_admin_update` RLS policy + `fn_prevent_role_change` trigger
     already allow `fn_is_admin()` callers to change `role`).
-  - "That admin can never be deleted" — **not yet implemented.** No migration
-    currently protects any `profiles` row from deletion (there's no `DELETE`
-    policy on `profiles` at all today, so no client role can delete one via
-    RLS — but nothing stops a `service_role`/dashboard delete, or cascading
-    deletion via `auth.users`). Needs a dedicated safeguard (e.g. a
-    `BEFORE DELETE` trigger keyed to a specific id, or a `is_protected` flag)
-    before "can never be deleted" is actually true. **Open — not scheduled to a
-    phase yet.**
+  - "That admin can never be deleted" — **enforced at two layers as of
+    2026-09-02, still open at the third.**
+    1. **UI** — the Delete action in the users table dropdown is disabled for
+       this id, with a tooltip.
+    2. **Edge Function** — `admin-user-management`'s `delete` action refuses
+       this id with a 400 before touching Auth. This is the real enforcement
+       point for anything going through the app.
+    3. **Database — still unprotected.** No trigger or constraint stops a
+       direct `service_role` / SQL / dashboard delete, or a cascade from
+       `auth.users`. A `BEFORE DELETE` trigger keyed to the id (or an
+       `is_protected` flag) is still needed before the guarantee is real.
+       **Open — not scheduled to a phase yet.**
   - One admin profile exists live right now: id `91392b37-91f1-4975-afda-e4c238c4d821`,
     display_name "Shubham Admin", created 2026-09-01 08:31:51 UTC — created
     outside any Claude Code session (presumably: signed up through the app's own
@@ -167,6 +189,18 @@ that order, every time.**
   before 2026-09-01 — both `/login` and `/signup` were built together as the
   first implementation of the auth design tokens (§7), since there was nothing
   yet to "match."
+- **Admin section has its own visual language (2026-09-02).** `/admin/*` uses the
+  neutral shadcn default (Geist, neutral greys) with the brand tokens as accents
+  only — gold `admin` / teal `student` role badges, coral for destructive text.
+  Baloo 2 and the cream/candy styling stay on the kid-facing side. Rationale: a
+  dense data table reads better utilitarian, and the two audiences are different.
+- **Privileged user admin runs through an Edge Function (2026-09-02).**
+  Creating auth users, changing another user's email/password, and deleting
+  accounts all require the `service_role` key, so they live in
+  `supabase/functions/admin-user-management/`. Ordinary column writes
+  (`display_name`, `role`) deliberately do **not** — they go straight through
+  supabase-js on the existing `profiles_admin_update` RLS policy, since nothing
+  there needs elevated rights.
 
 ---
 
@@ -176,9 +210,14 @@ that order, every time.**
   buttons, no OAuth flow.
 - **Admin shell / `/admin/*` route guard** — route tree and the actual
   role-guard logic don't exist yet (Phase 3).
-- **Edge Functions** — none deployed. Quiz grading, game XP clamping, the
-  payment webhook receiver, and pre-signup payment claiming are all designed for
-  server-side enforcement in the schema/RLS but have no server code yet.
+- **Edge Functions** — one written, **none deployed yet**.
+  `admin-user-management` (§10) exists in the repo but could not be deployed on
+  2026-09-02 because the Supabase MCP connector was disconnected and no
+  `SUPABASE_ACCESS_TOKEN` is available for the CLI. **Until it is deployed, the
+  create / change-email / reset-password / delete actions on `/admin/users` all
+  fail** (the UI surfaces the error correctly; nothing silently breaks).
+  Quiz grading, game XP clamping, the payment webhook receiver, and pre-signup
+  payment claiming are all still designed-but-unwritten.
 - **Capacitor native platforms** — `capacitor.config.json` exists but
   `npx cap add ios`/`android` hasn't been run; no native project directories.
 - **Capacitor-specific session handling** — out of scope for the auth-pages work
@@ -281,8 +320,8 @@ all pre-planned. Update the status column as work lands.
 |---|---|---|---|
 | 0 | Repo hygiene | ✅ Done | Credential moved out of `doc/.env` into root `.env` (gitignored); `.gitignore` fixed. Correction: `doc/` itself is **committed**, not gitignored — only `doc/.env` is. "Local-only" means nothing has been pushed to a remote (none is configured), not that the folder is untracked. |
 | 1 | Stack install | ✅ Done | TS 6.0.3, Tailwind v4 + shadcn/ui (Radix base, Nova/Lucide preset), TanStack Query/Router, Framer Motion, lucide-react — all via npm, type-based folder structure. |
-| 2 | Auth | 🔶 In progress | Done: signup trigger (migration 005, live), `/login` + `/signup` pages (built, committed, verified against the live project), one bootstrap admin exists live. Not done: `/admin/*` route tree + the actual role-guard logic, first-admin "never deleted" enforcement (§4), Capacitor-specific session handling, social login (deferred to end by design). |
-| 3 | Admin shell | Not started | Layout, nav, role-based guard implementation. |
+| 2 | Auth | 🔶 In progress | Done: signup trigger (migration 005, live), `/login` + `/signup` pages, one bootstrap admin exists live, **`/admin/*` route tree + role guard built and verified 2026-09-02** (`beforeLoad` on the `/admin` parent route; logged-out → `/login?redirect=…`, non-admin → `/` silently). Not done: DB-level first-admin delete protection (§4), Capacitor-specific session handling, social login (deferred to end by design). |
+| 3 | Admin shell | 🔶 Partial | The guarded `/admin` route tree and its pending skeleton exist; `/admin` redirects to `/admin/users`. Still missing: a real `AdminLayout` (nav/sidebar/chrome) — each admin page currently renders standalone. |
 | 4 | Storage | Not started | Bucket structure/policies for course media not yet decided. |
 | 5 | Courses | Not started | CRUD + the `gamification_enabled` toggle (schema exists, unused). |
 | 6 | Modules | Not started | |
@@ -291,7 +330,7 @@ all pre-planned. Update the status column as work lands.
 | 9 | Games registry | Not started | `games.max_xp` ceiling exists in schema; iframe trust model not detailed yet. |
 | 10 | Badges | Not started | `badges.is_active` toggle exists and is enforced by `fn_evaluate_badges`. |
 | 11 | Enrollments | Not started | Service-role wall already resolved (§4) — admin gets full CRUD via RLS + `fn_is_admin()`. |
-| 12 | Users/roles | Not started | `profiles.role` admin-changeable via RLS + `fn_prevent_role_change` — already resolved (§4). |
+| 12 | Users/roles | 🔶 Mostly built (2026-09-02) | `/admin/users` is live: list with search (debounced, 300ms), role filter, pagination, plus create / edit / change-email / reset-password / delete dialogs. Read path and profile edits verified against the live DB. **The four privileged actions are blocked until `admin-user-management` is deployed** (§5, §10). |
 | 13 | XP ledger | Not started | Admin manual awards already resolved — `xp_transactions` insert restricted to `source_type = 'manual'` for admins. |
 | 14 | Payments oversight | Not started | Already resolved to reconciliation-scoped columns only (§4), not blanket admin access. |
 | 15 | Dashboard | Not started | No detail decided yet. |
@@ -317,8 +356,57 @@ all pre-planned. Update the status column as work lands.
 - **Installed package versions:** see the table in §1 — current as of
   2026-09-01. `shadcn` (the CLI) lives in `devDependencies`, not
   `dependencies` — it's a dev tool, not a runtime import.
-- **Known tooling quirk:** `npx shadcn@latest init` has a Windows path bug — it
-  can write generated files into a literal `./@/...` directory instead of
-  resolving the `@/*` alias to `src/`. Check where files actually land after
-  running `npx shadcn add <component>`.
-- **No Edge Functions, no native Capacitor platforms, no CI** exist yet.
+- **Known tooling quirk:** `npx shadcn@latest init` **and `add`** have a Windows
+  path bug — they write generated files into a literal `./@/...` directory
+  instead of resolving the `@/*` alias to `src/`. Confirmed again on 2026-09-02.
+  After every `npx shadcn add`, move the files out of `@/` into `src/` and
+  delete the stray directory. It also silently regenerates `button.tsx`, which
+  drops the local `eslint-disable` comment — check before overwriting.
+- **shadcn components installed:** button, table, dialog, alert-dialog,
+  dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip, sonner.
+  `sonner` pulled in `next-themes` as a transitive dependency; it's unused (no
+  ThemeProvider) but harmless, and removing it would fight the generated file.
+- **Lint notes:** `supabase/functions` is in `eslint.config.js`'s `globalIgnores`
+  (Deno runtime, `jsr:` specifiers — the browser/Vite config doesn't apply).
+  The `react-hooks/set-state-in-effect` rule is active and strict: reset-form-on-open
+  must be done by remounting an inner component (Radix unmounts dialog content on
+  close), not with a `useEffect` that calls setState.
+- **No native Capacitor platforms and no CI** exist yet. One Edge Function is
+  written but undeployed (§5).
+
+---
+
+## 10. Edge Function: `admin-user-management`
+
+`supabase/functions/admin-user-management/index.ts` — written 2026-09-02,
+**not yet deployed** (§5). Deno runtime, `jsr:@supabase/supabase-js@2`, uses the
+`SUPABASE_SERVICE_ROLE_KEY` default secret (never hardcoded).
+
+**Contract:** `POST` only, body `{ action, payload }`. Returns
+`{ success: true, ... }` or `{ success: false, error }` with a matching HTTP
+status. Handles `OPTIONS` for CORS.
+
+**Role check is the enforcement point.** Every request resolves the caller from
+the `Authorization` bearer token, then reads that user's `profiles.role` using
+the **service-role** client (never the caller-scoped one, so the caller's own
+RLS grants can't influence the answer). A non-admin gets `403 Forbidden` before
+the payload is even parsed. The client-side route guard and disabled buttons are
+UX only — this is the real gate.
+
+| Action | Payload | Notes |
+|---|---|---|
+| `create` | `email`, `password`, `display_name`, `role` | Validates all four. `createUser({ email_confirm: true })` so the account is usable immediately; `display_name` goes into `user_metadata` for migration 005's trigger to read. The trigger always writes `role='student'`, so an `admin` request is a follow-up `UPDATE`; if that second step fails it reports the account was created as a student rather than a clean success. Duplicate emails surface as "Email already registered". |
+| `update_email` | `userId`, `newEmail` | `updateUserById({ email, email_confirm: true })`, then explicitly syncs `profiles.email` — nothing else keeps those two in step. A failed sync is reported, not swallowed. |
+| `update_password` | `userId`, `newPassword` | Direct admin-set password, min 8 chars. No reset email, no link. The password is never echoed back in the response. |
+| `delete` | `userId` | Refuses `PRIMARY_ADMIN_ID` with a 400 before touching Auth (§4). Otherwise `deleteUser`, cascading to `profiles`. |
+
+Raw Auth/Postgres errors never reach the client — `safeError()` maps them to a
+short message and `console.error`s the detail server-side.
+
+**To deploy** (either route works):
+- Reconnect the Supabase MCP connector and call `deploy_edge_function`, or
+- `npx supabase functions deploy admin-user-management --project-ref dmmvftodhcdbubuljqme`
+  with a `SUPABASE_ACCESS_TOKEN` set.
+
+After deploying, re-test the four actions — they're the only part of
+`/admin/users` that has never run end-to-end.

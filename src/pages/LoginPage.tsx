@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { AuthField } from '@/components/auth/AuthField'
 import { supabase } from '@/lib/supabase'
@@ -13,6 +13,8 @@ interface FieldErrors {
 
 export function LoginPage() {
   const navigate = useNavigate()
+  const router = useRouter()
+  const { redirect } = useSearch({ from: '/login' })
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -41,7 +43,13 @@ export function LoginPage() {
       return
     }
 
-    navigate({ to: '/' })
+    // `redirect` is an arbitrary path captured by the admin guard, so it
+    // goes through history rather than the typed navigate().
+    if (redirect) {
+      router.history.replace(redirect)
+    } else {
+      navigate({ to: '/' })
+    }
   }
 
   return (
