@@ -21,6 +21,33 @@ build phase: admin-facing tooling only, no student-facing UI.
   the constraint), cells rendered with `<table.FlexRender cell={cell} />`.
   A v8-style `useReactTable` + `getCoreRowModel` call lives behind
   `@tanstack/react-table/legacy` if ever needed.
+
+**TanStack Table v9 — sorting/filtering/pagination.** There is no
+`getSortedRowModel()` option as in v8. Feature modules and their row-model
+factories are stitched together statically and passed as `features`; the
+`*Fns` registry keys become the legal string values for a column's
+`filterFn`/`sortFn`. Copy this shape for the next table
+(`CourseTable.tsx` is the reference; `DashboardPage.tsx` is the read-only
+minimum, `tableFeatures({})`):
+
+```ts
+const features = tableFeatures({
+  columnFilteringFeature, rowSortingFeature, rowPaginationFeature,
+  filteredRowModel: createFilteredRowModel(),   // all factories take no args
+  sortedRowModel: createSortedRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  filterFns: { includesString: filterFn_includesString, equalsString: filterFn_equalsString },
+  sortFns: { alphanumeric: sortFn_alphanumeric, basic: sortFn_basic,
+             datetime: sortFn_datetime, text: sortFn_text },
+})
+```
+
+Instance/column APIs are v8-familiar: `column.getToggleSortingHandler()`,
+`getIsSorted()`, `getCanSort()`, `setFilterValue()`, `table.nextPage()`,
+`getCanNextPage()`, `getPageCount()`. Current state reads off `table.state`
+(e.g. `table.state.pagination.pageIndex`), not `getState()`. Toolbar-driven
+filters can be passed straight in as controlled `state.columnFilters`.
+Everything is imported from `@tanstack/table-core` except `useTable`.
 - Framer Motion 13.1.1, lucide-react 1.38.0
 - Vite 8.2.2, npm only — no pnpm/yarn/bun lockfiles
 

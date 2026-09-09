@@ -12,6 +12,9 @@ import { queryClient } from '@/lib/queryClient'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
+import { CourseCreatePage } from '@/pages/admin/CourseCreatePage'
+import { CourseEditPage } from '@/pages/admin/CourseEditPage'
+import { CoursesPage } from '@/pages/admin/CoursesPage'
 import { DashboardPage } from '@/pages/admin/DashboardPage'
 import { UsersPage } from '@/pages/admin/UsersPage'
 
@@ -81,11 +84,38 @@ const adminUsersRoute = createRoute({
   component: UsersPage,
 })
 
+const adminCoursesRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'courses',
+  component: CoursesPage,
+})
+
+const adminCourseCreateRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'courses/new',
+  component: CourseCreatePage,
+})
+
+// `$courseId/edit` stands on its own — there is deliberately no
+// `courses/$courseId` index route yet; module/lesson/quiz management is a
+// separate future task.
+const adminCourseEditRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'courses/$courseId/edit',
+  component: CourseEditPage,
+})
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
-  adminRoute.addChildren([adminIndexRoute, adminUsersRoute]),
+  adminRoute.addChildren([
+    adminIndexRoute,
+    adminUsersRoute,
+    adminCoursesRoute,
+    adminCourseCreateRoute,
+    adminCourseEditRoute,
+  ]),
 ])
 
 export const router = createRouter({ routeTree, context: { queryClient } })

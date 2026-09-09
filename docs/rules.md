@@ -31,6 +31,18 @@ belongs in `context.md` or `state.md`, not here.
 - **`SUPABASE_SERVICE_ROLE_KEY` (and any future service-role credential) is
   never hardcoded in source** — read from the environment
   (`Deno.env.get(...)` in Edge Functions) only.
+- **Courses are never hard-deleted from the admin UI — archive only.** The FK
+  behaviour is mixed and dangerous in both directions: `modules.course_id` and
+  `lessons.course_id` are `ON DELETE CASCADE` (a delete silently destroys all
+  content beneath the course), while `payments.course_id`,
+  `enrollments.course_id` and `lesson_progress.course_id` are `NO ACTION` (the
+  delete fails with a raw FK error the moment any transaction history exists).
+  RLS permits the delete; that is not a reason to expose one.
+- **`published_at` is set once, on first publish, and never overwritten.** No
+  trigger maintains it — the UI owns it, and only stamps it when it is still
+  null. Re-publishing after an archive must preserve the original
+  first-published date, so any new code path that publishes a course has to
+  carry the same guard.
 - **Monetary integer columns store WHOLE RUPEES, not paise.**
   `payments.amount = 1499` means ₹1,499. Neither column documents a unit, so
   this is a decision the codebase now depends on: anything writing money —

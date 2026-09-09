@@ -83,6 +83,35 @@ rather than copying the value, so `styles.css` stays the single definition
 point. **Never hardcode a hex** in a component — if a utility is missing,
 add the mapping instead.
 
+### Admin CRUD conventions
+
+Established by Courses; follow these for the next admin domain.
+
+- **Dedicated routes for create and edit**, not modals —
+  `/admin/<thing>/new` and `/admin/<thing>/$id/edit`. Both return to the list
+  on success with a toast. Forms are long enough that a dialog would fight
+  them.
+- **One form component shared by both**, taking `mode: 'create' | 'edit'`
+  plus optional `initialValues`, rather than two near-identical forms
+  (`CourseForm.tsx`).
+- **Row actions live in a kebab menu and are contextual to status** — the
+  menu only offers transitions that are legal from the current state.
+  Clicking the row itself does nothing, since several actions compete.
+- **Archive, never delete.** No hard-delete affordance exists anywhere in the
+  admin UI for courses — see `rules.md` for why. Archive needs no
+  confirmation dialog because Restore reverses it.
+- **Lifecycle actions are explicit buttons, separate from "Save changes"** —
+  not a status dropdown inside the form. They apply immediately; the form
+  save is its own action.
+- **Server-side constraint violations resolve to the field that caused
+  them** (a slug uniqueness clash renders under the slug input), not a toast
+  the user has to map back to an input.
+- **Trigger-maintained counters are shown read-only** (`total_students`,
+  `total_lessons`) and visually separated from editable fields.
+- **Conditional fields are removed, not disabled** — price/currency vanish
+  when a course is free; duration appears only for fixed access. A disabled
+  field still reads as "something I might need to fill in".
+
 ### Admin shell
 
 `src/components/admin/AdminLayout.tsx` — persistent left sidebar + topbar

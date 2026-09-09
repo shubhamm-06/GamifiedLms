@@ -16,3 +16,7 @@ new entries.
 - 2026-09-09 — Fixed an open redirect on `/login`: the `redirect` search param was passed straight to `history.replace` with no validation — a crafted link could bounce a freshly authenticated admin off-origin
 - 2026-09-09 — Admin route guard now re-reads `profiles.role` from the database on every run instead of accepting a 30s cached value — a demoted admin kept access until the cache expired
 - 2026-09-09 — Recorded "monetary integer columns store whole rupees" as an invariant — the columns document no unit, and a future payment webhook writing paise would make every displayed amount wrong by 100x
+- 2026-09-09 — Built `/admin/courses` list plus dedicated create and edit routes sharing one form component — first admin CRUD domain, and the conventions it sets (dedicated routes, status-contextual row actions, inline constraint errors) are meant to be copied by the next one
+- 2026-09-09 — Made archive the only removal path for courses and recorded it as an invariant — deleting would cascade-destroy modules/lessons silently while failing outright once any payment or enrollment exists
+- 2026-09-09 — Recorded `published_at` as set-once-on-first-publish — no trigger maintains the column, so re-publishing an archived course must not overwrite its original date
+- 2026-09-09 — Documented the TanStack Table v9 feature-registration shape for sorting/filtering/pagination in `context.md` — v8's `getSortedRowModel()` option doesn't exist in v9 and the next table shouldn't have to rediscover it

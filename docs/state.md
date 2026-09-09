@@ -6,12 +6,18 @@ pushed anywhere.
 
 ## Current WIP
 
-Admin shell landed (2026-09-09): `/admin` layout route with sidebar + topbar,
-the `/admin` dashboard page, role-aware post-login routing, and the brand
-tokens mapped into Tailwind. Verified end-to-end against the live (near-empty)
-database. Nothing else on the admin side is built — every nav item except
-Dashboard and Admin Users points at a route that doesn't exist yet and 404s
-inside the shell by design.
+Courses admin landed (2026-09-09): `/admin/courses` list (sort, search,
+status filter, client-side pagination), plus dedicated `/admin/courses/new`
+and `/admin/courses/$courseId/edit` routes sharing one form component.
+Lifecycle is Publish / Archive / Restore — there is no delete affordance
+anywhere, by design. Verified end-to-end against the live database (created,
+edited, published, archived, restored, and confirmed a slug clash surfaces
+inline); test data removed afterwards.
+
+The admin shell (sidebar/topbar layout, dashboard, role-aware post-login
+routing) landed earlier the same day. Remaining nav items — Games,
+Badges & XP, Students, Orders & Payments, Settings — still point at routes
+that don't exist and 404 inside the shell by design.
 
 ## Live data reality
 
@@ -38,10 +44,11 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). UI and Edge Function both refuse
    it; a direct `service_role`/dashboard delete or `auth.users` cascade still
    isn't stopped.
-3. Courses CRUD (`/admin/courses`) — the first unbuilt nav destination, and
-   the one the dashboard's empty states point at.
-4. Then modules/lessons *inside* the course detail route
-   (`/admin/courses/$courseId`), not as top-level nav.
+3. Course **detail** route (`/admin/courses/$courseId`) for modules, lessons
+   and quiz questions — must support full inline **create/edit**, not just
+   viewing. Not scaffolded at all yet, deliberately.
+4. Then the remaining nav destinations (Games, Badges & XP, Students,
+   Orders & Payments, Settings).
 
 ## Known shortcuts / tech debt
 
@@ -54,6 +61,9 @@ None.
 - **Nav uses one `to as never` cast** (`AdminLayout`'s `NavLink`) because
   most nav targets aren't in the typed route tree yet. Remove as real routes
   land.
+- **No Storage bucket exists** (`storage.buckets` is empty), so
+  `courses.thumbnail_url` is a paste-a-URL field. No upload flow is wired;
+  building one means creating a bucket and its policies first.
 - **Admin shell is desktop-only** — no mobile responsiveness, deliberately.
 - **No `AdminLayout` tests** and no CI at all.
 - **First-admin "can never be deleted"** — enforced at UI + Edge Function

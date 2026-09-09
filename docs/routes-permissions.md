@@ -13,8 +13,16 @@ file-based — new routes are added there, not by creating files under a
 | `/signup` | `SignupPage` | Public | On success: session present → `/`; no session (email confirmation required) → "check your email" copy |
 | `/admin` | `DashboardPage` | Admin only | KPI cards, needs-attention list, recent-activity table |
 | `/admin/users` | `UsersPage` | Admin only | List/search/filter/paginate users; create/edit/change-email/reset-password/delete dialogs |
+| `/admin/courses` | `CoursesPage` | Admin only | Sortable/filterable list; row actions are status-contextual (no delete — see `rules.md`) |
+| `/admin/courses/new` | `CourseCreatePage` | Admin only | Always inserts as `draft` |
+| `/admin/courses/$courseId/edit` | `CourseEditPage` | Admin only | Lifecycle actions + the shared form. Bad id or RLS-hidden row renders "Course not found", not a crash |
 
-**Nav targets that don't exist yet** — `/admin/courses`, `/admin/games`,
+There is deliberately **no `/admin/courses/$courseId` index route** —
+`$courseId/edit` stands alone. Module/lesson/quiz management is a separate
+future task, and that detail page will need full inline create/edit for
+modules, lessons and quiz questions (not just viewing).
+
+**Nav targets that don't exist yet** — `/admin/games`,
 `/admin/gamification`, `/admin/students`, `/admin/orders`, `/admin/settings`.
 They're linked from the sidebar and 404 inside the admin shell on purpose;
 no placeholder routes or stub pages were created for them.
