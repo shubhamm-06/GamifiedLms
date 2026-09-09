@@ -6,13 +6,18 @@ pushed anywhere.
 
 ## Current WIP
 
-Curriculum reordering is now real drag-and-drop (2026-09-09):
+Curriculum reordering is real drag-and-drop (2026-09-09/10):
 `@dnd-kit/core`/`sortable`/`utilities`, mouse and keyboard both verified, a
 single batch `upsert` per drop rather than one request per row. The earlier
-up/down-button version is gone, not kept as a fallback. Same session: video
-lessons can be pasted as a YouTube/Vimeo share link and normalized to an
-embeddable URL (`src/lib/video.ts`), or a direct file/stream URL as before —
-never raw `<iframe>`/HTML.
+up/down-button version is gone, not kept as a fallback. **The first pass of
+this (2026-09-09) worked but was visibly janky** — dragged item overlapping
+content above the list, a sibling appearing to vanish for ~1s, both from the
+same missing pieces: no `<DragOverlay>` and no optimistic cache update on
+drop. Fixed 2026-09-10; see `ui.md`'s drag-and-drop entry and `rules.md` for
+what to copy next time. Same 09-09 session: video lessons can be pasted as a
+YouTube/Vimeo share link and normalized to an embeddable URL
+(`src/lib/video.ts`), or a direct file/stream URL as before — never raw
+`<iframe>`/HTML.
 
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz

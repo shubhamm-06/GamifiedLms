@@ -31,6 +31,17 @@ belongs in `context.md` or `state.md`, not here.
 - **`SUPABASE_SERVICE_ROLE_KEY` (and any future service-role credential) is
   never hardcoded in source** — read from the environment
   (`Deno.env.get(...)` in Edge Functions) only.
+- **A sortable list's reorder mutation fires exactly once, in `onDragEnd`,
+  never in `onDragOver`/`onDragMove`.** dnd-kit already gives the live,
+  in-progress reordering preview for free from client-side sensor state — no
+  write, network round-trip, or cache update should happen until the drop.
+  A mutation firing per pointer-move was the first thing checked (and ruled
+  out) when curriculum drag-and-drop shipped visibly janky; the actual
+  defect turned out to be the opposite gap — no optimistic cache update *at*
+  drop — but the "write only on drop" half of this was already correct and
+  must stay that way. Pair this with `ui.md`'s `<DragOverlay>` +
+  optimistic-`onMutate` pattern for the next sortable list (Games, once that
+  page exists) — one without the other still janks.
 - **Test accounts are created by direct SQL, never through `signUp` or
   `inviteUser`.** Those paths send a real transactional email every time,
   against a shared quota, for an account that exists only for a few minutes

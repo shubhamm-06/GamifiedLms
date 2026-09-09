@@ -139,6 +139,27 @@ Established by Courses; follow these for the next admin domain.
   seeded with full row objects — a partial `{id, position}` payload fails
   Postgres's `NOT NULL` check on the row `ON CONFLICT DO UPDATE` has to
   build, even though only the provided columns end up written.
+  Two more pieces the first pass shipped without, both required for the
+  drag to feel correct rather than merely functional — copy this shape for
+  the next sortable list:
+  - **`<DragOverlay>` renders the floating, pointer-following copy** (a
+    portal, unconstrained by the list's own layout). The item actually being
+    dragged (`useSortable`'s `isDragging`) skips applying its own `transform`
+    and instead sits in its slot as a static, dimmed placeholder — applying
+    a positional transform to it *as well as* rendering it via the overlay
+    is what let it drift outside the list and overlap unrelated content
+    above it. Non-dragged siblings still need their transform to animate out
+    of the way.
+  - **The reorder mutation carries an optimistic `onMutate`** that writes the
+    new order into the query cache synchronously, before the network request
+    resolves (`useModuleMutations`/`useLessonMutations` in
+    `useCurriculum.ts`). Without it, `onDragEnd` firing the mutation still
+    leaves the cache holding the pre-drag order for the whole round-trip —
+    dnd-kit resets its drag transforms the instant the pointer is released,
+    based on whatever the `items` array currently is, so the list visibly
+    snaps back to the old order and then jumps again once the real data
+    arrives. See `rules.md` for the "mutate on drop, not before" half of
+    this — the two only work together.
 - **Nested editing goes one level deep in a Sheet, not a new route.** A lesson
   opens in a slide-over; a quiz lesson's questions are edited *inside that
   same sheet* rather than in a third route or a dialog-over-dialog. Questions

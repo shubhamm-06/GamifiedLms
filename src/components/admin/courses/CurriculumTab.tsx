@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import {
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   closestCenter,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -133,10 +135,15 @@ function LessonRow({
   return (
     <li
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      // The item being dragged is represented by <DragOverlay> instead, so
+      // it renders here as a static placeholder rather than also chasing
+      // the pointer via its own transform — applying both at once is what
+      // let it drift outside the list's bounds. Non-dragged siblings still
+      // need their transform to slide and make room.
+      style={{ transform: isDragging ? undefined : CSS.Transform.toString(transform), transition }}
       className={cn(
         'bg-background flex items-center gap-2 rounded-md border px-2.5 py-2',
-        isDragging && 'relative z-10 opacity-50',
+        isDragging && 'opacity-40',
       )}
     >
       <DragHandle attributes={attributes} listeners={listeners} label={`Reorder ${lesson.title}`} />
@@ -163,6 +170,26 @@ function LessonRow({
   )
 }
 
+/**
+ * The actual floating, pointer-following visual during a drag — rendered
+ * inside <DragOverlay>, a portal that isn't constrained by the list's
+ * layout, unlike the in-place `transform` approach this replaces. Static:
+ * no handlers, since DragOverlay content isn't the thing being interacted
+ * with.
+ */
+function LessonRowPreview({ lesson }: { lesson: Lesson }) {
+  return (
+    <div className="bg-background flex items-center gap-2 rounded-md border px-2.5 py-2 shadow-lg">
+      <span className="text-muted-foreground flex shrink-0 items-center justify-center rounded p-1">
+        <GripVertical className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm">{lesson.title}</span>
+      <ContentTypeBadge contentType={lesson.content_type} />
+      <LessonStatusBadge status={lesson.status} />
+    </div>
+  )
+}
+
 /** A lessons list that can be reordered by drag or keyboard, on its own. */
 function LessonList({
   lessons,
@@ -176,8 +203,15 @@ function LessonList({
   onDelete: (lesson: Lesson) => void
 }) {
   const sensors = useReorderSensors()
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const activeLesson = activeId ? (lessons.find((l) => l.id === activeId) ?? null) : null
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(String(event.active.id))
+  }
 
   function handleDragEnd(event: DragEndEvent) {
+    setActiveId(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
     const changed = computeChangedPositions(lessons, String(active.id), String(over.id))
@@ -185,7 +219,13 @@ function LessonList({
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveId(null)}
+    >
       <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
         <ul className="space-y-2">
           {lessons.map((lesson) => (
@@ -193,6 +233,7 @@ function LessonList({
           ))}
         </ul>
       </SortableContext>
+      <DragOverlay>{activeLesson ? <LessonRowPreview lesson={activeLesson} /> : null}</DragOverlay>
     </DndContext>
   )
 }
@@ -237,8 +278,11 @@ function ModuleCard({
   return (
     <li
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn('bg-background rounded-lg border', isDragging && 'relative z-10 opacity-50')}
+      // See LessonRow — the dragged card is represented by <DragOverlay>
+      // instead, so it stays put as a placeholder here rather than also
+      // chasing the pointer via its own transform.
+      style={{ transform: isDragging ? undefined : CSS.Transform.toString(transform), transition }}
+      className={cn('bg-background rounded-lg border', isDragging && 'opacity-40')}
     >
       <div className="flex items-center gap-2 px-3 py-2.5">
         <DragHandle attributes={attributes} listeners={listeners} label={`Reorder ${module.title}`} />
@@ -309,6 +353,24 @@ function ModuleCard({
   )
 }
 
+/** DragOverlay content for a topic — see LessonRowPreview for the rationale. */
+function ModuleCardPreview({ module, lessonCount }: { module: Module; lessonCount: number }) {
+  return (
+    <div className="bg-background flex items-center gap-2 rounded-lg border px-3 py-2.5 shadow-lg">
+      <span className="text-muted-foreground flex shrink-0 items-center justify-center rounded p-1">
+        <GripVertical className="size-4" />
+      </span>
+      <span className="text-muted-foreground flex items-center justify-center rounded p-1">
+        <ChevronDown />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm font-medium">{module.title}</span>
+      <span className="text-muted-foreground shrink-0 text-xs">
+        {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
+      </span>
+    </div>
+  )
+}
+
 export function CurriculumTab({ courseId }: { courseId: string }) {
   const modulesQuery = useModules(courseId)
   const lessonsQuery = useLessons(courseId)
@@ -322,6 +384,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
   const [moduleToDelete, setModuleToDelete] = useState<Module | null>(null)
   const [lessonToDelete, setLessonToDelete] = useState<Lesson | null>(null)
   const [lessonTarget, setLessonTarget] = useState<LessonTarget | null>(null)
+  const [activeModuleId, setActiveModuleId] = useState<string | null>(null)
 
   const modules = useMemo(() => modulesQuery.data ?? [], [modulesQuery.data])
   const lessons = useMemo(() => lessonsQuery.data ?? [], [lessonsQuery.data])
@@ -372,12 +435,19 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
     }
   }
 
+  function handleModuleDragStart(event: DragStartEvent) {
+    setActiveModuleId(String(event.active.id))
+  }
+
   function handleModuleDragEnd(event: DragEndEvent) {
+    setActiveModuleId(null)
     const { active, over } = event
     if (!over || active.id === over.id) return
     const changed = computeChangedPositions(modules, String(active.id), String(over.id))
     if (changed.length > 0) moduleMutations.reorder.mutate(changed)
   }
+
+  const activeModule = activeModuleId ? (modules.find((m) => m.id === activeModuleId) ?? null) : null
 
   if (isPending) {
     return (
@@ -420,7 +490,9 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
       <DndContext
         sensors={moduleSensors}
         collisionDetection={closestCenter}
+        onDragStart={handleModuleDragStart}
         onDragEnd={handleModuleDragEnd}
+        onDragCancel={() => setActiveModuleId(null)}
       >
         <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
           <ul className="space-y-3">
@@ -462,6 +534,14 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
             })}
           </ul>
         </SortableContext>
+        <DragOverlay>
+          {activeModule ? (
+            <ModuleCardPreview
+              module={activeModule}
+              lessonCount={lessonsByModule.get(activeModule.id)?.length ?? 0}
+            />
+          ) : null}
+        </DragOverlay>
       </DndContext>
 
       <Button

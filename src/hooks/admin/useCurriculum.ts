@@ -131,6 +131,7 @@ function useCurriculumInvalidator(courseId: string) {
 }
 
 export function useModuleMutations(courseId: string) {
+  const queryClient = useQueryClient()
   const invalidate = useCurriculumInvalidator(courseId)
 
   const create = useMutation({
@@ -186,8 +187,33 @@ export function useModuleMutations(courseId: string) {
       const { error } = await supabase.from('modules').upsert(changed, { onConflict: 'id' })
       if (error) throw new Error(error.message)
     },
-    onSuccess: invalidate,
-    onError: (e: Error) => toast.error(e.message),
+    // Without this, the dropped order only appears once this round-trip
+    // resolves — dnd-kit resets its internal drag transforms the instant
+    // the pointer is released, based on whatever `modules` still is at that
+    // exact moment (the pre-drag order, since nothing's updated it yet), so
+    // the whole list visibly snaps back and then jumps again ~1s later once
+    // the refetch lands. Setting the cache here, synchronously, closes that
+    // window entirely — the "drop" position and the "rendered" position
+    // become the same thing in the same tick.
+    onMutate: async (changed) => {
+      await queryClient.cancelQueries({ queryKey: curriculumKeys.modules(courseId) })
+      const previous = queryClient.getQueryData<Module[]>(curriculumKeys.modules(courseId))
+      if (previous) {
+        const changedById = new Map(changed.map((item) => [item.id, item]))
+        queryClient.setQueryData<Module[]>(
+          curriculumKeys.modules(courseId),
+          previous
+            .map((item) => changedById.get(item.id) ?? item)
+            .sort((a, b) => a.position - b.position),
+        )
+      }
+      return { previous }
+    },
+    onError: (e: Error, _changed, context) => {
+      if (context?.previous) queryClient.setQueryData(curriculumKeys.modules(courseId), context.previous)
+      toast.error(e.message)
+    },
+    onSettled: invalidate,
   })
 
   return { create, rename, remove, reorder }
@@ -223,6 +249,7 @@ function lessonToRow(values: LessonFormValues) {
 }
 
 export function useLessonMutations(courseId: string) {
+  const queryClient = useQueryClient()
   const invalidate = useCurriculumInvalidator(courseId)
 
   const create = useMutation({
@@ -282,15 +309,45 @@ export function useLessonMutations(courseId: string) {
       ),
   })
 
-  /** Same batch-upsert reasoning as the module reorder above. */
+  /**
+   * Same batch-upsert reasoning as the module reorder, plus the same
+   * optimistic-cache fix for the same drop-then-snap-back jank. One wrinkle
+   * here: `useLessons` caches one flat, course-wide, position-ordered array
+   * that `CurriculumTab` groups into per-topic buckets client-side by
+   * `module_id` — the drag only ever reorders siblings *within* one topic
+   * (or within Ungrouped), so `changed` is that subset, not the whole
+   * course. Overwriting the cache with just that subset would silently
+   * drop every lesson in every other topic. Instead, `changed` is merged
+   * into the full previous array by id and the result re-sorted by
+   * `position` — mirroring exactly what the query's own `.order('position')`
+   * does, so the client-side grouping (which relies on array order, not a
+   * fresh sort of its own) produces the identical result a refetch would.
+   */
   const reorder = useMutation({
     mutationFn: async (changed: Lesson[]) => {
       if (changed.length === 0) return
       const { error } = await supabase.from('lessons').upsert(changed, { onConflict: 'id' })
       if (error) throw new Error(error.message)
     },
-    onSuccess: invalidate,
-    onError: (e: Error) => toast.error(e.message),
+    onMutate: async (changed) => {
+      await queryClient.cancelQueries({ queryKey: curriculumKeys.lessons(courseId) })
+      const previous = queryClient.getQueryData<Lesson[]>(curriculumKeys.lessons(courseId))
+      if (previous) {
+        const changedById = new Map(changed.map((item) => [item.id, item]))
+        queryClient.setQueryData<Lesson[]>(
+          curriculumKeys.lessons(courseId),
+          previous
+            .map((item) => changedById.get(item.id) ?? item)
+            .sort((a, b) => a.position - b.position),
+        )
+      }
+      return { previous }
+    },
+    onError: (e: Error, _changed, context) => {
+      if (context?.previous) queryClient.setQueryData(curriculumKeys.lessons(courseId), context.previous)
+      toast.error(e.message)
+    },
+    onSettled: invalidate,
   })
 
   return { create, update, remove, reorder }
