@@ -53,12 +53,49 @@ the admin section deliberately does not.
 
 ## Admin visual language (`/admin/*`)
 
-Neutral shadcn default: Geist font (from shadcn's Nova preset, same as the
-rest of the app's non-auth chrome), neutral greys. Brand tokens appear only
-as accents: gold `admin` / teal `student` role badges, coral for destructive
-text/actions. Rationale: a dense data table reads better utilitarian, and
-admins are a different audience than kids using the product. No `AdminLayout`
-exists yet — each admin page currently renders standalone (see `state.md`).
+Neutral shadcn default: Geist font (from shadcn's Nova preset), neutral
+greys. Rationale: dense data reads better utilitarian, and admins are a
+different audience than the kids using the product.
+
+**Baloo 2 must not leak in.** It's scoped to the `.auth-page` class, and
+`AdminLayout`'s root sets `font-sans` explicitly to make that intent obvious
+rather than merely inherited.
+
+**Color is functional, not decorative.** The panel stays visually quiet —
+sidebar, cards and borders are neutral — and color appears only where it
+carries meaning: status pills, KPI accents, the attention list.
+
+| Token | Means |
+|---|---|
+| `teal` | healthy / published / active / paid |
+| `gold` | draft / paused / needs review |
+| `coral` | unresolved / failed / error |
+| `plum` | gamification and XP surfaces |
+| `ink` on near-white | body text and chrome |
+
+Use the `-d` variants for text (`text-coral-d`, `text-gold-d`) — the base
+tones are tuned for fills and fail contrast as small text on white.
+
+**Tokens are Tailwind utilities.** `src/index.css`'s `@theme inline` block
+maps each brand token to a `--color-*` entry, so `bg-gold`, `text-teal-d`,
+`border-coral` all work. `inline` keeps the utility pointing at the `var()`
+rather than copying the value, so `styles.css` stays the single definition
+point. **Never hardcode a hex** in a component — if a utility is missing,
+add the mapping instead.
+
+### Admin shell
+
+`src/components/admin/AdminLayout.tsx` — persistent left sidebar + topbar
+wrapping an `<Outlet />`. **Desktop-first; mobile responsiveness is explicitly
+not implemented.**
+
+- Sidebar nav is grouped (Content / Engagement / Commerce / Administration)
+  and defined by the `NAV_GROUPS` array — the single place to add an item.
+- Topbar shows the page title derived from the active route (exact match,
+  falling back to the longest matching section prefix so deep routes still
+  label correctly), the signed-in admin's `display_name`, and sign-out.
+- `NavLink` carries one `to as never` cast because most nav targets aren't in
+  the typed route tree yet; drop it as real routes land.
 
 ## Component conventions
 

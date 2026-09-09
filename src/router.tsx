@@ -3,15 +3,16 @@ import {
   createRoute,
   createRouter,
   Outlet,
-  redirect,
 } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import { AdminGuard, AdminPageSkeleton } from '@/components/admin/AdminGuard'
-import { requireAdmin } from '@/lib/adminSession'
+import { AdminLayout } from '@/components/admin/AdminLayout'
+import { redirectIfAdminAlreadySignedIn, requireAdmin } from '@/lib/adminSession'
 import { queryClient } from '@/lib/queryClient'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
+import { DashboardPage } from '@/pages/admin/DashboardPage'
 import { UsersPage } from '@/pages/admin/UsersPage'
 
 interface RouterContext {
@@ -35,6 +36,11 @@ const loginRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
   }),
+  // Handled at the route rather than in the submit handler, so an admin with
+  // a restored session who opens /login directly is sent on rather than
+  // being shown a form they don't need.
+  beforeLoad: ({ context, search }) =>
+    redirectIfAdminAlreadySignedIn(context.queryClient, search.redirect),
 })
 
 const signupRoute = createRoute({
@@ -56,7 +62,9 @@ const adminRoute = createRoute({
   pendingMs: 0,
   component: () => (
     <AdminGuard>
-      <Outlet />
+      <AdminLayout>
+        <Outlet />
+      </AdminLayout>
     </AdminGuard>
   ),
 })
@@ -64,9 +72,7 @@ const adminRoute = createRoute({
 const adminIndexRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: '/',
-  beforeLoad: () => {
-    throw redirect({ to: '/admin/users' })
-  },
+  component: DashboardPage,
 })
 
 const adminUsersRoute = createRoute({

@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate, useRouter, useSearch } from '@tanstack/react-router'
+import { Link, useRouter, useSearch } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { AuthField } from '@/components/auth/AuthField'
+import { resolvePostLoginPath } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -12,8 +14,8 @@ interface FieldErrors {
 }
 
 export function LoginPage() {
-  const navigate = useNavigate()
   const router = useRouter()
+  const queryClient = useQueryClient()
   const { redirect } = useSearch({ from: '/login' })
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -36,20 +38,22 @@ export function LoginPage() {
 
     setSubmitting(true)
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    setSubmitting(false)
 
     if (error) {
+      setSubmitting(false)
       setFormError(error.message)
       return
     }
 
-    // `redirect` is an arbitrary path captured by the admin guard, so it
-    // goes through history rather than the typed navigate().
-    if (redirect) {
-      router.history.replace(redirect)
-    } else {
-      navigate({ to: '/' })
-    }
+    // Destination depends on the role, which is read from profiles after the
+    // session exists. `redirect` is attacker-controllable, so it's validated
+    // (and ignored for non-admins) inside resolvePostLoginPath.
+    const destination = await resolvePostLoginPath(queryClient, redirect)
+    setSubmitting(false)
+
+    // A runtime string rather than one of the typed route paths, so it goes
+    // through history instead of navigate().
+    router.history.replace(destination)
   }
 
   return (

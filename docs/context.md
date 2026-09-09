@@ -14,6 +14,13 @@ build phase: admin-facing tooling only, no student-facing UI.
 - shadcn/ui CLI 4.19.1 (Radix base, "Nova" preset) + `radix-ui` 1.6.7
 - TanStack Query 5.102.8, TanStack Router 1.170.32 (**code-based** route tree
   in `src/router.tsx`, not file-based routing)
+- TanStack Table **9.2.4** — note the v9 API, not the v8 most examples show:
+  `useTable({ features, columns, data })` (not `useReactTable`), features
+  built statically via `tableFeatures({})`, columns wrapped in
+  `columnHelper.columns([...])` (a bare array widens value types and fails
+  the constraint), cells rendered with `<table.FlexRender cell={cell} />`.
+  A v8-style `useReactTable` + `getCoreRowModel` call lives behind
+  `@tanstack/react-table/legacy` if ever needed.
 - Framer Motion 13.1.1, lucide-react 1.38.0
 - Vite 8.2.2, npm only — no pnpm/yarn/bun lockfiles
 
@@ -91,6 +98,13 @@ Edge Function, which re-checks the caller's `profiles.role` server-side
 (via the service-role client, never the caller-scoped one) before touching
 any payload — the client-side guard and disabled buttons are UX only, this
 is the real gate.
+
+**Money:** one formatter, `src/lib/currency.ts`, `Intl.NumberFormat` under
+`en-IN` (Indian grouping — 1,49,900 — is not hand-rolled). Currency code is
+read off the row (`payments.currency`, `courses.currency`, both default
+`'INR'`) rather than assumed; there is no app-wide currency setting and no
+settings table to hold one. Unit and call-site rules are invariants — see
+`rules.md`.
 
 **Naming conventions:** Postgres functions `fn_*`, triggers `trg_*`,
 migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.

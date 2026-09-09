@@ -1,0 +1,249 @@
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
+import { DEFAULT_CURRENCY, formatAmount } from '@/lib/currency'
+
+/**
+ * Every card gets its own query so one failing request degrades a single
+ * card instead of blanking the dashboard.
+ *
+ * The database is currently empty apart from two profiles, so zero is the
+ * expected answer nearly everywhere — the UI treats that as a normal state,
+ * not a loading or error state.
+ */
+const key = (...parts: string[]) => ['admin', 'dashboard', ...parts]
+
+/** Unwraps a Supabase `head: true` count query into a plain number. */
+async function runCount(
+  query: PromiseLike<{ count: number | null; error: { message: string } | null }>,
+): Promise<number> {
+  const { count, error } = await query
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+// Table names are written inline rather than passed as a parameter: a union
+// of table names collapses the builder's column typing to the intersection,
+// so `.eq('role', ...)` would stop type-checking.
+const HEAD_COUNT = { count: 'exact', head: true } as const
+
+export function useStudentCount() {
+  return useQuery({
+    queryKey: key('students'),
+    queryFn: () =>
+      runCount(supabase.from('profiles').select('*', HEAD_COUNT).eq('role', 'student')),
+  })
+}
+
+export function useCourseCounts() {
+  return useQuery({
+    queryKey: key('courses'),
+    queryFn: async () => {
+      const [published, draft] = await Promise.all([
+        runCount(supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'published')),
+        runCount(supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'draft')),
+      ])
+      return { published, draft }
+    },
+  })
+}
+
+export function useActiveEnrollmentCount() {
+  return useQuery({
+    queryKey: key('enrollments'),
+    queryFn: () =>
+      runCount(supabase.from('enrollments').select('*', HEAD_COUNT).eq('status', 'active')),
+  })
+}
+
+export function useRevenue() {
+  return useQuery({
+    queryKey: key('revenue'),
+    queryFn: async () => {
+      // Filtered to INR deliberately: summing across currencies is
+      // meaningless. If the product ever genuinely sells in another
+      // currency this needs a per-currency breakdown, not a wider filter.
+      //
+      // Summed client-side because PostgREST aggregate functions aren't
+      // guaranteed enabled on this project and adding a view/RPC would mean
+      // a migration. Fine at present volume; revisit if payments grow.
+      const { data, error } = await supabase
+        .from('payments')
+        .select('amount')
+        .eq('status', 'paid')
+        .eq('currency', DEFAULT_CURRENCY)
+
+      if (error) throw error
+      return (data ?? []).reduce((total, row) => total + (row.amount ?? 0), 0)
+    },
+  })
+}
+
+export interface AttentionItem {
+  id: 'unresolved-payments' | 'draft-courses' | 'gamification-disabled'
+  count: number
+  label: string
+  tone: 'coral' | 'gold' | 'plum'
+  to: string
+}
+
+export function useNeedsAttention() {
+  return useQuery({
+    queryKey: key('attention'),
+    queryFn: async (): Promise<AttentionItem[]> => {
+      const [unresolvedPayments, draftCourses, gamificationOff] = await Promise.all([
+        runCount(
+          supabase
+            .from('payments')
+            .select('*', HEAD_COUNT)
+            .eq('reconciliation_status', 'unresolved'),
+        ),
+        runCount(supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'draft')),
+        runCount(
+          supabase.from('courses').select('*', HEAD_COUNT).eq('gamification_enabled', false),
+        ),
+      ])
+
+      return [
+        {
+          id: 'unresolved-payments',
+          count: unresolvedPayments,
+          label:
+            unresolvedPayments === 1
+              ? '1 payment is unresolved'
+              : `${unresolvedPayments} payments are unresolved`,
+          tone: 'coral',
+          to: '/admin/orders',
+        },
+        {
+          id: 'draft-courses',
+          count: draftCourses,
+          label:
+            draftCourses === 1
+              ? '1 course is still a draft'
+              : `${draftCourses} courses are still drafts`,
+          tone: 'gold',
+          to: '/admin/courses',
+        },
+        {
+          id: 'gamification-disabled',
+          count: gamificationOff,
+          // Wording matters: this flag isn't read by any trigger, Edge
+          // Function or UI check — XP and badges still accrue on these
+          // courses. The item exists to surface that gap, not to imply the
+          // setting is doing something.
+          label:
+            gamificationOff === 1
+              ? '1 course has gamification switched off (setting is not enforced yet — XP still accrues)'
+              : `${gamificationOff} courses have gamification switched off (setting is not enforced yet — XP still accrues)`,
+          tone: 'plum',
+          to: '/admin/courses',
+        },
+      ].filter((item) => item.count > 0) as AttentionItem[]
+    },
+  })
+}
+
+export type ActivityKind = 'enrollment' | 'payment' | 'xp'
+
+export interface ActivityRow {
+  id: string
+  kind: ActivityKind
+  at: string
+  detail: string
+}
+
+interface EnrollmentActivity {
+  id: string
+  enrolled_at: string
+  profiles: { display_name: string } | null
+  courses: { title: string } | null
+}
+
+interface PaymentActivity {
+  id: string
+  received_at: string
+  amount: number
+  currency: string
+  status: string
+}
+
+interface XpActivity {
+  id: string
+  created_at: string
+  amount: number
+  reason: string
+  profiles: { display_name: string } | null
+}
+
+const PAYMENT_VERB: Record<string, string> = {
+  paid: 'Payment received',
+  refunded: 'Payment refunded',
+  failed: 'Payment failed',
+}
+
+/**
+ * There's no unified activity table, so three small queries run in parallel
+ * and are merged client-side. Embeds use explicit FK constraint hints
+ * because `profiles` is also reachable through the `profiles_public` view,
+ * which can otherwise make the relationship ambiguous to PostgREST.
+ */
+export function useRecentActivity(limit = 8) {
+  return useQuery({
+    queryKey: key('activity', String(limit)),
+    queryFn: async (): Promise<ActivityRow[]> => {
+      const [enrollments, payments, xp] = await Promise.all([
+        supabase
+          .from('enrollments')
+          .select(
+            'id, enrolled_at, profiles!enrollments_user_id_fkey(display_name), courses!enrollments_course_id_fkey(title)',
+          )
+          .order('enrolled_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('payments')
+          .select('id, received_at, amount, currency, status')
+          .order('received_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('xp_transactions')
+          .select('id, created_at, amount, reason, profiles!xp_transactions_user_id_fkey(display_name)')
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ])
+
+      if (enrollments.error) throw enrollments.error
+      if (payments.error) throw payments.error
+      if (xp.error) throw xp.error
+
+      const rows: ActivityRow[] = [
+        ...((enrollments.data ?? []) as unknown as EnrollmentActivity[]).map((row) => ({
+          id: `enrollment-${row.id}`,
+          kind: 'enrollment' as const,
+          at: row.enrolled_at,
+          detail: `${row.profiles?.display_name ?? 'Someone'} enrolled in ${
+            row.courses?.title ?? 'a course'
+          }`,
+        })),
+        ...((payments.data ?? []) as unknown as PaymentActivity[]).map((row) => ({
+          id: `payment-${row.id}`,
+          kind: 'payment' as const,
+          at: row.received_at,
+          detail: `${PAYMENT_VERB[row.status] ?? 'Payment'} — ${formatAmount(
+            row.amount,
+            row.currency,
+          )}`,
+        })),
+        ...((xp.data ?? []) as unknown as XpActivity[]).map((row) => ({
+          id: `xp-${row.id}`,
+          kind: 'xp' as const,
+          at: row.created_at,
+          detail: `${row.profiles?.display_name ?? 'Someone'} earned ${row.amount} XP — ${row.reason}`,
+        })),
+      ]
+
+      return rows
+        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+        .slice(0, limit)
+    },
+  })
+}

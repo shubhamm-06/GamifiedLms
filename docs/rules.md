@@ -31,9 +31,20 @@ belongs in `context.md` or `state.md`, not here.
 - **`SUPABASE_SERVICE_ROLE_KEY` (and any future service-role credential) is
   never hardcoded in source** — read from the environment
   (`Deno.env.get(...)` in Edge Functions) only.
+- **Monetary integer columns store WHOLE RUPEES, not paise.**
+  `payments.amount = 1499` means ₹1,499. Neither column documents a unit, so
+  this is a decision the codebase now depends on: anything writing money —
+  above all a future payment-gateway webhook — must convert to whole units
+  first. A writer that stores paise makes every amount on screen wrong by
+  100x, silently.
+- **Every monetary value in the UI renders through `formatAmount`
+  (`src/lib/currency.ts`).** No inline `₹`, no ad-hoc `toLocaleString` at call
+  sites. It's the single swap point if the unit or presentation ever changes;
+  bypassing it means a future change silently misses that call site.
 - **No new color token is added outside the locked set in `ui.md` without
   updating that file first.** An undocumented one-off color silently
-  fragments the design system.
+  fragments the design system. Hardcoded hex values are never acceptable —
+  the tokens are exposed as Tailwind utilities for exactly this reason.
 - **TypeScript only — no new `.js`/`.jsx` files.**
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any
