@@ -1,10 +1,12 @@
 import { useState } from 'react'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { CourseBuilder, type CourseTab } from '@/components/admin/courses/CourseBuilder'
 import { CourseForm } from '@/components/admin/courses/CourseForm'
 import { CourseStatusPill } from '@/components/admin/courses/CourseStatusPill'
+import { CurriculumTab } from '@/components/admin/courses/CurriculumTab'
 import {
   lifecycleActionsFor,
   LIFECYCLE_LABEL,
@@ -43,6 +45,7 @@ function toFormValues(course: Course): CourseFormValues {
 
 export function CourseEditPage() {
   const { courseId } = useParams({ from: '/admin/courses/$courseId/edit' })
+  const { tab } = useSearch({ from: '/admin/courses/$courseId/edit' })
   const navigate = useNavigate()
   const { data: course, isPending, isError } = useCourse(courseId)
   const updateCourse = useUpdateCourse()
@@ -102,7 +105,7 @@ export function CourseEditPage() {
         <p className="text-muted-foreground text-sm">Edit course</p>
       </header>
 
-      <section className="max-w-2xl space-y-3 rounded-lg border p-4">
+      <section className="max-w-3xl space-y-3 rounded-lg border p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <CourseStatusPill status={course.status} />
@@ -138,13 +141,30 @@ export function CourseEditPage() {
         </p>
       </section>
 
-      <CourseForm
-        mode="edit"
-        initialValues={toFormValues(course)}
-        isSubmitting={updateCourse.isPending}
-        externalErrors={slugError ? { slug: slugError } : undefined}
-        onSubmit={handleSubmit}
-        onCancel={() => navigate({ to: '/admin/courses' })}
+      <CourseBuilder
+        tab={tab}
+        // Tab lives in the URL so it survives a refresh and can be linked to
+        // (the create flow lands directly on ?tab=curriculum).
+        onTabChange={(next: CourseTab) =>
+          navigate({
+            to: '/admin/courses/$courseId/edit',
+            params: { courseId },
+            search: { tab: next },
+            replace: true,
+          })
+        }
+        curriculumLocked={false}
+        basics={
+          <CourseForm
+            mode="edit"
+            initialValues={toFormValues(course)}
+            isSubmitting={updateCourse.isPending}
+            externalErrors={slugError ? { slug: slugError } : undefined}
+            onSubmit={handleSubmit}
+            onCancel={() => navigate({ to: '/admin/courses' })}
+          />
+        }
+        curriculum={<CurriculumTab courseId={courseId} />}
       />
     </div>
   )

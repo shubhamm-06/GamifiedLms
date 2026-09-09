@@ -112,6 +112,36 @@ Established by Courses; follow these for the next admin domain.
   when a course is free; duration appears only for fixed access. A disabled
   field still reads as "something I might need to fill in".
 
+### Course Builder (tabbed editor)
+
+- **Tabs, with the dependent tab locked until the parent row exists.**
+  `/admin/courses/new` shows Curriculum greyed out with a "Save the course
+  first" tooltip — topics and lessons need a `course_id` to attach to. The
+  create submit reads **"Save & continue"** and lands on
+  `?tab=curriculum`, since building the curriculum is the actual next step.
+- **Tab state lives in the URL** (`?tab=basics|curriculum`), so it survives a
+  refresh and can be linked to. See `routes-permissions.md`.
+- **Reordering is up/down buttons, not drag-and-drop.** Deliberate: true drag
+  reordering means adopting `dnd-kit` or similar, which is a dependency
+  decision on its own. Both buttons swap `position` with the adjacent sibling
+  in two updates; first item's up and last item's down are disabled. Swap in
+  drag later if it's worth the dependency.
+- **Nested editing goes one level deep in a Sheet, not a new route.** A lesson
+  opens in a slide-over; a quiz lesson's questions are edited *inside that
+  same sheet* rather than in a third route or a dialog-over-dialog. Questions
+  only appear once the lesson row exists, since they need a `lesson_id`.
+- **Destructive copy states the actual consequence.** Deleting a topic says
+  its lessons move to Ungrouped (the FK is `SET NULL`, so they genuinely
+  survive); deleting a lesson warns that its questions go with it and that
+  student activity will block it outright. "Are you sure?" would be wrong in
+  both directions.
+- **Orphaned rows stay visible.** Lessons whose topic was deleted render in an
+  explicit "Ungrouped" section rather than disappearing from the builder.
+- **`content_type` badges are outlined; status badges are solid.** Both draw
+  from the same four accents, so a quiz lesson in draft would otherwise put
+  gold next to gold — the two badge families differ by more than hue.
+  Mapping: video=teal, text=plum, quiz=gold, game=coral.
+
 ### Admin shell
 
 `src/components/admin/AdminLayout.tsx` — persistent left sidebar + topbar

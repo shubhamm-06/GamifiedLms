@@ -20,3 +20,8 @@ new entries.
 - 2026-09-09 — Made archive the only removal path for courses and recorded it as an invariant — deleting would cascade-destroy modules/lessons silently while failing outright once any payment or enrollment exists
 - 2026-09-09 — Recorded `published_at` as set-once-on-first-publish — no trigger maintains the column, so re-publishing an archived course must not overwrite its original date
 - 2026-09-09 — Documented the TanStack Table v9 feature-registration shape for sorting/filtering/pagination in `context.md` — v8's `getSortedRowModel()` option doesn't exist in v9 and the next table shouldn't have to rediscover it
+- 2026-09-29 — Restructured the course create/edit routes into a tabbed Course Builder and built the Curriculum tab (topics, lessons, quiz questions — full CRUD and reorder inline) — course content had no authoring UI at all until now
+- 2026-09-29 — Stored quiz `options` as `{id, text}` with `correct_option` holding the option **id** rather than its text — rewording an option would otherwise silently orphan the answer key, and nothing downstream would catch a question that can never be answered correctly
+- 2026-09-29 — Recorded the lesson-delete FK-violation handling as an invariant — `lesson_progress`/`quiz_attempts` are `NO ACTION`, so a lesson with student activity must report that specifically instead of leaking a raw Postgres error
+- 2026-09-29 — Added a general verification email-hygiene rule to `rules.md` (SQL-created test accounts, never `signUp`/`inviteUser`) — every throwaway account made through the real auth flow burns a transactional email against a shared quota
+- 2026-09-29 — Corrected `schema.md`: `lessons` has no `slug` column and never has, despite the doc claiming one since the original plan

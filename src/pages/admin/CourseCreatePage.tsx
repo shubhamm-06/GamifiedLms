@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
+import { CourseBuilder } from '@/components/admin/courses/CourseBuilder'
 import { CourseForm } from '@/components/admin/courses/CourseForm'
 import { SLUG_TAKEN, useCreateCourse, type CourseFormValues } from '@/hooks/admin/useCourses'
 
@@ -14,11 +15,15 @@ export function CourseCreatePage() {
     createCourse.mutate(values, {
       onSuccess: (course) => {
         toast.success(`“${course.title}” created as a draft.`)
-        navigate({ to: '/admin/courses' })
+        // Straight into Curriculum — building it out is the natural next
+        // step once the course row exists.
+        navigate({
+          to: '/admin/courses/$courseId/edit',
+          params: { courseId: course.id },
+          search: { tab: 'curriculum' },
+        })
       },
       onError: (error: Error) => {
-        // A slug clash belongs under the field that caused it, not in a toast
-        // the user has to map back to an input themselves.
         if (error.message === SLUG_TAKEN) {
           setSlugError('This slug is already in use.')
           return
@@ -33,16 +38,27 @@ export function CourseCreatePage() {
       <header>
         <h1 className="text-lg font-semibold tracking-tight">New course</h1>
         <p className="text-muted-foreground text-sm">
-          Saved as a draft — publish it once it&rsquo;s ready.
+          Saved as a draft — add curriculum next, then publish when ready.
         </p>
       </header>
 
-      <CourseForm
-        mode="create"
-        isSubmitting={createCourse.isPending}
-        externalErrors={slugError ? { slug: slugError } : undefined}
-        onSubmit={handleSubmit}
-        onCancel={() => navigate({ to: '/admin/courses' })}
+      <CourseBuilder
+        tab="basics"
+        // No course row exists yet, so there is nothing to hang topics or
+        // lessons off — the tab stays locked until the first save.
+        curriculumLocked
+        onTabChange={() => undefined}
+        basics={
+          <CourseForm
+            mode="create"
+            submitLabel="Save & continue"
+            isSubmitting={createCourse.isPending}
+            externalErrors={slugError ? { slug: slugError } : undefined}
+            onSubmit={handleSubmit}
+            onCancel={() => navigate({ to: '/admin/courses' })}
+          />
+        }
+        curriculum={null}
       />
     </div>
   )

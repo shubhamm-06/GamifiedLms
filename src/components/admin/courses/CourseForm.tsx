@@ -41,6 +41,8 @@ interface CourseFormProps {
   /** Server-side errors keyed to a field — e.g. a slug uniqueness violation. */
   externalErrors?: FieldErrors
   onCancel: () => void
+  /** Overrides the default submit wording (create mode uses "Save & continue"). */
+  submitLabel?: string
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -85,6 +87,7 @@ export function CourseForm({
   isSubmitting,
   externalErrors,
   onCancel,
+  submitLabel,
 }: CourseFormProps) {
   const [values, setValues] = useState<CourseFormValues>(initialValues ?? EMPTY_COURSE_FORM)
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -342,9 +345,7 @@ export function CourseForm({
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting
             ? 'Saving…'
-            : mode === 'create'
-              ? 'Create course'
-              : 'Save changes'}
+            : (submitLabel ?? (mode === 'create' ? 'Create course' : 'Save changes'))}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel

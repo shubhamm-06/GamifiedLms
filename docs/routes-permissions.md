@@ -14,13 +14,19 @@ file-based — new routes are added there, not by creating files under a
 | `/admin` | `DashboardPage` | Admin only | KPI cards, needs-attention list, recent-activity table |
 | `/admin/users` | `UsersPage` | Admin only | List/search/filter/paginate users; create/edit/change-email/reset-password/delete dialogs |
 | `/admin/courses` | `CoursesPage` | Admin only | Sortable/filterable list; row actions are status-contextual (no delete — see `rules.md`) |
-| `/admin/courses/new` | `CourseCreatePage` | Admin only | Always inserts as `draft` |
-| `/admin/courses/$courseId/edit` | `CourseEditPage` | Admin only | Lifecycle actions + the shared form. Bad id or RLS-hidden row renders "Course not found", not a crash |
+| `/admin/courses/new` | `CourseCreatePage` | Admin only | Always inserts as `draft`. Curriculum tab locked until saved |
+| `/admin/courses/$courseId/edit` | `CourseEditPage` | Admin only | Course Builder: Basics + Curriculum tabs. Bad id or RLS-hidden row renders "Course not found", not a crash |
+
+**`?tab=` search param.** Both course routes take `tab=basics|curriculum`
+(`validateSearch` coerces anything else to `basics`). It's a real search param
+rather than component state so the builder tab survives a refresh and can be
+linked to — the create flow redirects straight to
+`…/edit?tab=curriculum` after the first save. Because `tab` is required on
+the edit route's search type, every `navigate` to it must pass one.
 
 There is deliberately **no `/admin/courses/$courseId` index route** —
-`$courseId/edit` stands alone. Module/lesson/quiz management is a separate
-future task, and that detail page will need full inline create/edit for
-modules, lessons and quiz questions (not just viewing).
+`$courseId/edit` stands alone, and the builder's Curriculum tab is where
+modules, lessons and quiz questions are managed.
 
 **Nav targets that don't exist yet** — `/admin/games`,
 `/admin/gamification`, `/admin/students`, `/admin/orders`, `/admin/settings`.

@@ -31,6 +31,26 @@ belongs in `context.md` or `state.md`, not here.
 - **`SUPABASE_SERVICE_ROLE_KEY` (and any future service-role credential) is
   never hardcoded in source** — read from the environment
   (`Deno.env.get(...)` in Edge Functions) only.
+- **Test accounts are created by direct SQL, never through `signUp` or
+  `inviteUser`.** Those paths send a real transactional email every time,
+  against a shared quota, for an account that exists only for a few minutes
+  of verification. Insert into `auth.users` with
+  `extensions.crypt(pw, extensions.gen_salt('bf'))`, a matching
+  `auth.identities` row (`provider = 'email'`, `provider_id = user_id::text`),
+  and `email_confirmed_at = now()`. **Also set
+  `confirmation_token`, `recovery_token`, `email_change`,
+  `email_change_token_new`, `email_change_token_current`, `phone_change`,
+  `phone_change_token` and `reauthentication_token` to `''`** — GoTrue scans
+  those columns into non-nullable strings, and a `NULL` left by a hand-written
+  insert makes every login fail with "Database error querying schema". Reuse
+  one account across checks rather than making a fresh one per check, and
+  delete it via SQL afterwards.
+- **A lesson delete that fails with Postgres `23503` is reported as student
+  activity, never as a generic error.** `lesson_progress.lesson_id` and
+  `quiz_attempts.lesson_id` are `NO ACTION`, so the database refuses the
+  delete the moment any student has touched the lesson. Surfacing the raw FK
+  violation would read as a bug rather than as the intended protection, and
+  the admin would have no idea that unpublishing is the way out.
 - **Courses are never hard-deleted from the admin UI — archive only.** The FK
   behaviour is mixed and dangerous in both directions: `modules.course_id` and
   `lessons.course_id` are `ON DELETE CASCADE` (a delete silently destroys all

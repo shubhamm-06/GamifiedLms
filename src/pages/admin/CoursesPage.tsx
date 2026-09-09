@@ -26,7 +26,11 @@ export function CoursesPage() {
   const lifecycle = useCourseLifecycle()
 
   function handleEdit(course: Course) {
-    navigate({ to: '/admin/courses/$courseId/edit', params: { courseId: course.id } })
+    navigate({
+      to: '/admin/courses/$courseId/edit',
+      params: { courseId: course.id },
+      search: { tab: 'basics' },
+    })
   }
 
   function handleLifecycle(course: Course, action: LifecycleAction) {

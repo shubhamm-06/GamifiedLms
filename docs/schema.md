@@ -81,7 +81,7 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 `title`, `position`, `created_at`.
 
 **`lessons`** — content unit. `id`, `course_id` (FK cascade), `module_id`
-(FK, nullable), `slug` (unique per course), `title`, `summary`,
+(FK, nullable), `title`, `summary`,
 `content_type` (`'video'|'text'|'quiz'|'game'`), `video_url`, `content_html`,
 `game_id` (FK), `duration_seconds`, `xp_reward` (null inherits
 `courses.default_lesson_xp` — never let the client do this fallback; use the
@@ -112,7 +112,14 @@ guard against double-awarding completion XP.
 
 **`quiz_questions`** — `id`, `lesson_id` (FK cascade), `prompt`, `options`
 (jsonb array of `{id, text}`), `correct_option` (**must never reach the
-client unstripped**), `explanation`, `position`.
+client unstripped**), `explanation`, `position`. `correct_option` stores an
+option's **`id`**, not its text, so rewording an option can't orphan the
+answer key; the admin UI only ever offers the current options as choices and
+refuses to save a mismatch.
+
+⚠️ **`lessons` has no `slug` column.** The original plan called for one and
+this file claimed it until 2026-09-29 — the live table has never had it.
+Lessons are addressed by `id`.
 
 **`quiz_attempts`** — every submission kept, not just the best. `id`,
 `user_id`, `lesson_id`, `score`, `max_score`, `passed`, `answers` (jsonb),

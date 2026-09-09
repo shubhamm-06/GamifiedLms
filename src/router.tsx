@@ -12,6 +12,7 @@ import { queryClient } from '@/lib/queryClient'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
+import type { CourseTab } from '@/components/admin/courses/CourseBuilder'
 import { CourseCreatePage } from '@/pages/admin/CourseCreatePage'
 import { CourseEditPage } from '@/pages/admin/CourseEditPage'
 import { CoursesPage } from '@/pages/admin/CoursesPage'
@@ -90,6 +91,14 @@ const adminCoursesRoute = createRoute({
   component: CoursesPage,
 })
 
+/**
+ * Builder tab lives in the URL so it survives a refresh and is linkable.
+ * Create mode has no course row yet, so it can only ever be on Basics.
+ */
+function validateCourseTab(search: Record<string, unknown>): { tab: CourseTab } {
+  return { tab: search.tab === 'curriculum' ? 'curriculum' : 'basics' }
+}
+
 const adminCourseCreateRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'courses/new',
@@ -103,6 +112,7 @@ const adminCourseEditRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'courses/$courseId/edit',
   component: CourseEditPage,
+  validateSearch: validateCourseTab,
 })
 
 const routeTree = rootRoute.addChildren([

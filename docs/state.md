@@ -6,18 +6,22 @@ pushed anywhere.
 
 ## Current WIP
 
-Courses admin landed (2026-09-09): `/admin/courses` list (sort, search,
-status filter, client-side pagination), plus dedicated `/admin/courses/new`
-and `/admin/courses/$courseId/edit` routes sharing one form component.
-Lifecycle is Publish / Archive / Restore — there is no delete affordance
-anywhere, by design. Verified end-to-end against the live database (created,
-edited, published, archived, restored, and confirmed a slug clash surfaces
-inline); test data removed afterwards.
+Course Builder landed (2026-09-29): the create and edit routes are now a
+tabbed builder (Basics + Curriculum), and the Curriculum tab does full
+create/edit/delete/reorder for topics (`modules`), lessons, and — for quiz
+lessons — quiz questions, all without leaving the page. Verified end-to-end
+against the live database, including the FK-blocked lesson delete and the
+answer-key validation; all test data and accounts removed afterwards.
 
-The admin shell (sidebar/topbar layout, dashboard, role-aware post-login
-routing) landed earlier the same day. Remaining nav items — Games,
-Badges & XP, Students, Orders & Payments, Settings — still point at routes
-that don't exist and 404 inside the shell by design.
+Deliberately not built: drag-and-drop reordering (up/down buttons instead —
+avoids a `dnd-kit`-class dependency) and a Tutor-style "Additional" tab
+(prerequisites/FAQs/audience have no columns in this schema).
+
+Earlier the same phase: `/admin/courses` list with lifecycle actions, the
+admin shell (sidebar/topbar, dashboard), and role-aware post-login routing.
+Remaining nav items — Games, Badges & XP, Students, Orders & Payments,
+Settings — still point at routes that don't exist and 404 inside the shell
+by design.
 
 ## Live data reality
 
@@ -44,11 +48,10 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). UI and Edge Function both refuse
    it; a direct `service_role`/dashboard delete or `auth.users` cascade still
    isn't stopped.
-3. Course **detail** route (`/admin/courses/$courseId`) for modules, lessons
-   and quiz questions — must support full inline **create/edit**, not just
-   viewing. Not scaffolded at all yet, deliberately.
-4. Then the remaining nav destinations (Games, Badges & XP, Students,
-   Orders & Payments, Settings).
+3. The remaining nav destinations — Games first, since `content_type = 'game'`
+   lessons currently fall back to pasting a raw game UUID (the `games` table
+   is empty and has no admin UI).
+4. Then Badges & XP, Students, Orders & Payments, Settings.
 
 ## Known shortcuts / tech debt
 
@@ -62,8 +65,15 @@ None.
   most nav targets aren't in the typed route tree yet. Remove as real routes
   land.
 - **No Storage bucket exists** (`storage.buckets` is empty), so
-  `courses.thumbnail_url` is a paste-a-URL field. No upload flow is wired;
-  building one means creating a bucket and its policies first.
+  `courses.thumbnail_url` and a lesson's `video_url` are both paste-a-URL
+  fields. No upload flow is wired; building one means creating a bucket and
+  its policies first.
+- **Lesson `content_html` is a raw HTML textarea** — a rich-text editor is a
+  separate dependency decision.
+- **`game_id` falls back to pasting a raw UUID** while the `games` table is
+  empty and has no admin UI. The picker switches to a real dropdown as soon
+  as any game exists.
+- **Curriculum reordering is up/down buttons**, not drag-and-drop.
 - **Admin shell is desktop-only** — no mobile responsiveness, deliberately.
 - **No `AdminLayout` tests** and no CI at all.
 - **First-admin "can never be deleted"** — enforced at UI + Edge Function
