@@ -170,20 +170,27 @@ export function useModuleMutations(courseId: string) {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const swap = useMutation({
-    mutationFn: async ({ a, b }: { a: Module; b: Module }) => {
-      const [first, second] = await Promise.all([
-        supabase.from('modules').update({ position: b.position }).eq('id', a.id),
-        supabase.from('modules').update({ position: a.position }).eq('id', b.id),
-      ])
-      if (first.error) throw new Error(first.error.message)
-      if (second.error) throw new Error(second.error.message)
+  /**
+   * Drag reorder can move an item across several siblings in one drop, not
+   * just swap two neighbors, so this takes every module whose `position`
+   * actually changed and writes them in a single request. `upsert` is given
+   * the complete row for each (not just `id`/`position`), because Postgres
+   * validates NOT NULL columns against the row `ON CONFLICT DO UPDATE`
+   * builds even though only the provided columns end up written — a
+   * partial `{ id, position }` payload would fail that check for columns
+   * like `title`.
+   */
+  const reorder = useMutation({
+    mutationFn: async (changed: Module[]) => {
+      if (changed.length === 0) return
+      const { error } = await supabase.from('modules').upsert(changed, { onConflict: 'id' })
+      if (error) throw new Error(error.message)
     },
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message),
   })
 
-  return { create, rename, remove, swap }
+  return { create, rename, remove, reorder }
 }
 
 export interface LessonFormValues {
@@ -275,20 +282,18 @@ export function useLessonMutations(courseId: string) {
       ),
   })
 
-  const swap = useMutation({
-    mutationFn: async ({ a, b }: { a: Lesson; b: Lesson }) => {
-      const [first, second] = await Promise.all([
-        supabase.from('lessons').update({ position: b.position }).eq('id', a.id),
-        supabase.from('lessons').update({ position: a.position }).eq('id', b.id),
-      ])
-      if (first.error) throw new Error(first.error.message)
-      if (second.error) throw new Error(second.error.message)
+  /** Same batch-upsert reasoning as the module reorder above. */
+  const reorder = useMutation({
+    mutationFn: async (changed: Lesson[]) => {
+      if (changed.length === 0) return
+      const { error } = await supabase.from('lessons').upsert(changed, { onConflict: 'id' })
+      if (error) throw new Error(error.message)
     },
     onSuccess: invalidate,
     onError: (e: Error) => toast.error(e.message),
   })
 
-  return { create, update, remove, swap }
+  return { create, update, remove, reorder }
 }
 
 export interface QuestionFormValues {

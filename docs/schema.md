@@ -77,16 +77,44 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | published_at | timestamptz | nullable | |
 | created_at, updated_at | timestamptz | default now() | `updated_at` trigger-maintained |
 
-**`modules`** — optional grouping layer. `id`, `course_id` (FK cascade),
-`title`, `position`, `created_at`.
+**`modules`** — optional grouping layer. `id`, `course_id` (FK, **`ON DELETE
+CASCADE`**), `title`, `position`, `created_at`.
 
-**`lessons`** — content unit. `id`, `course_id` (FK cascade), `module_id`
-(FK, nullable), `title`, `summary`,
+**`lessons`** — content unit. `id`, `course_id` (FK, **`ON DELETE CASCADE`**),
+`module_id` (FK, nullable, **`ON DELETE SET NULL`**), `title`, `summary`,
 `content_type` (`'video'|'text'|'quiz'|'game'`), `video_url`, `content_html`,
 `game_id` (FK), `duration_seconds`, `xp_reward` (null inherits
 `courses.default_lesson_xp` — never let the client do this fallback; use the
 `lesson_effective_xp` view), `is_preview`, `status` (`'draft'|'published'`),
 `position`, `created_at`.
+
+⚠️ **Two different cascade behaviors, easy to conflate — verified directly
+against `information_schema.referential_constraints`, not assumed:**
+- `courses → modules.course_id` and `courses → lessons.course_id` are both
+  **`CASCADE`**. Deleting a course destroys its modules and lessons outright
+  — there is no "orphaned lesson" state reachable this way. (Also why
+  `courses` itself is never hard-deleted from the admin UI — see `rules.md`.)
+- `modules → lessons.module_id` is **`SET NULL`**. Deleting a *topic* does
+  **not** touch its lessons — they survive with `module_id = null` and the
+  admin UI surfaces them under "Ungrouped" rather than losing them.
+
+So a lesson can vanish two different ways depending on what's deleted above
+it — cascaded away with its course, or merely ungrouped by losing its topic
+— and the admin UI's confirm copy for each says the correct one explicitly
+rather than a generic "are you sure?" (see `ui.md`).
+
+**`video_url` convention (no separate column marks "embedded"):** stores
+either a direct file/stream URL, unvalidated, or a normalized YouTube/Vimeo
+embed URL (`https://www.youtube.com/embed/<id>` or
+`https://player.vimeo.com/video/<id>`). `src/lib/video.ts` is the single
+place that knows these two shapes — `isEmbedUrl()` distinguishes them,
+`normalizeEmbedUrl()` converts a pasted share link into the canonical form.
+The admin lesson form's Embed-link mode always writes through
+`normalizeEmbedUrl()` and refuses to save if it returns `null`; raw
+`<iframe>`/HTML embed code is never accepted or stored anywhere — only a
+plain URL is ever extracted and persisted. Any future consumer (the
+student-facing player, when it exists) should import from `video.ts` rather
+than re-deriving these patterns.
 
 **`games`** — CDN-hosted HTML/CSS/JS bundle registry. `id`, `slug`, `title`,
 `bundle_url`, `bundle_version`, `bundle_size_bytes`, `checksum`, `max_xp`

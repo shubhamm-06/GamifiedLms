@@ -6,16 +6,26 @@ pushed anywhere.
 
 ## Current WIP
 
-Course Builder landed (2026-09-29): the create and edit routes are now a
-tabbed builder (Basics + Curriculum), and the Curriculum tab does full
-create/edit/delete/reorder for topics (`modules`), lessons, and — for quiz
-lessons — quiz questions, all without leaving the page. Verified end-to-end
-against the live database, including the FK-blocked lesson delete and the
-answer-key validation; all test data and accounts removed afterwards.
+Curriculum reordering is now real drag-and-drop (2026-09-09):
+`@dnd-kit/core`/`sortable`/`utilities`, mouse and keyboard both verified, a
+single batch `upsert` per drop rather than one request per row. The earlier
+up/down-button version is gone, not kept as a fallback. Same session: video
+lessons can be pasted as a YouTube/Vimeo share link and normalized to an
+embeddable URL (`src/lib/video.ts`), or a direct file/stream URL as before —
+never raw `<iframe>`/HTML.
 
-Deliberately not built: drag-and-drop reordering (up/down buttons instead —
-avoids a `dnd-kit`-class dependency) and a Tutor-style "Additional" tab
-(prerequisites/FAQs/audience have no columns in this schema).
+Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
+the Curriculum tab's create/edit/delete for topics, lessons, and quiz
+questions) — a prior pass of this file mistyped that date as 2026-09-29;
+see `changelog.md` for the correction. Deliberately not built there: a
+Tutor-style "Additional" tab (prerequisites/FAQs/audience have no columns
+in this schema).
+
+All of the above verified end-to-end against the live database each time,
+using a throwaway SQL-created admin and a separately-titled test course —
+never the real "Wisdom Hatch Kids" course/content the user is actively
+authoring, which this project's data now includes. Test data and accounts
+removed after each verification pass.
 
 Earlier the same phase: `/admin/courses` list with lifecycle actions, the
 admin shell (sidebar/topbar, dashboard), and role-aware post-login routing.
@@ -73,7 +83,9 @@ None.
 - **`game_id` falls back to pasting a raw UUID** while the `games` table is
   empty and has no admin UI. The picker switches to a real dropdown as soon
   as any game exists.
-- **Curriculum reordering is up/down buttons**, not drag-and-drop.
+- **Video embed only recognizes YouTube/Vimeo share links.** No other
+  provider is detected; an unrecognized link is a validation error, not a
+  silent save.
 - **Admin shell is desktop-only** — no mobile responsiveness, deliberately.
 - **No `AdminLayout` tests** and no CI at all.
 - **First-admin "can never be deleted"** — enforced at UI + Edge Function

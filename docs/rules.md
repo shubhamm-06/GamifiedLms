@@ -63,6 +63,11 @@ belongs in `context.md` or `state.md`, not here.
   null. Re-publishing after an archive must preserve the original
   first-published date, so any new code path that publishes a course has to
   carry the same guard.
+- **`lessons.video_url` never stores raw `<iframe>`/HTML embed code.** The
+  Embed-link input only ever extracts a YouTube/Vimeo video id via regex
+  (`src/lib/video.ts`) and writes back a plain reconstructed URL — never the
+  pasted string itself. Storing raw markup here is a stored-XSS hole the
+  moment any future renderer uses `dangerouslySetInnerHTML` on this column.
 - **Monetary integer columns store WHOLE RUPEES, not paise.**
   `payments.amount = 1499` means ₹1,499. Neither column documents a unit, so
   this is a decision the codebase now depends on: anything writing money —

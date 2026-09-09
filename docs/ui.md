@@ -121,11 +121,24 @@ Established by Courses; follow these for the next admin domain.
   `?tab=curriculum`, since building the curriculum is the actual next step.
 - **Tab state lives in the URL** (`?tab=basics|curriculum`), so it survives a
   refresh and can be linked to. See `routes-permissions.md`.
-- **Reordering is up/down buttons, not drag-and-drop.** Deliberate: true drag
-  reordering means adopting `dnd-kit` or similar, which is a dependency
-  decision on its own. Both buttons swap `position` with the adjacent sibling
-  in two updates; first item's up and last item's down are disabled. Swap in
-  drag later if it's worth the dependency.
+- **Reordering is real drag-and-drop, via `@dnd-kit/core` + `@dnd-kit/sortable`
+  + `@dnd-kit/utilities`.** (An earlier pass shipped up/down buttons instead
+  and deferred the dependency — since corrected; buttons are gone entirely,
+  not offered alongside drag.) A `GripVertical` handle at the left edge of
+  each row is the *only* draggable surface — listeners live solely on the
+  handle (`DragHandle` in `CurriculumTab.tsx`), never the row, so dragging
+  can't conflict with clicking to rename/expand/edit/delete. Both
+  `PointerSensor` (small activation distance so a click doesn't register as
+  a drag start) and `KeyboardSensor` are wired — reordering must stay
+  keyboard-accessible, not just mouse-draggable. Topics and each topic's
+  lessons are independent `DndContext`/`SortableContext` pairs — there's no
+  cross-container drag (moving a lesson to a different topic isn't a drag
+  gesture; use the lesson drawer for that).
+  On drop, every sibling whose position actually changed (not just the two
+  endpoints of the drag) is recomputed and written in one `upsert` call
+  seeded with full row objects — a partial `{id, position}` payload fails
+  Postgres's `NOT NULL` check on the row `ON CONFLICT DO UPDATE` has to
+  build, even though only the provided columns end up written.
 - **Nested editing goes one level deep in a Sheet, not a new route.** A lesson
   opens in a slide-over; a quiz lesson's questions are edited *inside that
   same sheet* rather than in a third route or a dialog-over-dialog. Questions

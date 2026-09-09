@@ -1,8 +1,25 @@
 import { useMemo, useState } from 'react'
 import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   ChevronDown,
   ChevronRight,
-  ChevronUp,
+  GripVertical,
   Pencil,
   Plus,
   Trash2,
@@ -20,6 +37,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import {
   useLessonMutations,
   useLessons,
@@ -39,45 +57,89 @@ interface LessonTarget {
   position: number
 }
 
+/**
+ * A drop can move an item past several siblings in one go — dragging item 0
+ * to the end shifts every item in between — so every row whose position
+ * actually changed is collected and written together, not just the two
+ * endpoints of the drag.
+ */
+function computeChangedPositions<T extends { id: string; position: number }>(
+  items: T[],
+  activeId: string,
+  overId: string,
+): T[] {
+  const oldIndex = items.findIndex((item) => item.id === activeId)
+  const newIndex = items.findIndex((item) => item.id === overId)
+  if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return []
+
+  return arrayMove(items, oldIndex, newIndex)
+    .map((item, index) => ({ item, index }))
+    .filter(({ item, index }) => item.position !== index)
+    .map(({ item, index }) => ({ ...item, position: index }))
+}
+
+/**
+ * Pointer needs a small activation distance so a click (rename, expand,
+ * edit) doesn't get mistaken for the start of a drag. Keyboard is a second,
+ * independent sensor — the button-based version this replaces was
+ * accidentally more accessible than plain pointer drag would be, and
+ * dnd-kit's KeyboardSensor is how that isn't lost.
+ */
+function useReorderSensors() {
+  return useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+}
+
+type SortableHandleProps = Pick<ReturnType<typeof useSortable>, 'attributes' | 'listeners'>
+
+/**
+ * The only draggable surface on a row — dragging must not conflict with
+ * clicking the title to rename it, the chevron to expand it, or the
+ * edit/delete buttons, so listeners live here alone, not on the row.
+ */
+function DragHandle({
+  attributes,
+  listeners,
+  label,
+}: SortableHandleProps & { label: string }) {
+  return (
+    <button
+      type="button"
+      className="text-muted-foreground hover:text-foreground flex shrink-0 touch-none items-center justify-center rounded p-1 active:cursor-grabbing"
+      aria-label={label}
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical className="size-4" />
+    </button>
+  )
+}
+
 function LessonRow({
   lesson,
-  index,
-  siblings,
   onEdit,
   onDelete,
-  onSwap,
-  swapPending,
 }: {
   lesson: Lesson
-  index: number
-  siblings: Lesson[]
   onEdit: (lesson: Lesson) => void
   onDelete: (lesson: Lesson) => void
-  onSwap: (a: Lesson, b: Lesson) => void
-  swapPending: boolean
 }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: lesson.id,
+  })
+
   return (
-    <li className="flex items-center gap-2 rounded-md border px-2.5 py-2">
-      <div className="flex flex-col">
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`Move ${lesson.title} up`}
-          disabled={index === 0 || swapPending}
-          onClick={() => onSwap(lesson, siblings[index - 1])}
-        >
-          <ChevronUp />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label={`Move ${lesson.title} down`}
-          disabled={index === siblings.length - 1 || swapPending}
-          onClick={() => onSwap(lesson, siblings[index + 1])}
-        >
-          <ChevronDown />
-        </Button>
-      </div>
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        'bg-background flex items-center gap-2 rounded-md border px-2.5 py-2',
+        isDragging && 'relative z-10 opacity-50',
+      )}
+    >
+      <DragHandle attributes={attributes} listeners={listeners} label={`Reorder ${lesson.title}`} />
       <span className="min-w-0 flex-1 truncate text-sm">{lesson.title}</span>
       <ContentTypeBadge contentType={lesson.content_type} />
       <LessonStatusBadge status={lesson.status} />
@@ -101,11 +163,158 @@ function LessonRow({
   )
 }
 
+/** A lessons list that can be reordered by drag or keyboard, on its own. */
+function LessonList({
+  lessons,
+  onReorder,
+  onEdit,
+  onDelete,
+}: {
+  lessons: Lesson[]
+  onReorder: (changed: Lesson[]) => void
+  onEdit: (lesson: Lesson) => void
+  onDelete: (lesson: Lesson) => void
+}) {
+  const sensors = useReorderSensors()
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const changed = computeChangedPositions(lessons, String(active.id), String(over.id))
+    if (changed.length > 0) onReorder(changed)
+  }
+
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+        <ul className="space-y-2">
+          {lessons.map((lesson) => (
+            <LessonRow key={lesson.id} lesson={lesson} onEdit={onEdit} onDelete={onDelete} />
+          ))}
+        </ul>
+      </SortableContext>
+    </DndContext>
+  )
+}
+
+function ModuleCard({
+  module,
+  moduleLessons,
+  isOpen,
+  isRenaming,
+  renameDraft,
+  onRenameDraftChange,
+  onStartRename,
+  onCommitRename,
+  onCancelRename,
+  onToggleExpand,
+  onDelete,
+  onAddLesson,
+  onEditLesson,
+  onDeleteLesson,
+  onReorderLessons,
+}: {
+  module: Module
+  moduleLessons: Lesson[]
+  isOpen: boolean
+  isRenaming: boolean
+  renameDraft: string
+  onRenameDraftChange: (value: string) => void
+  onStartRename: () => void
+  onCommitRename: () => void
+  onCancelRename: () => void
+  onToggleExpand: () => void
+  onDelete: () => void
+  onAddLesson: () => void
+  onEditLesson: (lesson: Lesson) => void
+  onDeleteLesson: (lesson: Lesson) => void
+  onReorderLessons: (changed: Lesson[]) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: module.id,
+  })
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn('bg-background rounded-lg border', isDragging && 'relative z-10 opacity-50')}
+    >
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        <DragHandle attributes={attributes} listeners={listeners} label={`Reorder ${module.title}`} />
+
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={isOpen ? `Collapse ${module.title}` : `Expand ${module.title}`}
+          onClick={onToggleExpand}
+        >
+          {isOpen ? <ChevronDown /> : <ChevronRight />}
+        </Button>
+
+        {isRenaming ? (
+          <Input
+            autoFocus
+            className="h-8 flex-1"
+            value={renameDraft}
+            onChange={(e) => onRenameDraftChange(e.target.value)}
+            onBlur={onCommitRename}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onCommitRename()
+              if (e.key === 'Escape') onCancelRename()
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="hover:bg-muted min-w-0 flex-1 truncate rounded px-1.5 py-1 text-left text-sm font-medium transition-colors"
+            onClick={onStartRename}
+          >
+            {module.title}
+          </button>
+        )}
+
+        <span className="text-muted-foreground shrink-0 text-xs">
+          {moduleLessons.length} {moduleLessons.length === 1 ? 'lesson' : 'lessons'}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Delete ${module.title}`}
+          onClick={onDelete}
+        >
+          <Trash2 />
+        </Button>
+      </div>
+
+      {isOpen ? (
+        <div className="space-y-2 border-t px-3 py-3">
+          {moduleLessons.length === 0 ? (
+            <p className="text-muted-foreground text-sm">No lessons in this topic yet.</p>
+          ) : (
+            <LessonList
+              lessons={moduleLessons}
+              onReorder={onReorderLessons}
+              onEdit={onEditLesson}
+              onDelete={onDeleteLesson}
+            />
+          )}
+          <Button variant="outline" size="sm" onClick={onAddLesson}>
+            <Plus />
+            Add lesson
+          </Button>
+        </div>
+      ) : null}
+    </li>
+  )
+}
+
 export function CurriculumTab({ courseId }: { courseId: string }) {
   const modulesQuery = useModules(courseId)
   const lessonsQuery = useLessons(courseId)
   const moduleMutations = useModuleMutations(courseId)
   const lessonMutations = useLessonMutations(courseId)
+  const moduleSensors = useReorderSensors()
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -163,6 +372,13 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
     }
   }
 
+  function handleModuleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const changed = computeChangedPositions(modules, String(active.id), String(over.id))
+    if (changed.length > 0) moduleMutations.reorder.mutate(changed)
+  }
+
   if (isPending) {
     return (
       <div className="space-y-3">
@@ -201,127 +417,52 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
         </div>
       ) : null}
 
-      <ul className="space-y-3">
-        {modules.map((module, index) => {
-          const moduleLessons = lessonsByModule.get(module.id) ?? []
-          const open = isExpanded(module.id)
-          return (
-            <li key={module.id} className="rounded-lg border">
-              <div className="flex items-center gap-2 px-3 py-2.5">
-                <div className="flex flex-col">
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Move ${module.title} up`}
-                    disabled={index === 0 || moduleMutations.swap.isPending}
-                    onClick={() =>
-                      moduleMutations.swap.mutate({ a: module, b: modules[index - 1] })
-                    }
-                  >
-                    <ChevronUp />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Move ${module.title} down`}
-                    disabled={index === modules.length - 1 || moduleMutations.swap.isPending}
-                    onClick={() =>
-                      moduleMutations.swap.mutate({ a: module, b: modules[index + 1] })
-                    }
-                  >
-                    <ChevronDown />
-                  </Button>
-                </div>
-
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={open ? `Collapse ${module.title}` : `Expand ${module.title}`}
-                  onClick={() => setExpanded((prev) => ({ ...prev, [module.id]: !open }))}
-                >
-                  {open ? <ChevronDown /> : <ChevronRight />}
-                </Button>
-
-                {renamingId === module.id ? (
-                  <Input
-                    autoFocus
-                    className="h-8 flex-1"
-                    value={renameDraft}
-                    onChange={(e) => setRenameDraft(e.target.value)}
-                    onBlur={() => commitRename(module)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') commitRename(module)
-                      if (e.key === 'Escape') setRenamingId(null)
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="hover:bg-muted min-w-0 flex-1 truncate rounded px-1.5 py-1 text-left text-sm font-medium transition-colors"
-                    onClick={() => {
-                      setRenameDraft(module.title)
-                      setRenamingId(module.id)
-                    }}
-                  >
-                    {module.title}
-                  </button>
-                )}
-
-                <span className="text-muted-foreground shrink-0 text-xs">
-                  {moduleLessons.length} {moduleLessons.length === 1 ? 'lesson' : 'lessons'}
-                </span>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Delete ${module.title}`}
-                  onClick={() => setModuleToDelete(module)}
-                >
-                  <Trash2 />
-                </Button>
-              </div>
-
-              {open ? (
-                <div className="space-y-2 border-t px-3 py-3">
-                  {moduleLessons.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">No lessons in this topic yet.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {moduleLessons.map((lesson, lessonIndex) => (
-                        <LessonRow
-                          key={lesson.id}
-                          lesson={lesson}
-                          index={lessonIndex}
-                          siblings={moduleLessons}
-                          swapPending={lessonMutations.swap.isPending}
-                          onEdit={(l) =>
-                            setLessonTarget({ moduleId: module.id, lesson: l, position: 0 })
-                          }
-                          onDelete={setLessonToDelete}
-                          onSwap={(a, b) => lessonMutations.swap.mutate({ a, b })}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setLessonTarget({
-                        moduleId: module.id,
-                        lesson: null,
-                        position: moduleLessons.length,
-                      })
-                    }
-                  >
-                    <Plus />
-                    Add lesson
-                  </Button>
-                </div>
-              ) : null}
-            </li>
-          )
-        })}
-      </ul>
+      <DndContext
+        sensors={moduleSensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleModuleDragEnd}
+      >
+        <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-3">
+            {modules.map((module) => {
+              const moduleLessons = lessonsByModule.get(module.id) ?? []
+              return (
+                <ModuleCard
+                  key={module.id}
+                  module={module}
+                  moduleLessons={moduleLessons}
+                  isOpen={isExpanded(module.id)}
+                  isRenaming={renamingId === module.id}
+                  renameDraft={renameDraft}
+                  onRenameDraftChange={setRenameDraft}
+                  onStartRename={() => {
+                    setRenameDraft(module.title)
+                    setRenamingId(module.id)
+                  }}
+                  onCommitRename={() => commitRename(module)}
+                  onCancelRename={() => setRenamingId(null)}
+                  onToggleExpand={() =>
+                    setExpanded((prev) => ({ ...prev, [module.id]: !isExpanded(module.id) }))
+                  }
+                  onDelete={() => setModuleToDelete(module)}
+                  onAddLesson={() =>
+                    setLessonTarget({
+                      moduleId: module.id,
+                      lesson: null,
+                      position: moduleLessons.length,
+                    })
+                  }
+                  onEditLesson={(l) =>
+                    setLessonTarget({ moduleId: module.id, lesson: l, position: 0 })
+                  }
+                  onDeleteLesson={setLessonToDelete}
+                  onReorderLessons={(changed) => lessonMutations.reorder.mutate(changed)}
+                />
+              )
+            })}
+          </ul>
+        </SortableContext>
+      </DndContext>
 
       <Button
         variant="outline"
@@ -345,20 +486,14 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
               Lessons not in any topic — including any left behind by a deleted topic.
             </p>
           </header>
-          <ul className="space-y-2 p-3">
-            {ungrouped.map((lesson, lessonIndex) => (
-              <LessonRow
-                key={lesson.id}
-                lesson={lesson}
-                index={lessonIndex}
-                siblings={ungrouped}
-                swapPending={lessonMutations.swap.isPending}
-                onEdit={(l) => setLessonTarget({ moduleId: null, lesson: l, position: 0 })}
-                onDelete={setLessonToDelete}
-                onSwap={(a, b) => lessonMutations.swap.mutate({ a, b })}
-              />
-            ))}
-          </ul>
+          <div className="p-3">
+            <LessonList
+              lessons={ungrouped}
+              onReorder={(changed) => lessonMutations.reorder.mutate(changed)}
+              onEdit={(l) => setLessonTarget({ moduleId: null, lesson: l, position: 0 })}
+              onDelete={setLessonToDelete}
+            />
+          </div>
         </section>
       ) : null}
 

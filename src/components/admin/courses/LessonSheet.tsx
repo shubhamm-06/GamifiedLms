@@ -24,7 +24,11 @@ import {
   type Lesson,
   type LessonFormValues,
 } from '@/hooks/admin/useCurriculum'
+import { cn } from '@/lib/utils'
+import { isEmbedUrl, normalizeEmbedUrl } from '@/lib/video'
 import { QuizQuestionsEditor } from './QuizQuestionsEditor'
+
+type VideoMode = 'direct' | 'embed'
 
 const EMPTY_LESSON: LessonFormValues = {
   title: '',
@@ -78,6 +82,12 @@ function LessonFields({
     lesson ? lessonToFormValues(lesson) : EMPTY_LESSON,
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // Not a stored field — there is no column marking a video as "embedded".
+  // Defaults from whatever's already saved: an existing embed URL opens back
+  // into Embed mode rather than looking like a mismatched direct link.
+  const [videoMode, setVideoMode] = useState<VideoMode>(() =>
+    lesson?.video_url && isEmbedUrl(lesson.video_url) ? 'embed' : 'direct',
+  )
   const { data: games } = useGames()
 
   function set<K extends keyof LessonFormValues>(field: K, value: LessonFormValues[K]) {
@@ -88,9 +98,24 @@ function LessonFields({
     event.preventDefault()
     const next: Record<string, string> = {}
     if (!values.title.trim()) next.title = 'Title is required.'
+
+    // video_url is optional either way, so an empty field isn't an error —
+    // only a non-empty value that doesn't parse as a YouTube/Vimeo link is.
+    // Never store the raw input in that failure case; either it's the
+    // normalized embed URL or the save is refused.
+    let videoUrl = values.video_url
+    if (values.content_type === 'video' && videoMode === 'embed' && values.video_url.trim()) {
+      const normalized = normalizeEmbedUrl(values.video_url)
+      if (!normalized) {
+        next.video_url = "That doesn't look like a YouTube or Vimeo link."
+      } else {
+        videoUrl = normalized
+      }
+    }
+
     setErrors(next)
     if (Object.keys(next).length > 0) return
-    onSubmit(values)
+    onSubmit({ ...values, video_url: videoUrl })
   }
 
   const hasGames = (games?.length ?? 0) > 0
@@ -140,17 +165,52 @@ function LessonFields({
           cleared on save so a stale value can't linger in the row. */}
       {values.content_type === 'video' ? (
         <div className="space-y-1.5">
-          <Label htmlFor="lesson-video">Video URL</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="lesson-video">Video URL</Label>
+            {/* Two plain buttons rather than a new shadcn radio-group/
+                toggle-group — the CLI's alias bug has hit this repo three
+                times already, and a two-option switch doesn't need a new
+                dependency to get right. */}
+            <div
+              role="radiogroup"
+              aria-label="Video link type"
+              className="inline-flex rounded-md border p-0.5"
+            >
+              {(['direct', 'embed'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={videoMode === mode}
+                  onClick={() => setVideoMode(mode)}
+                  className={cn(
+                    'rounded-sm px-2.5 py-1 text-xs font-medium transition-colors',
+                    videoMode === mode
+                      ? 'bg-muted text-foreground'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {mode === 'direct' ? 'Direct URL' : 'Embed link'}
+                </button>
+              ))}
+            </div>
+          </div>
           <Input
             id="lesson-video"
             value={values.video_url}
-            placeholder="https://…"
+            placeholder={videoMode === 'embed' ? 'https://youtu.be/… or https://vimeo.com/…' : 'https://…'}
+            aria-invalid={!!errors.video_url}
             onChange={(e) => set('video_url', e.target.value)}
           />
-          <p className="text-muted-foreground text-xs">
-            Paste a hosted or YouTube/Vimeo link. Upload isn&rsquo;t wired yet (no Storage
-            bucket exists).
-          </p>
+          {errors.video_url ? (
+            <p className="text-coral-d text-sm">{errors.video_url}</p>
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              {videoMode === 'embed'
+                ? 'Paste a YouTube or Vimeo share link — it will be converted to an embeddable URL on save.'
+                : "Paste a hosted or streaming file URL. Upload isn't wired yet (no Storage bucket exists)."}
+            </p>
+          )}
         </div>
       ) : null}
 
