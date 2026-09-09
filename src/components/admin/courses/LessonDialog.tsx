@@ -1,5 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -9,13 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -58,7 +59,7 @@ function lessonToFormValues(lesson: Lesson): LessonFormValues {
   }
 }
 
-interface LessonSheetProps {
+interface LessonDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** The lesson being edited, or null when creating a new one. */
@@ -67,7 +68,8 @@ interface LessonSheetProps {
   onSubmit: (values: LessonFormValues) => void
 }
 
-function LessonFields({
+/** Mounts fresh per open, so switching lessons never carries over stale state. */
+function LessonForm({
   lesson,
   isSubmitting,
   onSubmit,
@@ -313,16 +315,7 @@ function LessonFields({
         />
       </div>
 
-      <div className="flex gap-2">
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving…' : lesson ? 'Save lesson' : 'Add lesson'}
-        </Button>
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
-          Cancel
-        </Button>
-      </div>
-
-      {/* Questions live in the same drawer rather than a separate route —
+      {/* Questions live in the same dialog rather than a separate route —
           but only exist once the lesson does, and only for quiz lessons. */}
       {values.content_type === 'quiz' && lesson ? (
         <QuizQuestionsEditor lessonId={lesson.id} />
@@ -331,38 +324,49 @@ function LessonFields({
           Save the lesson first, then reopen it to add questions.
         </p>
       ) : null}
+
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving…' : lesson ? 'Save lesson' : 'Add lesson'}
+        </Button>
+      </DialogFooter>
     </form>
   )
 }
 
-export function LessonSheet({
+export function LessonDialog({
   open,
   onOpenChange,
   lesson,
   isSubmitting,
   onSubmit,
-}: LessonSheetProps) {
+}: LessonDialogProps) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-        <SheetHeader>
-          <SheetTitle>{lesson ? 'Edit lesson' : 'New lesson'}</SheetTitle>
-          <SheetDescription>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Wider than the Users dialogs (sm:max-w-md) — this form has more
+          fields plus a conditional block and, for quiz lessons, the nested
+          question editor, so the default/narrow width feels cramped.
+          max-h/overflow-y-auto since that combination can run tall. */}
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{lesson ? 'Edit lesson' : 'New lesson'}</DialogTitle>
+          <DialogDescription>
             {lesson ? lesson.title : 'Added to the selected topic.'}
-          </SheetDescription>
-        </SheetHeader>
-        <div className="px-4 pb-6">
-          {/* Keyed so switching between lessons remounts with fresh state
-              instead of carrying the previous lesson's values over. */}
-          <LessonFields
-            key={lesson?.id ?? 'new'}
-            lesson={lesson}
-            isSubmitting={isSubmitting}
-            onSubmit={onSubmit}
-            onCancel={() => onOpenChange(false)}
-          />
-        </div>
-      </SheetContent>
-    </Sheet>
+          </DialogDescription>
+        </DialogHeader>
+        {/* Keyed so switching between lessons remounts with fresh state
+            instead of carrying the previous lesson's values over. */}
+        <LessonForm
+          key={lesson?.id ?? 'new'}
+          lesson={lesson}
+          isSubmitting={isSubmitting}
+          onSubmit={onSubmit}
+          onCancel={() => onOpenChange(false)}
+        />
+      </DialogContent>
+    </Dialog>
   )
 }

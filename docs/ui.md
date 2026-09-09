@@ -133,7 +133,7 @@ Established by Courses; follow these for the next admin domain.
   keyboard-accessible, not just mouse-draggable. Topics and each topic's
   lessons are independent `DndContext`/`SortableContext` pairs — there's no
   cross-container drag (moving a lesson to a different topic isn't a drag
-  gesture; use the lesson drawer for that).
+  gesture; use the lesson dialog for that).
   On drop, every sibling whose position actually changed (not just the two
   endpoints of the drag) is recomputed and written in one `upsert` call
   seeded with full row objects — a partial `{id, position}` payload fails
@@ -160,10 +160,15 @@ Established by Courses; follow these for the next admin domain.
     snaps back to the old order and then jumps again once the real data
     arrives. See `rules.md` for the "mutate on drop, not before" half of
     this — the two only work together.
-- **Nested editing goes one level deep in a Sheet, not a new route.** A lesson
-  opens in a slide-over; a quiz lesson's questions are edited *inside that
-  same sheet* rather than in a third route or a dialog-over-dialog. Questions
-  only appear once the lesson row exists, since they need a `lesson_id`.
+- **Nested editing goes one level deep in a Dialog, not a new route.** A
+  lesson opens in a centered `Dialog` (`LessonDialog.tsx`, `sm:max-w-lg` plus
+  explicit `max-h-[85vh] overflow-y-auto` since base `DialogContent` has no
+  built-in height cap); a quiz lesson's questions are edited *inside that
+  same dialog* rather than in a third route or a dialog-over-dialog. Questions
+  only appear once the lesson row exists, since they need a `lesson_id`. This
+  replaced an earlier Sheet (slide-over) — swapped for consistency with the
+  Dialog convention already used elsewhere (e.g. Admin Users' create/edit);
+  only the container primitive changed, not the field set or submit logic.
 - **Destructive copy states the actual consequence.** Deleting a topic says
   its lessons move to Ungrouped (the FK is `SET NULL`, so they genuinely
   survive); deleting a lesson warns that its questions go with it and that

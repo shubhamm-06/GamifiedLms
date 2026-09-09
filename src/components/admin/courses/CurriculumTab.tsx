@@ -50,7 +50,7 @@ import {
   type Module,
 } from '@/hooks/admin/useCurriculum'
 import { ContentTypeBadge, LessonStatusBadge } from './ContentTypeBadge'
-import { LessonSheet } from './LessonSheet'
+import { LessonDialog } from './LessonDialog'
 
 /** Where a new/edited lesson belongs. `null` moduleId means Ungrouped. */
 interface LessonTarget {
@@ -130,6 +130,16 @@ function LessonRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lesson.id,
+    // Zero animation is a deliberate product decision, not an oversight —
+    // see rules.md. `transition: null` makes dnd-kit's own getTransition()
+    // return `undefined` instead of an eased `transform 200ms ease`, so a
+    // displaced sibling's position updates on the same frame the pointer
+    // crosses it, not over an interpolated slide.
+    transition: null,
+    // Without this, dnd-kit injects its own FLIP-style reflow transition
+    // whenever the sortable array's order changes (including right after
+    // drop) — the one case `transition: null` alone doesn't cover.
+    animateLayoutChanges: () => false,
   })
 
   return (
@@ -139,7 +149,8 @@ function LessonRow({
       // it renders here as a static placeholder rather than also chasing
       // the pointer via its own transform — applying both at once is what
       // let it drift outside the list's bounds. Non-dragged siblings still
-      // need their transform to slide and make room.
+      // need their transform to reflect the live order; `transition` is
+      // included for correctness but will be `undefined` in effect.
       style={{ transform: isDragging ? undefined : CSS.Transform.toString(transform), transition }}
       className={cn(
         'bg-background flex items-center gap-2 rounded-md border px-2.5 py-2',
@@ -233,7 +244,18 @@ function LessonList({
           ))}
         </ul>
       </SortableContext>
-      <DragOverlay>{activeLesson ? <LessonRowPreview lesson={activeLesson} /> : null}</DragOverlay>
+      {/* dropAnimation={null} short-circuits dnd-kit's "spring back to slot"
+          release animation entirely (verified against the installed
+          version: `if (config === null) return;` inside its drop-animation
+          hook, with no other side effects). `transition={() => undefined}`
+          overrides the one animation that's otherwise on by default even
+          without any config: a keyboard-activated pickup gets its own
+          `transform 250ms ease` unless explicitly cleared — pointer drags
+          already default to no transition here, so this line exists for
+          the keyboard case specifically. */}
+      <DragOverlay dropAnimation={null} transition={() => undefined}>
+        {activeLesson ? <LessonRowPreview lesson={activeLesson} /> : null}
+      </DragOverlay>
     </DndContext>
   )
 }
@@ -273,6 +295,9 @@ function ModuleCard({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: module.id,
+    // See LessonRow — zero animation by deliberate decision (rules.md).
+    transition: null,
+    animateLayoutChanges: () => false,
   })
 
   return (
@@ -534,7 +559,8 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
             })}
           </ul>
         </SortableContext>
-        <DragOverlay>
+        {/* See the lessons' DragOverlay above for why both props are needed. */}
+        <DragOverlay dropAnimation={null} transition={() => undefined}>
           {activeModule ? (
             <ModuleCardPreview
               module={activeModule}
@@ -577,7 +603,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
         </section>
       ) : null}
 
-      <LessonSheet
+      <LessonDialog
         open={!!lessonTarget}
         onOpenChange={(open) => !open && setLessonTarget(null)}
         lesson={lessonTarget?.lesson ?? null}

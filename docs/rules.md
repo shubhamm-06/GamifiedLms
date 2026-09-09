@@ -42,6 +42,18 @@ belongs in `context.md` or `state.md`, not here.
   must stay that way. Pair this with `ui.md`'s `<DragOverlay>` +
   optimistic-`onMutate` pattern for the next sortable list (Games, once that
   page exists) — one without the other still janks.
+- **Curriculum reorder interactions use zero animation, by deliberate product
+  decision — do not reintroduce transitions to "smooth" this later.** Both
+  `LessonRow` and `ModuleCard` set `useSortable({ transition: null,
+  animateLayoutChanges: () => false })`, and every `<DragOverlay>` sets
+  `dropAnimation={null} transition={() => undefined}` (the second prop is
+  necessary too — dnd-kit defaults the overlay's own `transition` to
+  `'transform 250ms ease'` for keyboard-activated drags specifically, even
+  with `dropAnimation` off). An item is in the old position, then the new
+  one, with no visible in-between state, on every activation path (pointer
+  and keyboard) and at every stage (mid-drag, on drop, on overlay release).
+  A future pass adding easing back in to make reordering "feel nicer" would
+  be reverting a considered choice, not fixing an oversight.
 - **Test accounts are created by direct SQL, never through `signUp` or
   `inviteUser`.** Those paths send a real transactional email every time,
   against a shared quota, for an account that exists only for a few minutes

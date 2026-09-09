@@ -14,10 +14,16 @@ this (2026-09-09) worked but was visibly janky** — dragged item overlapping
 content above the list, a sibling appearing to vanish for ~1s, both from the
 same missing pieces: no `<DragOverlay>` and no optimistic cache update on
 drop. Fixed 2026-09-10; see `ui.md`'s drag-and-drop entry and `rules.md` for
-what to copy next time. Same 09-09 session: video lessons can be pasted as a
-YouTube/Vimeo share link and normalized to an embeddable URL
-(`src/lib/video.ts`), or a direct file/stream URL as before — never raw
-`<iframe>`/HTML.
+what to copy next time. **A follow-up same day (2026-09-10) removed all
+reorder animation entirely** (zero-transition snap, by deliberate product
+choice, not a bug) — see `rules.md`'s new invariant; this is settled, not an
+open question to revisit. Same 09-10 session: the lesson create/edit editor
+moved from a slide-over Sheet (`LessonSheet.tsx`, now deleted) to a centered
+Dialog (`LessonDialog.tsx`), matching the Dialog convention already used by
+Admin Users — see `ui.md`'s updated nested-editing entry. Same 09-09 session:
+video lessons can be pasted as a YouTube/Vimeo share link and normalized to
+an embeddable URL (`src/lib/video.ts`), or a direct file/stream URL as before
+— never raw `<iframe>`/HTML.
 
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz
