@@ -33,9 +33,9 @@ interface NavGroup {
  * exist inside a specific course, so they belong to the course detail route
  * rather than global navigation.
  *
- * Only `/admin` and `/admin/users` resolve today. The rest point at routes
- * that don't exist yet and will 404 — that's intended, rather than filling
- * the tree with placeholder pages.
+ * Only `/admin`, `/admin/users`, `/admin/courses` and `/admin/games` resolve
+ * today. The rest point at routes that don't exist yet and will 404 — that's
+ * intended, rather than filling the tree with placeholder pages.
  */
 const NAV_GROUPS: NavGroup[] = [
   {

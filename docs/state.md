@@ -30,6 +30,20 @@ video lessons can be pasted as a YouTube/Vimeo share link and normalized to
 an embeddable URL (`src/lib/video.ts`), or a direct file/stream URL as before
 — never raw `<iframe>`/HTML.
 
+**2026-09-12, separately: `/admin/games` landed** — full create/edit/delete
+via `GameDialog.tsx` (a Dialog, not a route — games are a flat record, same
+convention as Admin Users) plus a `GameTable.tsx` list matching `CourseTable`
+conventions. Migration 006 (additive) added `games.description` and
+`games.thumbnail_url`, both nullable. `bundle_size_bytes`/`checksum` stay
+`NOT NULL` at the column level but are optional in the form — a blank input
+writes `0`/`''` rather than blocking submit, since nothing reads or verifies
+either yet. Delete is a real delete (no archive column, unlike courses) and
+is refused with a friendly "used by N lesson(s)" message when a lesson still
+references the game, rather than a raw FK error. The lesson editor's game
+picker (`useGames` in `useCurriculum.ts`) was moved to `useGames.ts` as the
+single canonical query, shared by both the picker and the new list page —
+it was duplicated across two files before this.
+
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz
 questions) — a prior pass of this file mistyped that date as 2026-09-29;
@@ -45,9 +59,8 @@ removed after each verification pass.
 
 Earlier the same phase: `/admin/courses` list with lifecycle actions, the
 admin shell (sidebar/topbar, dashboard), and role-aware post-login routing.
-Remaining nav items — Games, Badges & XP, Students, Orders & Payments,
-Settings — still point at routes that don't exist and 404 inside the shell
-by design.
+Remaining nav items — Badges & XP, Students, Orders & Payments, Settings —
+still point at routes that don't exist and 404 inside the shell by design.
 
 ## Live data reality
 
@@ -74,10 +87,8 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). UI and Edge Function both refuse
    it; a direct `service_role`/dashboard delete or `auth.users` cascade still
    isn't stopped.
-3. The remaining nav destinations — Games first, since `content_type = 'game'`
-   lessons currently fall back to pasting a raw game UUID (the `games` table
-   is empty and has no admin UI).
-4. Then Badges & XP, Students, Orders & Payments, Settings.
+3. The remaining nav destinations — Badges & XP, Students, Orders & Payments,
+   Settings, in no particular order.
 
 ## Known shortcuts / tech debt
 
@@ -96,9 +107,9 @@ None.
   its policies first.
 - **Lesson `content_html` is a raw HTML textarea** — a rich-text editor is a
   separate dependency decision.
-- **`game_id` falls back to pasting a raw UUID** while the `games` table is
-  empty and has no admin UI. The picker switches to a real dropdown as soon
-  as any game exists.
+- **`game_id` falls back to pasting a raw UUID** when the `games` table is
+  empty — the picker switches to a real dropdown as soon as any game exists,
+  which now happens via `/admin/games` rather than never.
 - **Video embed only recognizes YouTube/Vimeo share links.** No other
   provider is detected; an unrecognized link is a validation error, not a
   silent save.
@@ -122,3 +133,10 @@ None.
 - **Capacitor session handling** unaudited in a webview; no native platforms.
 - **No Edge Function** yet for quiz grading, game XP clamping, the payment
   webhook receiver, or pre-signup payment claiming.
+- **`games.bundle_size_bytes`/`checksum` are accepted but never verified.**
+  The admin form takes them as optional plain inputs (defaulting to `0`/`''`
+  if left blank) because nothing downstream reads them yet — there is no
+  game-loading/playing surface. Once one exists and starts trusting either
+  value (e.g. verifying a downloaded bundle's integrity, or a Capacitor
+  caching decision keyed on size), it must not assume every row's value is
+  real; `0`/`''` reads as "not provided," not as a verified fact.

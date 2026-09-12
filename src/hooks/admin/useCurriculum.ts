@@ -6,7 +6,6 @@ import type { Json, Tables } from '@/lib/database.types'
 export type Module = Tables<'modules'>
 export type Lesson = Tables<'lessons'>
 export type QuizQuestion = Tables<'quiz_questions'>
-export type Game = Tables<'games'>
 
 export type ContentType = 'video' | 'text' | 'quiz' | 'game'
 
@@ -34,7 +33,6 @@ export const curriculumKeys = {
   modules: (courseId: string) => ['admin', 'curriculum', 'modules', courseId] as const,
   lessons: (courseId: string) => ['admin', 'curriculum', 'lessons', courseId] as const,
   questions: (lessonId: string) => ['admin', 'curriculum', 'questions', lessonId] as const,
-  games: ['admin', 'curriculum', 'games'] as const,
 }
 
 /** Postgres FK violation — a lesson with student activity can't be deleted. */
@@ -97,18 +95,6 @@ export function useQuizQuestions(lessonId: string | null) {
         .select('*')
         .eq('lesson_id', lessonId!)
         .order('position', { ascending: true })
-      if (error) throw new Error(error.message)
-      return data ?? []
-    },
-  })
-}
-
-/** Populates the game picker for `content_type = 'game'`. */
-export function useGames() {
-  return useQuery({
-    queryKey: curriculumKeys.games,
-    queryFn: async (): Promise<Game[]> => {
-      const { data, error } = await supabase.from('games').select('*').order('title')
       if (error) throw new Error(error.message)
       return data ?? []
     },

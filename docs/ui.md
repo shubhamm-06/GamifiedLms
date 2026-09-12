@@ -233,7 +233,23 @@ not implemented.**
   hand-edit generated files beyond the documented `eslint-disable` fix on
   `button.tsx`/`badge.tsx` (see `context.md` gotchas).
 - Feature-specific UI is grouped by domain: `components/auth/`,
-  `components/admin/`, `components/admin/users/`.
+  `components/admin/`, `components/admin/users/`, `components/admin/courses/`,
+  `components/admin/games/`.
+- **Flat single-entity CRUD (no nested child content) uses a Dialog, not a
+  dedicated route or wizard.** Games (`GameDialog.tsx`) follow Admin Users
+  (`EditUserDialog.tsx`), not the Courses create/edit flow — a course has
+  modules/lessons/quiz questions hanging off it and earns its own routed
+  builder, a game is one row. Same list-table shape as `CourseTable.tsx`
+  (TanStack Table v9 feature registration, client-side sort/filter/paginate,
+  row actions via a `DropdownMenu`) for consistency across admin list pages,
+  even though the create/edit container differs.
+- **A hard delete (no archive/status column) that can be FK-blocked needs a
+  friendly count, not a raw error.** Games can be deleted outright — unlike
+  courses, which are archived because deleting cascades silently — but a
+  game still referenced by a lesson must fail with "used by N lesson(s)",
+  not a Postgres constraint message. The count is a second query run only on
+  the FK-violation path (`useDeleteGame` in `useGames.ts`), not fetched
+  up front, since the common case never needs it.
 - Dialogs that need to reset form state on reopen: split the form into an
   inner component that mounts fresh per open (Radix unmounts dialog content
   on close), rather than a `useEffect` resetting state — the lint rule

@@ -20,11 +20,11 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
-  useGames,
   type ContentType,
   type Lesson,
   type LessonFormValues,
 } from '@/hooks/admin/useCurriculum'
+import { useGames } from '@/hooks/admin/useGames'
 import { cn } from '@/lib/utils'
 import { isEmbedUrl, normalizeEmbedUrl } from '@/lib/video'
 import { QuizQuestionsEditor } from './QuizQuestionsEditor'

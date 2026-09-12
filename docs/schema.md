@@ -118,10 +118,17 @@ student-facing player, when it exists) should import from `video.ts` rather
 than re-deriving these patterns.
 
 **`games`** — CDN-hosted HTML/CSS/JS bundle registry. `id`, `slug`, `title`,
+`description` (nullable, added migration 006), `thumbnail_url` (nullable,
+paste-only — same convention as `courses.thumbnail_url`, no Storage bucket),
 `bundle_url`, `bundle_version`, `bundle_size_bytes`, `checksum`, `max_xp`
 (**server-side ceiling** on a single play's award — must be clamped inside
 whatever Edge Function eventually grades game completion; none exists yet),
-`created_by`.
+`created_by`. `bundle_size_bytes` and `checksum` are `NOT NULL` at the column
+level but optional in the admin form — nothing reads or verifies either yet
+(the game-loading/playing side doesn't exist), so a blank input writes `0` /
+`''` rather than blocking submit on metadata nobody can usefully supply
+today. If a future consumer starts relying on either for integrity checking,
+that reader should treat `0`/`''` as "not provided," not as a real value.
 
 ### 3. Learner activity
 
@@ -312,6 +319,7 @@ detail logged server-side via `console.error`.
 | 003 | `20260830153242_003_rls_policies.sql` | 2026-08-30 15:32:42 | Full access-matrix RLS policy set; `profiles_public` view; gated `quiz_questions_public` |
 | 004 | `20260831135811_004_admin_scoped_writes.sql` | 2026-08-31 13:58:11 | Admin direct writes on `enrollments`; admin `manual`-only `xp_transactions`; admin `profiles.role` changes; `payments` reconciliation columns + guard trigger |
 | 005 | `20260901075705_005_auth_profile_trigger.sql` | 2026-09-01 07:57:05 | `fn_handle_new_user()` auto-creates `profiles` on signup |
+| 006 | `20260912092250_006_games_description_thumbnail.sql` | 2026-09-12 09:22:50 | Additive: `games.description`, `games.thumbnail_url` (both nullable) |
 
 No migration has added `admin-user-management` — it's an Edge Function, not a
 schema change, deployed independently (see above).
