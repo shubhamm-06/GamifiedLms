@@ -141,15 +141,10 @@ None.
 - **Capacitor session handling** unaudited in a webview; no native platforms.
 - **No Edge Function** yet for quiz grading, game XP clamping, the payment
   webhook receiver, or pre-signup payment claiming.
-- **`CourseTable` and `GameTable` build their `columnFilters` inline in
-  `state`, so the array identity changes every render.** `UserTable` hit the
-  consequence live — the filtered row model compares by reference, treats it
-  as a filter change, and fires `autoResetPageIndex`, so Next never advances
-  (see `ui.md`). It is latent rather than broken in those two only because
-  their pagination controls render solely when `pageCount > 1`, which needs
-  more than one page of courses or games to exist. Both need the same
-  `useMemo` fix before either list grows; left untouched here because that
-  task was scoped to `/admin/users`.
+- *(Cleared 2026-09-12)* `CourseTable`/`GameTable` shared `UserTable`'s
+  unstable-`state` pagination bug; all three now memoise it, verified live
+  against 15 courses and 14 games. Kept as a line here only because the
+  failure mode is easy to reintroduce — see `ui.md`.
 - **`games.bundle_size_bytes`/`checksum` are accepted but never verified.**
   The admin form takes them as optional plain inputs (defaulting to `0`/`''`
   if left blank) because nothing downstream reads them yet — there is no

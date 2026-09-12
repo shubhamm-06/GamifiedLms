@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
@@ -199,18 +200,27 @@ export function CourseTable({
   onEdit,
   onLifecycle,
 }: CourseTableProps) {
+  // Memoised because the filtered row model compares these by *reference*: a
+  // fresh array/object each render reads as "the filters changed" and fires
+  // the model's autoResetPageIndex, pinning the table to page 1. See
+  // `ui.md` — this was caught live on the users list.
+  const state = useMemo(
+    () => ({
+      columnFilters: [
+        ...(search ? [{ id: 'title', value: search }] : []),
+        ...(statusFilter !== 'all' ? [{ id: 'status', value: statusFilter }] : []),
+      ],
+    }),
+    [search, statusFilter],
+  )
+
   const table = useTable({
     features: coursesFeatures,
     columns: buildColumns(onEdit, onLifecycle),
     data: courses,
     // Filters are driven from the page's toolbar rather than per-column UI,
     // so they're passed straight in as controlled state.
-    state: {
-      columnFilters: [
-        ...(search ? [{ id: 'title', value: search }] : []),
-        ...(statusFilter !== 'all' ? [{ id: 'status', value: statusFilter }] : []),
-      ],
-    },
+    state,
   })
 
   const rows = table.getRowModel().rows

@@ -271,8 +271,10 @@ not implemented.**
   *reference*; a fresh array or object literal each render reads as "the
   filters changed" and fires the model's `autoResetPageIndex`, which snaps
   the table back to page 1. The symptom is Next appearing to do nothing
-  while page-size changes still work. Memoise the filter array and the
-  `state` object (`UserTable.tsx`).
+  while page-size changes still work — so a table with only one page of rows
+  looks completely fine and the bug only surfaces once the data grows. All
+  three admin tables memoise their filter array and `state` object; copy
+  that, and don't pass an inline literal.
 - **Toolbar-owned filters, table-owned pagination.** The search input and
   role/status select live on the page and are passed down as controlled
   state; the page-size select and prev/next live in the table's own footer

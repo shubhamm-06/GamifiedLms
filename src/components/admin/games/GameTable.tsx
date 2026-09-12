@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
@@ -138,13 +139,20 @@ function buildColumns(onEdit: GameTableProps['onEdit'], onDelete: GameTableProps
 const COLUMN_COUNT = 5
 
 export function GameTable({ games, isPending, isError, search, onEdit, onDelete }: GameTableProps) {
+  // Memoised because the filtered row model compares these by *reference*: a
+  // fresh array/object each render reads as "the filters changed" and fires
+  // the model's autoResetPageIndex, pinning the table to page 1. See
+  // `ui.md` — this was caught live on the users list.
+  const state = useMemo(
+    () => ({ columnFilters: [...(search ? [{ id: 'title', value: search }] : [])] }),
+    [search],
+  )
+
   const table = useTable({
     features: gamesFeatures,
     columns: buildColumns(onEdit, onDelete),
     data: games,
-    state: {
-      columnFilters: [...(search ? [{ id: 'title', value: search }] : [])],
-    },
+    state,
   })
 
   const rows = table.getRowModel().rows
