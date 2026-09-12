@@ -17,7 +17,12 @@ drop. Fixed 2026-09-10; see `ui.md`'s drag-and-drop entry and `rules.md` for
 what to copy next time. **A follow-up same day (2026-09-10) removed all
 reorder animation entirely** (zero-transition snap, by deliberate product
 choice, not a bug) — see `rules.md`'s new invariant; this is settled, not an
-open question to revisit. Same 09-10 session: the lesson create/edit editor
+open question to revisit. **2026-09-12 added cross-topic lesson dragging**:
+a lesson can be moved between topics and into/out of Ungrouped, landing at
+the exact drop position. That required topics and lessons to share a single
+`DndContext` (unavoidable, not preference — see `ui.md`), and confirmed that
+`lessons.position` is per-topic rather than per-course (`rules.md`). Module
+reordering itself is unchanged. Same 09-10 session: the lesson create/edit editor
 moved from a slide-over Sheet (`LessonSheet.tsx`, now deleted) to a centered
 Dialog (`LessonDialog.tsx`), matching the Dialog convention already used by
 Admin Users — see `ui.md`'s updated nested-editing entry. Same 09-09 session:

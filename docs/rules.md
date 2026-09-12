@@ -42,6 +42,18 @@ belongs in `context.md` or `state.md`, not here.
   must stay that way. Pair this with `ui.md`'s `<DragOverlay>` +
   optimistic-`onMutate` pattern for the next sortable list (Games, once that
   page exists) — one without the other still janks.
+- **`lessons.position` is scoped per container (`module_id`, with NULL —
+  Ungrouped — as its own container), not per course, and nothing in Postgres
+  enforces it.** There is no unique constraint and no trigger; two lessons in
+  different topics legitimately share `position = 0`, and the live data
+  already does. The convention exists only in application code, so anything
+  writing `position` must renumber a whole container from 0 rather than
+  nudging one row, and any future query that assumes course-wide uniqueness
+  (or orders lessons course-wide without grouping by `module_id` first) is
+  wrong by construction. A drag that moves a lesson between topics has to
+  write both containers' renumbering *and* the new `module_id` in the same
+  mutation — a partial write leaves duplicate or gapped positions that
+  nothing will detect, because no constraint is watching.
 - **Curriculum reorder interactions use zero animation, by deliberate product
   decision — do not reintroduce transitions to "smooth" this later.** Both
   `LessonRow` and `ModuleCard` set `useSortable({ transition: null,

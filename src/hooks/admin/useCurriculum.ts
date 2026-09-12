@@ -314,14 +314,21 @@ export function useLessonMutations(courseId: string) {
    * optimistic-cache fix for the same drop-then-snap-back jank. One wrinkle
    * here: `useLessons` caches one flat, course-wide, position-ordered array
    * that `CurriculumTab` groups into per-topic buckets client-side by
-   * `module_id` — the drag only ever reorders siblings *within* one topic
-   * (or within Ungrouped), so `changed` is that subset, not the whole
-   * course. Overwriting the cache with just that subset would silently
-   * drop every lesson in every other topic. Instead, `changed` is merged
-   * into the full previous array by id and the result re-sorted by
+   * `module_id`, so `changed` is only ever the affected topics' rows, not
+   * the whole course. Overwriting the cache with just that subset would
+   * silently drop every lesson in every other topic. Instead, `changed` is
+   * merged into the full previous array by id and the result re-sorted by
    * `position` — mirroring exactly what the query's own `.order('position')`
    * does, so the client-side grouping (which relies on array order, not a
    * fresh sort of its own) produces the identical result a refetch would.
+   *
+   * A row here can carry a changed `module_id` as well as a changed
+   * `position`: dragging a lesson into a different topic is one mutation
+   * covering the move itself plus the renumbering of both the topic it left
+   * and the one it joined. `position` is scoped per topic, so the sort above
+   * can see duplicate values across topics — it stays correct because
+   * `Array.prototype.sort` is stable and positions are unique *within* a
+   * topic, which is the only ordering the grouping actually reads.
    */
   const reorder = useMutation({
     mutationFn: async (changed: Lesson[]) => {

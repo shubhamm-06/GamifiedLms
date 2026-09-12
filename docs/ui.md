@@ -130,10 +130,42 @@ Established by Courses; follow these for the next admin domain.
   can't conflict with clicking to rename/expand/edit/delete. Both
   `PointerSensor` (small activation distance so a click doesn't register as
   a drag start) and `KeyboardSensor` are wired — reordering must stay
-  keyboard-accessible, not just mouse-draggable. Topics and each topic's
-  lessons are independent `DndContext`/`SortableContext` pairs — there's no
-  cross-container drag (moving a lesson to a different topic isn't a drag
-  gesture; use the lesson dialog for that).
+  keyboard-accessible, not just mouse-draggable.
+  **Topics and lessons share one `DndContext`, with one `SortableContext`
+  per lesson container.** This isn't a style choice: lesson rows render
+  inside topic cards, so any context spanning every topic's lessons is
+  unavoidably the nearest context for the topic cards too, and dnd-kit
+  resolves `useSortable` through plain React context (nearest provider
+  wins). Nesting two contexts cannot separate them. What separates them
+  instead is `data.type` (`'module'` / `'lesson'` / `'container'`), which a
+  custom `collisionDetection` filters on so a topic drag never targets a
+  lesson list. A container's own drop zone id is namespaced
+  (`dropzone:<id>`) because a topic card is already registered as a
+  droppable under its bare id, and one context means one id space.
+  A lesson can be dragged **between** topics, and into and out of
+  Ungrouped, which is a normal container rather than a special case.
+  Three things this needs that a single-container list doesn't:
+  - Each container registers via `useDroppable` on the container element,
+    not just on its rows, or a topic with no lessons could never be dropped
+    into. Ungrouped stays mounted for the duration of any lesson drag even
+    when empty, since an unmounted section can't be a drop target — that's
+    the only way a lesson gets out of every topic.
+  - `measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}`.
+    Moving a lesson between topics resizes both mid-drag, and dnd-kit
+    otherwise measures droppables once at drag start, so every rect past the
+    first resize is stale.
+  - Collision detection prefers `pointerWithin` and, when the pointer is in
+    a container but inside no row (the gap between rows, or the padding),
+    snaps to the *nearest row in that container* rather than answering with
+    the container. Answering with the container means "append to the end",
+    which made the dragged row flick to the bottom of the list every time
+    the pointer crossed a gap between two rows.
+  The live preview during a lesson drag is a local draft array, and it is
+  **pointer-only**. Keyboard drags take their coordinates from the layout,
+  so reordering the list under them feeds back into the sensor and one
+  ArrowDown travels two slots; keyboard drags therefore keep dnd-kit's own
+  transform preview and resolve placement once, on drop. Both paths run the
+  same placement function, so preview and drop can't disagree.
   On drop, every sibling whose position actually changed (not just the two
   endpoints of the drag) is recomputed and written in one `upsert` call
   seeded with full row objects — a partial `{id, position}` payload fails

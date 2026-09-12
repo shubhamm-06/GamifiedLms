@@ -3,12 +3,18 @@ import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   closestCenter,
+  pointerWithin,
+  useDroppable,
   useSensor,
   useSensors,
+  type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
+  type UniqueIdentifier,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -81,6 +87,237 @@ function computeChangedPositions<T extends { id: string; position: number }>(
 }
 
 /**
+ * Lessons live in one container per `module_id`; `null` (a lesson whose topic
+ * was deleted, since the FK is SET NULL) is its own container rather than an
+ * absence of one, so it drags exactly like any topic.
+ */
+const UNGROUPED = '__ungrouped__'
+
+const containerOf = (lesson: Lesson) => lesson.module_id ?? UNGROUPED
+
+/**
+ * Modules are sortable *and* droppable under the same id, so a container's
+ * own drop target has to be namespaced or it collides with the module card's
+ * — one shared DndContext means one shared id space.
+ */
+const DROPZONE_PREFIX = 'dropzone:'
+const dropZoneId = (container: string) => `${DROPZONE_PREFIX}${container}`
+
+type DragKind = 'module' | 'lesson' | 'container'
+
+const kindOf = (data: Record<string, unknown> | undefined) => data?.type as DragKind | undefined
+
+/**
+ * `lessons.position` is scoped **per container**, not per course — verified
+ * against the live database, where two lessons in different topics both sit
+ * at position 0. Nothing in Postgres enforces that (no unique constraint, no
+ * trigger); it is purely a convention this code maintains, which is exactly
+ * why every recompute below renumbers a whole container from 0 rather than
+ * nudging individual values.
+ */
+function lessonsIn(items: Lesson[], container: string) {
+  return items.filter((lesson) => containerOf(lesson) === container)
+}
+
+/**
+ * Places `activeId` in `container`, immediately before or after `anchorId`.
+ * `arrangeLessons` decides which; this only moves the row.
+ *
+ * A null `anchorId` means the drag is over the container itself rather than
+ * any row (an empty topic), so the lesson goes to that container's end.
+ *
+ * Only the dragged row moves — every other row keeps its relative order —
+ * which is what lets the live preview and the drop run this independently and
+ * still agree.
+ */
+function placeLesson(
+  items: Lesson[],
+  activeId: string,
+  container: string,
+  anchorId: string | null,
+  after: boolean,
+): Lesson[] {
+  const lesson = items.find((item) => item.id === activeId)
+  if (!lesson) return items
+
+  const next = items.filter((item) => item.id !== activeId)
+  const moved: Lesson = { ...lesson, module_id: container === UNGROUPED ? null : container }
+
+  const anchor = anchorId ? next.findIndex((item) => item.id === anchorId) : -1
+  if (anchor !== -1) {
+    next.splice(anchor + (after ? 1 : 0), 0, moved)
+    return next
+  }
+
+  let insertAt = next.length
+  for (let i = next.length - 1; i >= 0; i--) {
+    if (containerOf(next[i]) === container) {
+      insertAt = i + 1
+      break
+    }
+  }
+  next.splice(insertAt, 0, moved)
+  return next
+}
+
+/** Identical container+order, so re-rendering the lists would change nothing. */
+function sameArrangement(a: Lesson[], b: Lesson[]) {
+  return (
+    a.length === b.length &&
+    a.every((lesson, i) => lesson.id === b[i].id && containerOf(lesson) === containerOf(b[i]))
+  )
+}
+
+/**
+ * What the drag is currently over: a lesson row, or a container's own drop
+ * zone (an empty topic, or the padding past the last row).
+ */
+function resolveLessonTarget(items: Lesson[], overId: string) {
+  const overLesson = items.find((lesson) => lesson.id === overId)
+  if (overLesson) return { container: containerOf(overLesson), anchorId: overId }
+  if (overId.startsWith(DROPZONE_PREFIX)) {
+    return { container: overId.slice(DROPZONE_PREFIX.length), anchorId: null }
+  }
+  return null
+}
+
+/**
+ * The whole placement decision in one place, so the live preview and the drop
+ * can never disagree — they call this with the same arguments and it is
+ * idempotent, since `placeLesson` only ever moves the dragged row and leaves
+ * the relative order of everything else alone.
+ */
+function arrangeLessons(
+  items: Lesson[],
+  activeId: string,
+  overId: string,
+  enteringBelow: boolean,
+): Lesson[] {
+  const target = resolveLessonTarget(items, overId)
+  if (!target) return items
+
+  let after = enteringBelow
+  if (target.anchorId) {
+    const activeIndex = items.findIndex((lesson) => lesson.id === activeId)
+    const anchorIndex = items.findIndex((lesson) => lesson.id === target.anchorId)
+    // Already in this topic: step over the anchor in the direction of travel,
+    // the same "move into that slot" rule a plain sorted list uses. Midpoints
+    // are only consulted when entering a topic the row isn't in yet, where
+    // there is no existing index to compare against.
+    if (activeIndex !== -1 && containerOf(items[activeIndex]) === target.container) {
+      after = activeIndex < anchorIndex
+    }
+  }
+  return placeLesson(items, activeId, target.container, target.anchorId, after)
+}
+
+/**
+ * Keyboard drags take their coordinates from the layout itself, so reordering
+ * the list under them feeds straight back into the sensor: one ArrowDown
+ * moved the row, the move shifted the rows, and the shifted rows moved it
+ * again — two slots per keypress. Pointer drags have no such loop, since the
+ * physical pointer doesn't move when the list does. So the live preview is
+ * pointer-only, and keyboard drags keep dnd-kit's own transform preview and
+ * resolve their placement once, on drop.
+ */
+const isKeyboardDrag = (event: { activatorEvent: Event }) =>
+  typeof KeyboardEvent !== 'undefined' && event.activatorEvent instanceof KeyboardEvent
+
+/** Whether the dragged row's own box has passed the hovered row's midpoint. */
+function isEnteringBelow(event: DragOverEvent | DragEndEvent) {
+  const rect = event.active.rect.current.translated
+  if (!rect || !event.over) return false
+  return rect.top + rect.height / 2 > event.over.rect.top + event.over.rect.height / 2
+}
+
+/**
+ * The cross-container sibling of `computeChangedPositions`, which stays as-is
+ * for modules. It deliberately isn't extended to cover this case: its
+ * `(items, activeId, overId)` signature describes one array being permuted,
+ * and a cross-container move is a different computation — two containers
+ * renumbered independently, plus a `module_id` change on the moved row.
+ * Folding that in would leave a helper whose name and shape no longer
+ * describe what it does.
+ *
+ * Only `affected` containers are renumbered, so a drag never rewrites
+ * positions in topics it didn't touch (some may hold gappy values from
+ * earlier hand-editing; silently "repairing" them would be a write nobody
+ * asked for).
+ */
+function computeLessonMoves(
+  original: Lesson[],
+  arranged: Lesson[],
+  affected: Set<string>,
+): Lesson[] {
+  const before = new Map(original.map((lesson) => [lesson.id, lesson]))
+  const changed: Lesson[] = []
+
+  for (const container of affected) {
+    lessonsIn(arranged, container).forEach((lesson, position) => {
+      const previous = before.get(lesson.id)
+      if (!previous) return
+      if (previous.position !== position || previous.module_id !== lesson.module_id) {
+        changed.push({ ...lesson, position })
+      }
+    })
+  }
+  return changed
+}
+
+/**
+ * One DndContext now carries both modules and lessons (lesson rows render
+ * inside module cards, so any context spanning every module's lessons is
+ * also the nearest context for the module cards themselves — nesting two
+ * can't separate them). Collisions are therefore scoped by what's being
+ * dragged, or a module would try to drop into a lesson list.
+ *
+ * For lessons, `pointerWithin` is preferred over `closestCenter` so the drop
+ * lands where the pointer actually is: a row the pointer is literally inside
+ * always wins over the container enclosing it, which is what makes dropping
+ * at an exact mid-list position work. Falling through to the container is
+ * what makes an *empty* topic droppable at all. Keyboard drags report no
+ * pointer, so they keep the original `closestCenter` behaviour.
+ */
+const curriculumCollisionDetection: CollisionDetection = (args) => {
+  const activeKind = kindOf(args.active.data.current)
+  const droppableContainers = args.droppableContainers.filter((candidate) => {
+    const kind = kindOf(candidate.data.current)
+    return activeKind === 'module' ? kind === 'module' : kind === 'lesson' || kind === 'container'
+  })
+  const scoped = { ...args, droppableContainers }
+
+  if (activeKind === 'module') return closestCenter(scoped)
+
+  const dataFor = (id: UniqueIdentifier) =>
+    droppableContainers.find((candidate) => candidate.id === id)?.data.current
+
+  const withinPointer = pointerWithin(scoped)
+  if (withinPointer.length > 0) {
+    const rows = withinPointer.filter((collision) => kindOf(dataFor(collision.id)) === 'lesson')
+    if (rows.length > 0) return rows
+
+    // The pointer is inside a container but not inside any row — the gap
+    // between two rows, or the padding around them. Answering with the
+    // container means "append to the end", which made the dragged row flick
+    // to the bottom of the list every time the pointer crossed a gap. Snap to
+    // the nearest row in that container instead; only a container with no
+    // rows at all answers as itself.
+    const hovered = new Set(withinPointer.map((collision) => String(collision.id)))
+    const rowsInside = droppableContainers.filter((candidate) => {
+      const data = candidate.data.current
+      return (
+        kindOf(data) === 'lesson' && hovered.has(dropZoneId(String(data?.container)))
+      )
+    })
+    if (rowsInside.length > 0) {
+      return closestCenter({ ...scoped, droppableContainers: rowsInside })
+    }
+    return withinPointer
+  }
+  return closestCenter(scoped)
+}
+
+/**
  * Pointer needs a small activation distance so a click (rename, expand,
  * edit) doesn't get mistaken for the start of a drag. Keyboard is a second,
  * independent sensor — the button-based version this replaces was
@@ -130,6 +367,10 @@ function LessonRow({
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lesson.id,
+    // Identifies both what this is (so a module drag can't target it) and
+    // which container it currently sits in, which is how onDragOver knows a
+    // pointer has crossed a topic boundary.
+    data: { type: 'lesson', container: containerOf(lesson) },
     // Zero animation is a deliberate product decision, not an oversight —
     // see rules.md. `transition: null` makes dnd-kit's own getTransition()
     // return `undefined` instead of an eased `transform 200ms ease`, so a
@@ -201,62 +442,55 @@ function LessonRowPreview({ lesson }: { lesson: Lesson }) {
   )
 }
 
-/** A lessons list that can be reordered by drag or keyboard, on its own. */
+/**
+ * One container's lessons. Drag state lives in the single shared DndContext
+ * up in `CurriculumTab`, not here — a per-container context is exactly what
+ * made cross-container dragging impossible, since dnd-kit shares no drag
+ * state between sibling contexts.
+ *
+ * The whole area is a drop target via `useDroppable`, not just the rows, so
+ * a topic with no lessons left (or none yet) can still be dropped into.
+ */
 function LessonList({
   lessons,
-  onReorder,
+  container,
+  emptyLabel,
   onEdit,
   onDelete,
 }: {
   lessons: Lesson[]
-  onReorder: (changed: Lesson[]) => void
+  container: string
+  emptyLabel: string
   onEdit: (lesson: Lesson) => void
   onDelete: (lesson: Lesson) => void
 }) {
-  const sensors = useReorderSensors()
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const activeLesson = activeId ? (lessons.find((l) => l.id === activeId) ?? null) : null
-
-  function handleDragStart(event: DragStartEvent) {
-    setActiveId(String(event.active.id))
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    setActiveId(null)
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const changed = computeChangedPositions(lessons, String(active.id), String(over.id))
-    if (changed.length > 0) onReorder(changed)
-  }
+  const { setNodeRef, isOver } = useDroppable({
+    id: dropZoneId(container),
+    data: { type: 'container', container },
+  })
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveId(null)}
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'rounded-md',
+        lessons.length === 0 && 'border border-dashed px-2.5 py-3',
+        // No transition class here on purpose — see rules.md.
+        isOver && 'ring-primary/40 ring-2',
+      )}
     >
-      <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-        <ul className="space-y-2">
-          {lessons.map((lesson) => (
-            <LessonRow key={lesson.id} lesson={lesson} onEdit={onEdit} onDelete={onDelete} />
-          ))}
-        </ul>
-      </SortableContext>
-      {/* dropAnimation={null} short-circuits dnd-kit's "spring back to slot"
-          release animation entirely (verified against the installed
-          version: `if (config === null) return;` inside its drop-animation
-          hook, with no other side effects). `transition={() => undefined}`
-          overrides the one animation that's otherwise on by default even
-          without any config: a keyboard-activated pickup gets its own
-          `transform 250ms ease` unless explicitly cleared — pointer drags
-          already default to no transition here, so this line exists for
-          the keyboard case specifically. */}
-      <DragOverlay dropAnimation={null} transition={() => undefined}>
-        {activeLesson ? <LessonRowPreview lesson={activeLesson} /> : null}
-      </DragOverlay>
-    </DndContext>
+      {lessons.length === 0 ? (
+        <p className="text-muted-foreground text-sm">{emptyLabel}</p>
+      ) : (
+        <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-2">
+            {lessons.map((lesson) => (
+              <LessonRow key={lesson.id} lesson={lesson} onEdit={onEdit} onDelete={onDelete} />
+            ))}
+          </ul>
+        </SortableContext>
+      )}
+    </div>
   )
 }
 
@@ -275,7 +509,6 @@ function ModuleCard({
   onAddLesson,
   onEditLesson,
   onDeleteLesson,
-  onReorderLessons,
 }: {
   module: Module
   moduleLessons: Lesson[]
@@ -291,10 +524,12 @@ function ModuleCard({
   onAddLesson: () => void
   onEditLesson: (lesson: Lesson) => void
   onDeleteLesson: (lesson: Lesson) => void
-  onReorderLessons: (changed: Lesson[]) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: module.id,
+    // Keeps module drags from ever targeting a lesson row or a lesson
+    // container now that both share one DndContext.
+    data: { type: 'module' },
     // See LessonRow — zero animation by deliberate decision (rules.md).
     transition: null,
     animateLayoutChanges: () => false,
@@ -358,16 +593,13 @@ function ModuleCard({
 
       {isOpen ? (
         <div className="space-y-2 border-t px-3 py-3">
-          {moduleLessons.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No lessons in this topic yet.</p>
-          ) : (
-            <LessonList
-              lessons={moduleLessons}
-              onReorder={onReorderLessons}
-              onEdit={onEditLesson}
-              onDelete={onDeleteLesson}
-            />
-          )}
+          <LessonList
+            lessons={moduleLessons}
+            container={module.id}
+            emptyLabel="No lessons in this topic yet."
+            onEdit={onEditLesson}
+            onDelete={onDeleteLesson}
+          />
           <Button variant="outline" size="sm" onClick={onAddLesson}>
             <Plus />
             Add lesson
@@ -401,7 +633,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
   const lessonsQuery = useLessons(courseId)
   const moduleMutations = useModuleMutations(courseId)
   const lessonMutations = useLessonMutations(courseId)
-  const moduleSensors = useReorderSensors()
+  const sensors = useReorderSensors()
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [renamingId, setRenamingId] = useState<string | null>(null)
@@ -410,23 +642,30 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
   const [lessonToDelete, setLessonToDelete] = useState<Lesson | null>(null)
   const [lessonTarget, setLessonTarget] = useState<LessonTarget | null>(null)
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null)
+  const [activeLessonId, setActiveLessonId] = useState<string | null>(null)
+  // Non-null only mid-drag: the lesson arrangement as the pointer currently
+  // has it, including a cross-container move that hasn't been dropped yet.
+  // Rendering from this is what makes the row appear under the pointer in
+  // the destination topic before any write happens.
+  const [draftLessons, setDraftLessons] = useState<Lesson[] | null>(null)
 
   const modules = useMemo(() => modulesQuery.data ?? [], [modulesQuery.data])
   const lessons = useMemo(() => lessonsQuery.data ?? [], [lessonsQuery.data])
+  const liveLessons = draftLessons ?? lessons
 
   // Grouped client-side from two flat queries. Lessons whose module was
   // deleted have module_id = null (ON DELETE SET NULL) and must stay visible,
   // hence the explicit Ungrouped bucket.
   const lessonsByModule = useMemo(() => {
     const map = new Map<string, Lesson[]>()
-    for (const lesson of lessons) {
-      const key = lesson.module_id ?? '__ungrouped__'
+    for (const lesson of liveLessons) {
+      const key = containerOf(lesson)
       map.set(key, [...(map.get(key) ?? []), lesson])
     }
     return map
-  }, [lessons])
+  }, [liveLessons])
 
-  const ungrouped = lessonsByModule.get('__ungrouped__') ?? []
+  const ungrouped = lessonsByModule.get(UNGROUPED) ?? []
   const isPending = modulesQuery.isPending || lessonsQuery.isPending
 
   function isExpanded(moduleId: string) {
@@ -460,19 +699,84 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
     }
   }
 
-  function handleModuleDragStart(event: DragStartEvent) {
-    setActiveModuleId(String(event.active.id))
+  function handleDragStart(event: DragStartEvent) {
+    if (kindOf(event.active.data.current) === 'module') {
+      setActiveModuleId(String(event.active.id))
+      return
+    }
+    setActiveLessonId(String(event.active.id))
+    setDraftLessons(lessons)
   }
 
-  function handleModuleDragEnd(event: DragEndEvent) {
-    setActiveModuleId(null)
+  /**
+   * Maintains the draft for the whole drag — both crossing into another topic
+   * and moving within one. Keeping it all here is what lets the drop itself
+   * be a pure read of the draft.
+   */
+  function handleDragOver(event: DragOverEvent) {
     const { active, over } = event
-    if (!over || active.id === over.id) return
-    const changed = computeChangedPositions(modules, String(active.id), String(over.id))
-    if (changed.length > 0) moduleMutations.reorder.mutate(changed)
+    if (!over || kindOf(active.data.current) !== 'lesson') return
+    if (isKeyboardDrag(event)) return
+
+    const activeId = String(active.id)
+    const overId = String(over.id)
+    if (overId === activeId) return
+
+    const enteringBelow = isEnteringBelow(event)
+    setDraftLessons((prev) => {
+      if (!prev) return prev
+      const next = arrangeLessons(prev, activeId, overId, enteringBelow)
+      return sameArrangement(prev, next) ? prev : next
+    })
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    const activeId = String(active.id)
+
+    if (kindOf(active.data.current) === 'module') {
+      setActiveModuleId(null)
+      if (!over || active.id === over.id) return
+      const changed = computeChangedPositions(modules, activeId, String(over.id))
+      if (changed.length > 0) moduleMutations.reorder.mutate(changed)
+      return
+    }
+
+    const draft = draftLessons
+    setActiveLessonId(null)
+    setDraftLessons(null)
+    if (!over) return
+
+    // Pointer drags have been maintaining the draft all along, so it already
+    // is the answer. Keyboard drags deliberately left it alone, so resolve
+    // the whole placement here in one step.
+    const arranged = isKeyboardDrag(event)
+      ? arrangeLessons(lessons, activeId, String(over.id), isEnteringBelow(event))
+      : draft
+    if (!arranged) return
+
+    const from = lessons.find((lesson) => lesson.id === activeId)
+    const to = arranged.find((lesson) => lesson.id === activeId)
+    if (!from || !to) return
+
+    const changed = computeLessonMoves(
+      lessons,
+      arranged,
+      new Set([containerOf(from), containerOf(to)]),
+    )
+    if (changed.length > 0) lessonMutations.reorder.mutate(changed)
+  }
+
+  function handleDragCancel() {
+    setActiveModuleId(null)
+    setActiveLessonId(null)
+    setDraftLessons(null)
   }
 
   const activeModule = activeModuleId ? (modules.find((m) => m.id === activeModuleId) ?? null) : null
+  const activeLesson = activeLessonId
+    ? (liveLessons.find((l) => l.id === activeLessonId) ?? null)
+    : null
 
   if (isPending) {
     return (
@@ -512,12 +816,25 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
         </div>
       ) : null}
 
+      {/* One context for topics and lessons alike. Lesson rows render inside
+          topic cards, so a context spanning every topic's lessons is
+          unavoidably the nearest one for the topic cards too — nesting two
+          can't keep them apart. `data.type` is what separates them instead,
+          filtered in curriculumCollisionDetection. */}
       <DndContext
-        sensors={moduleSensors}
-        collisionDetection={closestCenter}
-        onDragStart={handleModuleDragStart}
-        onDragEnd={handleModuleDragEnd}
-        onDragCancel={() => setActiveModuleId(null)}
+        sensors={sensors}
+        collisionDetection={curriculumCollisionDetection}
+        // Moving a lesson between topics resizes both of them mid-drag (one
+        // grows a row, the other shrinks), which shifts everything below.
+        // dnd-kit's default only measures droppables when the drag starts,
+        // so every rect past the first resize is stale and the pointer ends
+        // up testing against where containers *used* to be — dropping into
+        // an empty topic silently did nothing.
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <SortableContext items={modules.map((m) => m.id)} strategy={verticalListSortingStrategy}>
           <ul className="space-y-3">
@@ -553,55 +870,69 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
                     setLessonTarget({ moduleId: module.id, lesson: l, position: 0 })
                   }
                   onDeleteLesson={setLessonToDelete}
-                  onReorderLessons={(changed) => lessonMutations.reorder.mutate(changed)}
                 />
               )
             })}
           </ul>
         </SortableContext>
-        {/* See the lessons' DragOverlay above for why both props are needed. */}
+        <Button
+          variant="outline"
+          className="mt-4"
+          disabled={moduleMutations.create.isPending}
+          onClick={() =>
+            moduleMutations.create.mutate({
+              title: `Topic ${modules.length + 1}`,
+              position: modules.length,
+            })
+          }
+        >
+          <Plus />
+          Add topic
+        </Button>
+
+        {/* Stays mounted while a lesson is in flight even when it holds
+            nothing, since an unmounted section can't be dropped into — that
+            is the only way a lesson gets out of every topic. */}
+        {ungrouped.length > 0 || activeLessonId ? (
+          <section className="mt-4 rounded-lg border">
+            <header className="border-b px-3 py-2.5">
+              <h3 className="text-sm font-medium">Ungrouped</h3>
+              <p className="text-muted-foreground text-xs">
+                Lessons not in any topic — including any left behind by a deleted topic.
+              </p>
+            </header>
+            <div className="p-3">
+              <LessonList
+                lessons={ungrouped}
+                container={UNGROUPED}
+                emptyLabel="Drop a lesson here to take it out of its topic."
+                onEdit={(l) => setLessonTarget({ moduleId: null, lesson: l, position: 0 })}
+                onDelete={setLessonToDelete}
+              />
+            </div>
+          </section>
+        ) : null}
+
+        {/* dropAnimation={null} short-circuits dnd-kit's "spring back to
+            slot" release animation entirely (verified against the installed
+            version: `if (config === null) return;` inside its drop-animation
+            hook, with no other side effects). `transition={() => undefined}`
+            overrides the one animation that's otherwise on by default even
+            without any config: a keyboard-activated pickup gets its own
+            `transform 250ms ease` unless explicitly cleared — pointer drags
+            already default to no transition here, so this line exists for
+            the keyboard case specifically. */}
         <DragOverlay dropAnimation={null} transition={() => undefined}>
           {activeModule ? (
             <ModuleCardPreview
               module={activeModule}
               lessonCount={lessonsByModule.get(activeModule.id)?.length ?? 0}
             />
+          ) : activeLesson ? (
+            <LessonRowPreview lesson={activeLesson} />
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      <Button
-        variant="outline"
-        disabled={moduleMutations.create.isPending}
-        onClick={() =>
-          moduleMutations.create.mutate({
-            title: `Topic ${modules.length + 1}`,
-            position: modules.length,
-          })
-        }
-      >
-        <Plus />
-        Add topic
-      </Button>
-
-      {ungrouped.length > 0 ? (
-        <section className="rounded-lg border">
-          <header className="border-b px-3 py-2.5">
-            <h3 className="text-sm font-medium">Ungrouped</h3>
-            <p className="text-muted-foreground text-xs">
-              Lessons not in any topic — including any left behind by a deleted topic.
-            </p>
-          </header>
-          <div className="p-3">
-            <LessonList
-              lessons={ungrouped}
-              onReorder={(changed) => lessonMutations.reorder.mutate(changed)}
-              onEdit={(l) => setLessonTarget({ moduleId: null, lesson: l, position: 0 })}
-              onDelete={setLessonToDelete}
-            />
-          </div>
-        </section>
-      ) : null}
 
       <LessonDialog
         open={!!lessonTarget}

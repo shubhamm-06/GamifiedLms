@@ -86,7 +86,8 @@ CASCADE`**), `title`, `position`, `created_at`.
 `game_id` (FK), `duration_seconds`, `xp_reward` (null inherits
 `courses.default_lesson_xp` — never let the client do this fallback; use the
 `lesson_effective_xp` view), `is_preview`, `status` (`'draft'|'published'`),
-`position`, `created_at`.
+`position`, `created_at`. `position` is scoped per `module_id`, not per
+course, and no constraint enforces that — see `rules.md` before writing it.
 
 ⚠️ **Two different cascade behaviors, easy to conflate — verified directly
 against `information_schema.referential_constraints`, not assumed:**
