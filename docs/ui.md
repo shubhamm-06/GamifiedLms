@@ -243,6 +243,31 @@ not implemented.**
   (TanStack Table v9 feature registration, client-side sort/filter/paginate,
   row actions via a `DropdownMenu`) for consistency across admin list pages,
   even though the create/edit container differs.
+- **A row with real content density (multiple related sub-resources, not
+  just its own fields) earns a routed detail page, not a dialog.**
+  `/admin/users/$userId` (`UserDetailPage.tsx`) follows `/admin/courses/
+  $courseId/edit`, not the Games/Users Dialog pattern — a user has account
+  fields *plus* stats, enrollments, per-course progress, and badges, the
+  same reasoning that gave Courses its own routed builder over a modal. The
+  page is stacked bordered `<section>` cards (Account / Stats / Enrollments
+  / Progress / Badges), not `Tabs` — unlike Course Builder's Basics/
+  Curriculum split, none of these sections is large or exclusive enough to
+  justify hiding the others behind a click, and an admin usually wants the
+  whole picture at once. **Clicking a table row navigates to its detail
+  page**; the actions cell stops click propagation
+  (`onClick={(e) => e.stopPropagation()}`) so opening the row's own
+  dropdown doesn't also fire the row-level navigation — see `UserTable.tsx`
+  for the first instance of this pattern, worth copying rather than
+  reinventing for the next list that gets a detail route.
+- **The existing account-action dialogs (Edit/Change email/Reset password/
+  Delete) are reused as-is from a second entry point, never re-implemented.**
+  The detail page adapts its richer profile-plus-stats query down to the
+  list page's `AdminUserRow` shape (`toAdminUserRow` in
+  `UserDetailPage.tsx`) purely so the same dialogs can be passed the same
+  prop type — none of them read `user_stats`, so this is a type-shape
+  adapter, not a functional difference. This is what keeps the primary-admin
+  delete guard (disabled button + tooltip) identical at both entry points
+  without a second implementation to drift out of sync.
 - **A hard delete (no archive/status column) that can be FK-blocked needs a
   friendly count, not a raw error.** Games can be deleted outright — unlike
   courses, which are archived because deleting cascades silently — but a

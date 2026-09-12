@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +21,7 @@ import { useUsers, type AdminUserRow, type RoleFilter } from '@/hooks/admin/useU
 type DialogKind = 'edit' | 'email' | 'password' | 'delete'
 
 export function UsersPage() {
+  const navigate = useNavigate()
   // Filtering is client-side over an already-fetched list, so the input is
   // read directly — there is no request to debounce.
   const [search, setSearch] = useState('')
@@ -85,6 +87,9 @@ export function UsersPage() {
         isError={isError}
         search={search}
         roleFilter={roleFilter}
+        onRowClick={(user) =>
+          navigate({ to: '/admin/users/$userId', params: { userId: user.id } })
+        }
         onEdit={(user) => openDialog('edit', user)}
         onChangeEmail={(user) => openDialog('email', user)}
         onResetPassword={(user) => openDialog('password', user)}

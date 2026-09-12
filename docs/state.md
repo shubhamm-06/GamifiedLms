@@ -52,6 +52,27 @@ picker (`useGames` in `useCurriculum.ts`) was moved to `useGames.ts` as the
 single canonical query, shared by both the picker and the new list page —
 it was duplicated across two files before this.
 
+**2026-09-12, also: `/admin/users/$userId` landed**, and the standalone
+"Students" nav entry was dropped (not repointed — see `routes-permissions.md`
+for why). Account/Stats/Enrollments/Progress/Badges on one routed page,
+following Course Builder's "content-dense row earns a route, not a dialog"
+precedent (`ui.md`). Manual enroll and manual XP award write straight through
+existing admin RLS policies (migration 004) — no Edge Function, unlike
+account actions; see `rules.md`. `expires_at` is computed at insert time from
+the picked course's `access_type`/`access_duration_days`, per the
+already-documented calling convention in `schema.md`. Progress denominators
+are published-lesson counts, computed fresh from `lessons`/`lesson_progress`,
+not `courses.total_lessons` (which counts drafts too). The account dialogs
+(Edit/Change email/Reset password/Delete) are the exact same components as
+the list page's, adapted to a richer query's shape rather than
+re-implemented — the primary-admin delete guard is therefore one
+implementation, not two that could drift. **Confirmed live, and worth
+knowing:** a manual XP award updates `user_stats.last_activity_date` and
+`current_streak` exactly as if the student had a real activity event today —
+`fn_process_xp_transaction` doesn't branch on `source_type`. Not fixed here
+(out of scope — this task's ask was to report it, not patch trigger logic);
+see Known shortcuts below.
+
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz
 questions) — a prior pass of this file mistyped that date as 2026-09-29;
@@ -67,8 +88,8 @@ removed after each verification pass.
 
 Earlier the same phase: `/admin/courses` list with lifecycle actions, the
 admin shell (sidebar/topbar, dashboard), and role-aware post-login routing.
-Remaining nav items — Badges & XP, Students, Orders & Payments, Settings —
-still point at routes that don't exist and 404 inside the shell by design.
+Remaining nav items — Badges & XP, Orders & Payments, Settings — still point
+at routes that don't exist and 404 inside the shell by design.
 
 ## Live data reality
 
@@ -95,8 +116,8 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). UI and Edge Function both refuse
    it; a direct `service_role`/dashboard delete or `auth.users` cascade still
    isn't stopped.
-3. The remaining nav destinations — Badges & XP, Students, Orders & Payments,
-   Settings, in no particular order.
+3. The remaining nav destinations — Badges & XP, Orders & Payments, Settings,
+   in no particular order.
 
 ## Known shortcuts / tech debt
 
@@ -130,6 +151,17 @@ None.
   own inline comment. Open product question: should an expired learner still
   count as a student?
 - **`total_lessons`** counts draft + published, not published-only.
+- **A manual XP award (`/admin/users/$userId`) moves the streak as if it
+  were a real activity day.** `fn_process_xp_transaction` treats every
+  `xp_transactions` insert identically regardless of `source_type` — it
+  always updates `last_activity_date` to today and advances/resets
+  `current_streak` accordingly. Confirmed live: awarding XP to a student
+  with no activity today still set `last_activity_date` to today and
+  `current_streak` to 1. An admin correction for XP a student earned on a
+  *past* day (or a bare adjustment unrelated to any activity) will silently
+  inflate their streak. Not fixed — flagged for review, since fixing it
+  means deciding whether `source_type = 'manual'` should skip the streak
+  update entirely, which is a product call, not an obvious bug fix.
 - **Quiz pass threshold isn't stored anywhere** — needs a schema decision
   before quiz authoring/grading is built.
 - **`courses.gamification_enabled` is unenforced everywhere** — no trigger,

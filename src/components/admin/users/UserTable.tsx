@@ -115,6 +115,8 @@ interface UserTableProps {
   /** Matched against name and email; owned by the page toolbar. */
   search: string
   roleFilter: RoleFilter
+  /** Clicking anywhere in a row except the actions cell navigates to the detail page. */
+  onRowClick: (user: AdminUserRow) => void
   onEdit: (user: AdminUserRow) => void
   onChangeEmail: (user: AdminUserRow) => void
   onResetPassword: (user: AdminUserRow) => void
@@ -198,7 +200,9 @@ function buildColumns({
         const user = row.original
         const isPrimaryAdmin = user.id === PRIMARY_ADMIN_ID
         return (
-          <div className="text-right">
+          // Isolates every action (including opening the dropdown) from the
+          // row's own onClick, which navigates to the detail page.
+          <div className="text-right" onClick={(e) => e.stopPropagation()}>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -255,6 +259,7 @@ export function UserTable({
   isError,
   search,
   roleFilter,
+  onRowClick,
   onEdit,
   onChangeEmail,
   onResetPassword,
@@ -367,7 +372,18 @@ export function UserTable({
               </TableRow>
             ) : (
               visibleRows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  tabIndex={0}
+                  role="link"
+                  aria-label={`View ${row.original.display_name}`}
+                  className="cursor-pointer"
+                  onClick={() => onRowClick(row.original)}
+                  onKeyDown={(e) => {
+                    // Matches native <a> behavior: Enter activates, Space does not.
+                    if (e.key === 'Enter') onRowClick(row.original)
+                  }}
+                >
                   {row.getAllCells().map((cell) => (
                     <TableCell key={cell.id}>
                       <table.FlexRender cell={cell} />

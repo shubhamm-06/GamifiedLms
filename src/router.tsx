@@ -18,6 +18,7 @@ import { CourseEditPage } from '@/pages/admin/CourseEditPage'
 import { CoursesPage } from '@/pages/admin/CoursesPage'
 import { DashboardPage } from '@/pages/admin/DashboardPage'
 import { GamesPage } from '@/pages/admin/GamesPage'
+import { UserDetailPage } from '@/pages/admin/UserDetailPage'
 import { UsersPage } from '@/pages/admin/UsersPage'
 
 interface RouterContext {
@@ -86,6 +87,15 @@ const adminUsersRoute = createRoute({
   component: UsersPage,
 })
 
+// Stands alone the same way `courses/$courseId/edit` does — there is
+// deliberately no separate students list; /admin/users (with its role
+// filter) already is that list, and this is the detail view it was missing.
+const adminUserDetailRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'users/$userId',
+  component: UserDetailPage,
+})
+
 const adminCoursesRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'courses',
@@ -129,6 +139,7 @@ const routeTree = rootRoute.addChildren([
   adminRoute.addChildren([
     adminIndexRoute,
     adminUsersRoute,
+    adminUserDetailRoute,
     adminCoursesRoute,
     adminGamesRoute,
     adminCourseCreateRoute,

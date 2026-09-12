@@ -15,16 +15,28 @@ interface DeleteUserAlertDialogProps {
   user: AdminUserRow | null
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** Called after a successful delete, in addition to closing the dialog — e.g. to navigate away from a page for a user that no longer exists. */
+  onDeleted?: () => void
 }
 
-export function DeleteUserAlertDialog({ user, open, onOpenChange }: DeleteUserAlertDialogProps) {
+export function DeleteUserAlertDialog({
+  user,
+  open,
+  onOpenChange,
+  onDeleted,
+}: DeleteUserAlertDialogProps) {
   const deleteUser = useDeleteUser()
 
   function handleConfirm() {
     if (!user) return
     deleteUser.mutate(
       { userId: user.id, displayName: user.display_name },
-      { onSuccess: () => onOpenChange(false) },
+      {
+        onSuccess: () => {
+          onOpenChange(false)
+          onDeleted?.()
+        },
+      },
     )
   }
 

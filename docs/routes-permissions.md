@@ -12,7 +12,8 @@ file-based — new routes are added there, not by creating files under a
 | `/login` | `LoginPage` | Public, but redirects signed-in admins | Accepts a `redirect` search param; see the login guard below |
 | `/signup` | `SignupPage` | Public | On success: session present → `/`; no session (email confirmation required) → "check your email" copy |
 | `/admin` | `DashboardPage` | Admin only | KPI cards, needs-attention list, recent-activity table |
-| `/admin/users` | `UsersPage` | Admin only | List/search/filter/paginate users; create/edit/change-email/reset-password/delete dialogs |
+| `/admin/users` | `UsersPage` | Admin only | List/search/filter/paginate users; create dialog; row click navigates to the detail route below |
+| `/admin/users/$userId` | `UserDetailPage` | Admin only | Account (edit/change-email/reset-password/delete — same dialogs and Edge Function calls as the list), Stats (`user_stats`, left-joined — no row yet is a normal empty state, not an error), Enrollments (manual enroll/revoke, direct RLS writes), Progress (published-lesson completion per course), Badges, manual XP award. Replaces the standalone "Students" concept — see below |
 | `/admin/courses` | `CoursesPage` | Admin only | Sortable/filterable list; row actions are status-contextual (no delete — see `rules.md`) |
 | `/admin/courses/new` | `CourseCreatePage` | Admin only | Always inserts as `draft`. Curriculum tab locked until saved |
 | `/admin/courses/$courseId/edit` | `CourseEditPage` | Admin only | Course Builder: Basics + Curriculum tabs. Bad id or RLS-hidden row renders "Course not found", not a crash |
@@ -29,10 +30,16 @@ There is deliberately **no `/admin/courses/$courseId` index route** —
 `$courseId/edit` stands alone, and the builder's Curriculum tab is where
 modules, lessons and quiz questions are managed.
 
-**Nav targets that don't exist yet** — `/admin/gamification`,
-`/admin/students`, `/admin/orders`, `/admin/settings`. They're linked from the
-sidebar and 404 inside the admin shell on purpose; no placeholder routes or
-stub pages were created for them.
+**Nav targets that don't exist yet** — `/admin/gamification`, `/admin/orders`,
+`/admin/settings`. They're linked from the sidebar and 404 inside the admin
+shell on purpose; no placeholder routes or stub pages were created for them.
+
+**There is no `/admin/students` nav entry, and never a route.** A standalone
+students list would just duplicate `/admin/users` (already lists everyone,
+with a role filter) — the actual gap was a detail view, which `/admin/users`
+now has via `$userId`. The nav slot was dropped rather than repointed at
+`/admin/users`, since a second sidebar link to the exact same destination as
+"Admin Users" would be clutter, not a feature.
 
 Modules, lessons and quiz questions are deliberately **not** routes of their
 own — they only exist within a course, so they belong under a future

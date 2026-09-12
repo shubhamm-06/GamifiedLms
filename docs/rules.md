@@ -31,6 +31,31 @@ belongs in `context.md` or `state.md`, not here.
 - **`SUPABASE_SERVICE_ROLE_KEY` (and any future service-role credential) is
   never hardcoded in source** — read from the environment
   (`Deno.env.get(...)` in Edge Functions) only.
+- **Manual enrollment and manual XP-award writes go straight through admin
+  RLS from the client — no Edge Function, unlike account actions
+  (create/update-email/update-password/delete), which require
+  `service_role` and therefore must go through `admin-user-management`.**
+  The distinction is what the write needs: creating an `auth.users` row or
+  changing someone's login credentials needs privileges only `service_role`
+  has; inserting an `enrollments` or `xp_transactions` row is an ordinary
+  table write already permitted to an admin caller by
+  `enrollments_admin_insert`/`enrollments_admin_update` and
+  `xp_transactions_admin_manual_insert` (migration 004). Routing either of
+  those through a function hop would be paying an unnecessary round-trip for
+  a permission the caller already has. `xp_transactions_admin_manual_insert`
+  specifically ties its `WITH CHECK` to `source_type = 'manual'`, so this
+  path can never be used to spoof a `'lesson'/'quiz'/'game'` award — that
+  constraint is what makes the direct-write shortcut safe, and any new admin
+  write path onto this table must keep the same `source_type` pin rather
+  than widening it.
+- **`xp_transactions` manual awards are not deduped by the database.** The
+  dedupe unique index (`uq_xp_transactions_dedupe`) only applies `WHERE
+  source_id IS NOT NULL`, and manual awards always insert `source_id = NULL`
+  — a double-submitted award is a double award, silently. The only guard is
+  disabling the submit button while the mutation is in flight
+  (`AwardXpForm.tsx`); this was judged sufficient for a low-frequency admin
+  action rather than adding schema-level dedup, but any new manual-award
+  entry point must keep that disable, not skip it.
 - **A sortable list's reorder mutation fires exactly once, in `onDragEnd`,
   never in `onDragOver`/`onDragMove`.** dnd-kit already gives the live,
   in-progress reordering preview for free from client-side sensor state — no

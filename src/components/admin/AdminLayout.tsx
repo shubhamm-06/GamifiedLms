@@ -10,7 +10,6 @@ import {
   Receipt,
   Settings,
   ShieldUser,
-  Users,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { adminSessionQueryOptions, clearAdminSession } from '@/lib/adminSession'
@@ -33,9 +32,17 @@ interface NavGroup {
  * exist inside a specific course, so they belong to the course detail route
  * rather than global navigation.
  *
- * Only `/admin`, `/admin/users`, `/admin/courses` and `/admin/games` resolve
- * today. The rest point at routes that don't exist yet and will 404 — that's
- * intended, rather than filling the tree with placeholder pages.
+ * There is no "Students" entry: a separate students list would just
+ * duplicate /admin/users, which already lists everyone with a role filter
+ * (see `routes-permissions.md`) and now also has a detail route
+ * (`/admin/users/$userId`) for enrollments/progress/badges/XP. Dropped the
+ * nav slot rather than repointing it at /admin/users — a second link to the
+ * same destination as "Admin Users" would just be visual clutter.
+ *
+ * Only `/admin`, `/admin/users` (+ `/admin/users/$userId`), `/admin/courses`
+ * and `/admin/games` resolve today. The rest point at routes that don't
+ * exist yet and will 404 — that's intended, rather than filling the tree
+ * with placeholder pages.
  */
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -51,10 +58,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     heading: 'Engagement',
-    items: [
-      { label: 'Badges & XP', to: '/admin/gamification', icon: BadgeCheck },
-      { label: 'Students', to: '/admin/students', icon: Users },
-    ],
+    items: [{ label: 'Badges & XP', to: '/admin/gamification', icon: BadgeCheck }],
   },
   {
     heading: 'Commerce',
