@@ -33,6 +33,7 @@ minimum, `tableFeatures({})`):
 ```ts
 const features = tableFeatures({
   columnFilteringFeature, rowSortingFeature, rowPaginationFeature,
+  globalFilteringFeature,                       // one input across many columns
   filteredRowModel: createFilteredRowModel(),   // all factories take no args
   sortedRowModel: createSortedRowModel(),
   paginatedRowModel: createPaginatedRowModel(),
@@ -41,6 +42,13 @@ const features = tableFeatures({
              datetime: sortFn_datetime, text: sortFn_text },
 })
 ```
+
+`globalFilteringFeature` also needs `globalFilterFn: 'includesString'` on the
+table (it resolves from the `filterFns` registry and filters nothing when
+unset) and `enableGlobalFilter: false` on columns it shouldn't scan. Whatever
+is passed as `state` must be reference-stable — the filtered row model
+compares those slices by identity and resets the page index when they change.
+See `ui.md` for both, and `UserTable.tsx` for the worked example.
 
 Instance/column APIs are v8-familiar: `column.getToggleSortingHandler()`,
 `getIsSorted()`, `getCanSort()`, `setFilterValue()`, `table.nextPage()`,

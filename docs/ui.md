@@ -250,6 +250,38 @@ not implemented.**
   not a Postgres constraint message. The count is a second query run only on
   the FK-violation path (`useDeleteGame` in `useGames.ts`), not fetched
   up front, since the common case never needs it.
+- **All three admin list tables are TanStack Table v9** (`UserTable`,
+  `CourseTable`, `GameTable`) and search/filter/sort/paginate entirely
+  client-side over one fetched list. `/admin/users` was the last plain
+  `<table>` and was migrated; it previously filtered and paged server-side
+  through PostgREST `.or()`/`.eq()`/`.range()`, which is gone. At account and
+  catalog volumes bounded by real signups, a round-trip per keystroke buys
+  nothing, and a client-side filter needs no debounce.
+- **A search box spanning more than one column is `globalFilteringFeature`,
+  not a column filter.** `/admin/users` matches name *and* email from one
+  input, which a per-column `filterFn` can't express. Two things this needs:
+  `globalFilterFn: 'includesString'` on the table (the feature resolves its
+  function from the `filterFns` registry and silently filters nothing when
+  unset), and `enableGlobalFilter: false` on every column that shouldn't be
+  scanned — otherwise typing "admin" matches all admins via the role column,
+  and "2026" matches every row via the joined date. Display columns are
+  excluded automatically, having no accessor.
+- **Anything passed to `useTable`'s `state` must have a stable identity.**
+  The filtered row model compares `columnFilters`/`globalFilter` by
+  *reference*; a fresh array or object literal each render reads as "the
+  filters changed" and fires the model's `autoResetPageIndex`, which snaps
+  the table back to page 1. The symptom is Next appearing to do nothing
+  while page-size changes still work. Memoise the filter array and the
+  `state` object (`UserTable.tsx`).
+- **Toolbar-owned filters, table-owned pagination.** The search input and
+  role/status select live on the page and are passed down as controlled
+  state; the page-size select and prev/next live in the table's own footer
+  next to the row-range label. Page-size controls ship with the table from
+  day one rather than being added once row counts grow.
+- **Empty states distinguish "nothing here" from "nothing matched."** A list
+  with zero rows and a list filtered down to zero are different problems for
+  an admin, so they don't share copy — "No users yet" vs "No users match
+  your search".
 - Dialogs that need to reset form state on reopen: split the form into an
   inner component that mounts fresh per open (Radix unmounts dialog content
   on close), rather than a `useEffect` resetting state — the lint rule

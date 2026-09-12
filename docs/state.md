@@ -30,6 +30,14 @@ video lessons can be pasted as a YouTube/Vimeo share link and normalized to
 an embeddable URL (`src/lib/video.ts`), or a direct file/stream URL as before
 — never raw `<iframe>`/HTML.
 
+**2026-09-12, also: `/admin/users` became a TanStack Table v9 list** — the
+last plain `<table>` in admin. Search (name + email, via
+`globalFilteringFeature`), the role filter, sorting on Name/Email/Role/Joined
+and pagination with page-size controls are now all client-side over one
+fetched list; the server-side PostgREST search/filter/range it used before is
+gone, along with the filter-expression sanitiser that only existed to protect
+it. All three admin list tables now share one shape.
+
 **2026-09-12, separately: `/admin/games` landed** — full create/edit/delete
 via `GameDialog.tsx` (a Dialog, not a route — games are a flat record, same
 convention as Admin Users) plus a `GameTable.tsx` list matching `CourseTable`
@@ -133,6 +141,15 @@ None.
 - **Capacitor session handling** unaudited in a webview; no native platforms.
 - **No Edge Function** yet for quiz grading, game XP clamping, the payment
   webhook receiver, or pre-signup payment claiming.
+- **`CourseTable` and `GameTable` build their `columnFilters` inline in
+  `state`, so the array identity changes every render.** `UserTable` hit the
+  consequence live — the filtered row model compares by reference, treats it
+  as a filter change, and fires `autoResetPageIndex`, so Next never advances
+  (see `ui.md`). It is latent rather than broken in those two only because
+  their pagination controls render solely when `pageCount > 1`, which needs
+  more than one page of courses or games to exist. Both need the same
+  `useMemo` fix before either list grows; left untouched here because that
+  task was scoped to `/admin/users`.
 - **`games.bundle_size_bytes`/`checksum` are accepted but never verified.**
   The admin form takes them as optional plain inputs (defaulting to `0`/`''`
   if left blank) because nothing downstream reads them yet — there is no
