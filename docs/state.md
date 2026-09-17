@@ -73,6 +73,22 @@ knowing:** a manual XP award updates `user_stats.last_activity_date` and
 (out of scope — this task's ask was to report it, not patch trigger logic);
 see Known shortcuts below.
 
+**2026-09-17: `/admin/orders` landed.** KPI cards (revenue, unresolved,
+failed) plus a filterable payments list (status, reconciliation status) and
+an `OrderDetailDialog` for the only edit this table permits — toggling
+`reconciliation_status` and setting `reconciliation_note`. Confirmed live
+against `fn_guard_payment_admin_update`: the actual PATCH request contains
+only those two keys, nothing else, and every other column round-trips
+untouched. There is no create or delete action anywhere in this page — the
+table has neither an admin insert nor an admin delete RLS policy, so those
+aren't missing features, they're not features at all (`rules.md`). The
+Dashboard's `useRevenue` moved to `usePayments.ts` unchanged, so both pages'
+revenue KPI call the identical hook — confirmed both show the same number
+(₹3,000) against the same seeded rows. `DashboardPage.tsx`'s only change is
+that one import's source file; nothing about its rendering moved. Unclaimed
+payments (`user_id` null — a payment can arrive before its buyer signs up)
+show the raw email plus an outline "Unclaimed" badge, not an error state.
+
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz
 questions) — a prior pass of this file mistyped that date as 2026-09-29;
@@ -88,8 +104,8 @@ removed after each verification pass.
 
 Earlier the same phase: `/admin/courses` list with lifecycle actions, the
 admin shell (sidebar/topbar, dashboard), and role-aware post-login routing.
-Remaining nav items — Badges & XP, Orders & Payments, Settings — still point
-at routes that don't exist and 404 inside the shell by design.
+Remaining nav items — Badges & XP, Settings — still point at routes that
+don't exist and 404 inside the shell by design.
 
 ## Live data reality
 
@@ -116,8 +132,8 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). UI and Edge Function both refuse
    it; a direct `service_role`/dashboard delete or `auth.users` cascade still
    isn't stopped.
-3. The remaining nav destinations — Badges & XP, Orders & Payments, Settings,
-   in no particular order.
+3. The remaining nav destinations — Badges & XP, Settings, in no particular
+   order.
 
 ## Known shortcuts / tech debt
 

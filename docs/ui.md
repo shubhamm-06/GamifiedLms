@@ -275,13 +275,37 @@ not implemented.**
   not a Postgres constraint message. The count is a second query run only on
   the FK-violation path (`useDeleteGame` in `useGames.ts`), not fetched
   up front, since the common case never needs it.
-- **All three admin list tables are TanStack Table v9** (`UserTable`,
-  `CourseTable`, `GameTable`) and search/filter/sort/paginate entirely
-  client-side over one fetched list. `/admin/users` was the last plain
-  `<table>` and was migrated; it previously filtered and paged server-side
-  through PostgREST `.or()`/`.eq()`/`.range()`, which is gone. At account and
-  catalog volumes bounded by real signups, a round-trip per keystroke buys
-  nothing, and a client-side filter needs no debounce.
+- **A read-only record with a narrow, specific edit is still the Dialog
+  convention, not a routed page.** `OrderDetailDialog.tsx` (payments) shows
+  the full record read-only — including a pretty-printed `raw_payload` — and
+  exposes exactly two editable fields, mirroring Games' "flat record, one
+  Dialog" shape even though there's no create/delete action here at all (see
+  `rules.md` for why: the DB genuinely has no path for either). The table
+  row's action is a single icon button (`Eye`, "View details"), not a
+  `DropdownMenu` — a menu for exactly one possible action is one extra click
+  for nothing; reach for a `DropdownMenu` once a second action exists, not
+  before.
+- **Shared *logic* gets extracted into one hook; shared *presentation* with
+  no logic of its own doesn't have to be.** The Dashboard's and Orders
+  page's revenue KPI card call the exact same `useRevenue()` (moved to
+  `usePayments.ts`) so the two pages can never independently drift on what
+  "revenue" means. The small `KpiCard` box that renders it (label/value/
+  pending/error) is deliberately *not* extracted into a shared component —
+  it has no domain logic to drift, so a second ~15-line copy in
+  `OrdersPage.tsx` is cheaper than coupling both pages' JSX to one shared
+  component for a wrapper this thin. Duplication is the default; only
+  extract when there's a rule (like "revenue means paid + INR-only") that
+  two copies could quietly stop agreeing on.
+- **All four admin list tables are TanStack Table v9** (`UserTable`,
+  `CourseTable`, `GameTable`, `OrderTable`) and search/filter/sort/paginate
+  entirely client-side over one fetched list. `/admin/users` was the last
+  plain `<table>` and was migrated; it previously filtered and paged
+  server-side through PostgREST `.or()`/`.eq()`/`.range()`, which is gone. At
+  account and catalog volumes bounded by real signups, a round-trip per
+  keystroke buys nothing, and a client-side filter needs no debounce.
+  `OrderTable` is the first with no search box at all — the task only ever
+  called for status/reconciliation filters, so `globalFilteringFeature`
+  wasn't wired in; add it the usual way if a search box is ever asked for.
 - **A search box spanning more than one column is `globalFilteringFeature`,
   not a column filter.** `/admin/users` matches name *and* email from one
   input, which a per-column `filterFn` can't express. Two things this needs:

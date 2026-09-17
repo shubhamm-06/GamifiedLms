@@ -19,11 +19,11 @@ import {
   useCourseCounts,
   useNeedsAttention,
   useRecentActivity,
-  useRevenue,
   useStudentCount,
   type ActivityKind,
   type ActivityRow,
 } from '@/hooks/admin/useDashboard'
+import { useRevenue } from '@/hooks/admin/usePayments'
 
 /* ------------------------------------------------------------------ */
 /* KPI cards                                                           */

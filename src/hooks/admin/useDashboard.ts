@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { DEFAULT_CURRENCY, formatAmount } from '@/lib/currency'
+import { formatAmount } from '@/lib/currency'
 
 /**
  * Every card gets its own query so one failing request degrades a single
@@ -52,29 +52,6 @@ export function useActiveEnrollmentCount() {
     queryKey: key('enrollments'),
     queryFn: () =>
       runCount(supabase.from('enrollments').select('*', HEAD_COUNT).eq('status', 'active')),
-  })
-}
-
-export function useRevenue() {
-  return useQuery({
-    queryKey: key('revenue'),
-    queryFn: async () => {
-      // Filtered to INR deliberately: summing across currencies is
-      // meaningless. If the product ever genuinely sells in another
-      // currency this needs a per-currency breakdown, not a wider filter.
-      //
-      // Summed client-side because PostgREST aggregate functions aren't
-      // guaranteed enabled on this project and adding a view/RPC would mean
-      // a migration. Fine at present volume; revisit if payments grow.
-      const { data, error } = await supabase
-        .from('payments')
-        .select('amount')
-        .eq('status', 'paid')
-        .eq('currency', DEFAULT_CURRENCY)
-
-      if (error) throw error
-      return (data ?? []).reduce((total, row) => total + (row.amount ?? 0), 0)
-    },
   })
 }
 

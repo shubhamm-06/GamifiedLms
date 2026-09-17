@@ -56,6 +56,21 @@ belongs in `context.md` or `state.md`, not here.
   (`AwardXpForm.tsx`); this was judged sufficient for a low-frequency admin
   action rather than adding schema-level dedup, but any new manual-award
   entry point must keep that disable, not skip it.
+- **An admin can only ever change `payments.reconciliation_status` and
+  `payments.reconciliation_note` — nothing else, and there is no create or
+  delete action for this table at all.** `fn_guard_payment_admin_update`
+  (migration 004) raises an exception if any other column changes outside
+  `service_role`, and no RLS policy grants admin insert or delete on
+  `payments` in the first place (only `payments_service_role_insert` exists
+  for inserts; `service_role` also owns the one non-reconciliation update
+  path, the webhook). This is deliberate, not an oversight to route around:
+  a payment is the gateway's record of what actually happened, and an admin
+  correcting it wholesale (re-linking it to a different user, changing the
+  amount, "creating" one by hand) would let the app's ledger silently
+  diverge from the real transaction. Any future payments UI — a "create
+  manual payment" action, "link this payment to a user," a delete — hits
+  this trigger's exception or a missing RLS policy, not a permissions
+  setting that can be loosened; the fix is never in the UI layer.
 - **A sortable list's reorder mutation fires exactly once, in `onDragEnd`,
   never in `onDragOver`/`onDragMove`.** dnd-kit already gives the live,
   in-progress reordering preview for free from client-side sensor state — no

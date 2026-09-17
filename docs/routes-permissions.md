@@ -18,6 +18,7 @@ file-based — new routes are added there, not by creating files under a
 | `/admin/courses/new` | `CourseCreatePage` | Admin only | Always inserts as `draft`. Curriculum tab locked until saved |
 | `/admin/courses/$courseId/edit` | `CourseEditPage` | Admin only | Course Builder: Basics + Curriculum tabs. Bad id or RLS-hidden row renders "Course not found", not a crash |
 | `/admin/games` | `GamesPage` | Admin only | Sortable/filterable list, same table conventions as `/admin/courses`. Create/edit is a `GameDialog`, not a route — games are a flat record with no nested child content. Delete is real (no archive/status column), refused with a friendly message if any lesson still references the game |
+| `/admin/orders` | `OrdersPage` | Admin only | KPI cards (revenue, unresolved, failed) + sortable/filterable payments list (status, reconciliation status). Detail/reconciliation is an `OrderDetailDialog`, not a route — a flat record with a 2-field edit, same convention as Games. No create or delete action exists for this table at all; see `rules.md` |
 
 **`?tab=` search param.** Both course routes take `tab=basics|curriculum`
 (`validateSearch` coerces anything else to `basics`). It's a real search param
@@ -30,7 +31,7 @@ There is deliberately **no `/admin/courses/$courseId` index route** —
 `$courseId/edit` stands alone, and the builder's Curriculum tab is where
 modules, lessons and quiz questions are managed.
 
-**Nav targets that don't exist yet** — `/admin/gamification`, `/admin/orders`,
+**Nav targets that don't exist yet** — `/admin/gamification`,
 `/admin/settings`. They're linked from the sidebar and 404 inside the admin
 shell on purpose; no placeholder routes or stub pages were created for them.
 
