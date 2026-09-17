@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react'
+import { Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import {
   Select,
   SelectContent,
@@ -7,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { AddOrderDialog } from '@/components/admin/orders/AddOrderDialog'
 import { OrderDetailDialog } from '@/components/admin/orders/OrderDetailDialog'
 import { OrderTable } from '@/components/admin/orders/OrderTable'
 import { formatAmount } from '@/lib/currency'
@@ -60,6 +63,7 @@ export function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const [reconciliationFilter, setReconciliationFilter] = useState('all')
   const [viewTarget, setViewTarget] = useState<PaymentRow | null>(null)
+  const [addOrderOpen, setAddOrderOpen] = useState(false)
 
   const { data, isPending, isError } = usePayments()
   const payments = data ?? []
@@ -70,11 +74,17 @@ export function OrdersPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-lg font-semibold tracking-tight">Orders & Payments</h1>
-        <p className="text-muted-foreground text-sm">
-          {payments.length} {payments.length === 1 ? 'order' : 'orders'}
-        </p>
+      <header className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-lg font-semibold tracking-tight">Orders & Payments</h1>
+          <p className="text-muted-foreground text-sm">
+            {payments.length} {payments.length === 1 ? 'order' : 'orders'}
+          </p>
+        </div>
+        <Button onClick={() => setAddOrderOpen(true)}>
+          <Plus />
+          Add order
+        </Button>
       </header>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -139,6 +149,8 @@ export function OrdersPage() {
         open={!!viewTarget}
         onOpenChange={(open) => !open && setViewTarget(null)}
       />
+
+      <AddOrderDialog open={addOrderOpen} onOpenChange={setAddOrderOpen} />
     </div>
   )
 }

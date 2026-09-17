@@ -79,15 +79,64 @@ an `OrderDetailDialog` for the only edit this table permits — toggling
 `reconciliation_status` and setting `reconciliation_note`. Confirmed live
 against `fn_guard_payment_admin_update`: the actual PATCH request contains
 only those two keys, nothing else, and every other column round-trips
-untouched. There is no create or delete action anywhere in this page — the
-table has neither an admin insert nor an admin delete RLS policy, so those
-aren't missing features, they're not features at all (`rules.md`). The
-Dashboard's `useRevenue` moved to `usePayments.ts` unchanged, so both pages'
-revenue KPI call the identical hook — confirmed both show the same number
-(₹3,000) against the same seeded rows. `DashboardPage.tsx`'s only change is
-that one import's source file; nothing about its rendering moved. Unclaimed
-payments (`user_id` null — a payment can arrive before its buyer signs up)
-show the raw email plus an outline "Unclaimed" badge, not an error state.
+untouched. At the time this page shipped there was no create or delete
+action anywhere on it — see the 2026-09-18 entry below for why that's now
+only half true. The Dashboard's `useRevenue` moved to `usePayments.ts`
+unchanged, so both pages' revenue KPI call the identical hook — confirmed
+both show the same number (₹3,000) against the same seeded rows.
+`DashboardPage.tsx`'s only change is that one import's source file; nothing
+about its rendering moved. Unclaimed payments (`user_id` null — a payment
+can arrive before its buyer signs up) show the raw email plus an outline
+"Unclaimed" badge, not an error state.
+
+**2026-09-18: manual order creation landed on the same page.** "Add order"
+(`AddOrderDialog.tsx`) records a payment made outside the gateway (bank
+transfer, cash, a comp) and the enrollment it backs, in one call to a new
+RPC, `fn_create_manual_order` (migration 007) — deliberately a plain
+function, not `SECURITY DEFINER`, so its two inserts are gated by the
+calling admin's own RLS rather than "can call this function". Delete is
+still not a thing for this table; create now is, but only through this one
+function — see `rules.md`'s corrected invariant (the 2026-09-17 entry
+above's "no create path" claim is what changed).
+
+The `expires_at` computation could not be shared with the existing
+client-side manual-enroll path (`useEnrollUser` in `useUserDetail.ts`) —
+one runs in the browser, the other inside Postgres, and there's no third
+place either could call into without adding a hop neither operation needs.
+It's re-implemented in SQL using the identical rule (`'fixed'` + a non-null
+duration → `now() + N days`, else lifetime), and recorded in `rules.md` as
+a "keep both in sync by hand" invariant rather than left to be rediscovered
+as drift later. The course-picker exclusion logic (published only, not
+already enrolled in any status) *was* shareable — extracted from
+`EnrollCourseDialog.tsx` into `filterEnrollableCourses` in
+`useUserDetail.ts`, now used by both.
+
+The part of this task that actually needed proving rather than trusting the
+transaction wrapper: pre-creating a conflicting enrollment directly (not
+via the RPC), then calling the function for that same user+course,
+confirmed it raises the specific friendly message (not a raw constraint
+violation) and leaves **no orphaned payment row** — the payment insert that
+ran moments earlier is rolled back too, since the re-raised exception is
+never caught by anything further inside the function and so aborts the
+whole call. Verified live via a direct SQL call to the function, not
+through the UI, since the UI's own course picker never offers an
+already-enrolled course in the first place.
+
+One real bug found and fixed along the way, unrelated to the RPC itself:
+`useUserEnrollments` had no `enabled` guard, so `AddOrderDialog` briefly
+queried `enrollments?user_id=eq.` (empty string) before a student was
+picked — Postgres correctly rejected it (`22P02`), but worse, the course
+picker could show a still-enrolled course as eligible for a moment after
+picking a student, before that user's enrollments had actually loaded
+(`isPending` alone doesn't cover switching from one already-cached student
+to another — `isFetching` does). Both are fixed: the query is disabled
+until a real id is passed, and the course `<Select>` stays disabled with a
+"Loading…" placeholder until the enrollments fetch has genuinely settled.
+
+Encountered but deliberately not touched: one pre-existing `enrollments`
+row (the real student, the real "Wisdom Hatch Kids" course, `source =
+'manual'`) predates this task and wasn't created by anything in this
+session — left alone rather than assumed safe to delete.
 
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz

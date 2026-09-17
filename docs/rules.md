@@ -56,21 +56,43 @@ belongs in `context.md` or `state.md`, not here.
   (`AwardXpForm.tsx`); this was judged sufficient for a low-frequency admin
   action rather than adding schema-level dedup, but any new manual-award
   entry point must keep that disable, not skip it.
-- **An admin can only ever change `payments.reconciliation_status` and
-  `payments.reconciliation_note` — nothing else, and there is no create or
-  delete action for this table at all.** `fn_guard_payment_admin_update`
-  (migration 004) raises an exception if any other column changes outside
-  `service_role`, and no RLS policy grants admin insert or delete on
-  `payments` in the first place (only `payments_service_role_insert` exists
-  for inserts; `service_role` also owns the one non-reconciliation update
-  path, the webhook). This is deliberate, not an oversight to route around:
-  a payment is the gateway's record of what actually happened, and an admin
-  correcting it wholesale (re-linking it to a different user, changing the
-  amount, "creating" one by hand) would let the app's ledger silently
-  diverge from the real transaction. Any future payments UI — a "create
-  manual payment" action, "link this payment to a user," a delete — hits
-  this trigger's exception or a missing RLS policy, not a permissions
-  setting that can be loosened; the fix is never in the UI layer.
+- **There are now two independent implementations of the `expires_at`
+  formula — one client-side TypeScript (`useEnrollUser` in
+  `useUserDetail.ts`, for manual enroll), one server-side SQL
+  (`fn_create_manual_order`, migration 007, for a manual order) — and they
+  must be kept in sync BY HAND.** They cannot share code: one runs in the
+  browser, the other inside Postgres, and there is no third place either
+  could call into without adding a network hop neither operation needs. The
+  rule both must follow: `access_type = 'fixed'` and a non-null
+  `access_duration_days` computes `now() + N days`; anything else (including
+  a `'fixed'` course with a null duration) is `null` — lifetime. Changing
+  this rule in one place without the other means a manually-enrolled and a
+  manually-ordered student on the same course silently end up with different
+  access windows.
+- **On an *existing* payment, an admin can only ever change
+  `reconciliation_status` and `reconciliation_note` — nothing else — and
+  there is still no delete action for this table at all.**
+  `fn_guard_payment_admin_update` (migration 004) raises an exception if any
+  other column changes outside `service_role`, and no RLS policy grants
+  admin delete on `payments`. This is deliberate, not an oversight to route
+  around: a payment is the gateway's record of what actually happened, and
+  an admin correcting it wholesale (re-linking it to a different user,
+  changing the amount after the fact) would let the app's ledger silently
+  diverge from the real transaction. A future "link this payment to a user"
+  or delete action hits this trigger's exception or a missing RLS policy,
+  not a permissions setting that can be loosened; the fix is never in the
+  UI layer.
+  **Superseded by migration 007:** an admin CAN now create a payment
+  (`payments_admin_insert`, `FOR INSERT TO authenticated WITH CHECK
+  (fn_is_admin())`) — but only ever through `fn_create_manual_order(...)`,
+  never a bare `.insert()`. That function is the only thing allowed to
+  decide `provider_payment_id` (system-generated, `'manual-' ||
+  gen_random_uuid()`, never typed by an admin), `status` (always `'paid'` —
+  a manual order records money already received, not a pending one), and
+  `raw_payload`'s shape (`{manual_entry, entered_by, note}`, so a manually
+  created row is unmistakable from a real gateway one at a glance). A UI or
+  migration that adds a second, more direct way to insert a payment row
+  reopens exactly the gap this function exists to close.
 - **A sortable list's reorder mutation fires exactly once, in `onDragEnd`,
   never in `onDragOver`/`onDragMove`.** dnd-kit already gives the live,
   in-progress reordering preview for free from client-side sensor state — no

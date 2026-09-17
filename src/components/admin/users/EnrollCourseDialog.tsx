@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useCourses, type Course } from '@/hooks/admin/useCourses'
-import { useEnrollUser } from '@/hooks/admin/useUserDetail'
+import { filterEnrollableCourses, useEnrollUser } from '@/hooks/admin/useUserDetail'
 
 interface EnrollCourseDialogProps {
   userId: string
@@ -98,15 +98,9 @@ export function EnrollCourseDialog({
   onOpenChange,
 }: EnrollCourseDialogProps) {
   const { data: allCourses } = useCourses()
-  const enrolledSet = new Set(alreadyEnrolledIds)
-  // Manual enroll is scoped to published courses only — a draft has no
-  // content ready to hand a student, and an archived one is retired.
-  // Already-enrolled courses (any status) are excluded too: the unique
-  // (user_id, course_id) constraint means picking one is a guaranteed
-  // failure, even if the existing row was revoked.
-  const publishableCourses = (allCourses ?? []).filter(
-    (c) => c.status === 'published' && !enrolledSet.has(c.id),
-  )
+  // See filterEnrollableCourses — published only, excluding any course the
+  // user already has an enrollment row for (any status).
+  const publishableCourses = filterEnrollableCourses(allCourses ?? [], alreadyEnrolledIds)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

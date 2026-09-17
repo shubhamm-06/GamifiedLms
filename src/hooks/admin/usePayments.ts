@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { DEFAULT_CURRENCY } from '@/lib/currency'
 import type { Tables } from '@/lib/database.types'
+import { coursesQueryKey } from './useCourses'
 
 export type Payment = Tables<'payments'>
 
@@ -105,14 +106,17 @@ export interface ReconciliationUpdate {
 }
 
 /**
- * The only admin write path onto `payments`. `fn_guard_payment_admin_update`
+ * The only way to *edit* an existing payment. `fn_guard_payment_admin_update`
  * (migration 004) raises on any other column changing outside
- * `service_role` — there is no create or delete action for this table at
- * all (no admin insert/delete RLS policy exists), and no "link this payment
- * to a user" action, since `user_id` is one of the guarded columns. The
- * update payload is written out explicitly (never spread from a wider form
- * object) so the client can't even attempt a write the trigger would refuse
- * — see rules.md.
+ * `service_role` — there is still no "link this payment to a user" action,
+ * since `user_id` is one of the guarded columns, and still no delete action
+ * (no admin delete RLS policy exists). There IS now a create path
+ * (`payments_admin_insert`, migration 007) — see `useCreateManualOrder`
+ * below, which goes through `fn_create_manual_order` rather than a bare
+ * `.insert()` — but that's additive, not a loosening of this update guard.
+ * The update payload here is written out explicitly (never spread from a
+ * wider form object) so the client can't even attempt a write the trigger
+ * would refuse — see rules.md.
  */
 export function useUpdatePaymentReconciliation() {
   const queryClient = useQueryClient()
@@ -132,6 +136,59 @@ export function useUpdatePaymentReconciliation() {
       // key shape.
       queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
       toast.success('Reconciliation updated.')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+}
+
+export interface CreateManualOrderInput {
+  userId: string
+  courseId: string
+  provider: string
+  amount: number
+  currency: string
+  note: string | null
+}
+
+/**
+ * Records a payment that happened outside the gateway (bank transfer, cash,
+ * a goodwill comp) and the enrollment it backs, in one call. Goes through
+ * `fn_create_manual_order` — a single RPC, not two sequential `.insert()`s
+ * — so the payment and enrollment can never partially succeed from the
+ * client's point of view; the function's own transaction is what actually
+ * guarantees that (verified live: forcing the enrollment insert to fail
+ * leaves no orphaned payment row, since the friendly re-raised error is
+ * never caught inside the function and so aborts the whole call).
+ *
+ * The function is a PLAIN one, not `SECURITY DEFINER` — its two inserts run
+ * under this admin's own RLS (`payments_admin_insert`,
+ * `enrollments_admin_insert`), which is what should gate this, not "can call
+ * this RPC". See rules.md.
+ */
+export function useCreateManualOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: CreateManualOrderInput) => {
+      const { data, error } = await supabase.rpc('fn_create_manual_order', {
+        p_user_id: input.userId,
+        p_course_id: input.courseId,
+        p_provider: input.provider,
+        p_amount: input.amount,
+        p_currency: input.currency,
+        p_note: input.note ?? undefined,
+      })
+      if (error) throw new Error(error.message)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: paymentsQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+      queryClient.invalidateQueries({ queryKey: coursesQueryKey })
+      // Enrollment lists are keyed per-user (['admin','userDetail','enrollments',userId])
+      // in useUserDetail.ts — broad-invalidate that family rather than
+      // importing its private key builder.
+      queryClient.invalidateQueries({ queryKey: ['admin', 'userDetail'] })
+      toast.success('Order recorded.')
     },
     onError: (error: Error) => toast.error(error.message),
   })

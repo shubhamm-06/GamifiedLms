@@ -177,6 +177,16 @@ Pre-signup flow: leave `user_id` null, match unclaimed `paid` payments by
 `email` when the buyer eventually signs up, then create their enrollment.
 Not automated — no Edge Function does this yet.
 
+**Admin insert path (migration 007, `payments_admin_insert`).** An admin can
+now create a payment directly (`FOR INSERT TO authenticated WITH CHECK
+(fn_is_admin())`, no constraint on `provider` — free text, per product
+decision), but only ever through `fn_create_manual_order(...)` (below), never
+a bare `.insert()` — the function is what generates a collision-proof
+`provider_payment_id`, looks up the paying user's email, and creates the
+backing enrollment in the same transaction. This is additive: the update
+guard (`fn_guard_payment_admin_update`) and the absence of any admin delete
+policy are both unchanged — see `rules.md`.
+
 ### 5. Gamification
 
 **`xp_transactions`** — append-only ledger, **never** updated or deleted;
@@ -244,6 +254,35 @@ enrolled-and-active courses. Inserts newly-qualifying badges
 **`fn_is_admin()`** (`SECURITY DEFINER`, `stable`) — the single check every
 admin-gated policy calls into: `profiles.role = 'admin'` for `auth.uid()`.
 
+**`fn_create_manual_order(p_user_id, p_course_id, p_provider, p_amount,
+p_currency, p_note)`** (migration 007) — records a payment that happened
+outside the gateway and its backing enrollment, atomically. Deliberately a
+**plain function, not `SECURITY DEFINER`**: its two inserts run under the
+*calling admin's own RLS* (`payments_admin_insert`,
+`enrollments_admin_insert`), which is what should gate this — a
+`SECURITY DEFINER` version would gate on nothing but "can call this
+function". In order: looks up the user's `email` from `profiles`; generates
+`provider_payment_id` as `'manual-' || gen_random_uuid()::text` (never
+accepts one from the caller — that's a system concern, not something to ask
+an admin to type); inserts the payment with `status='paid'`,
+`received_at=now()`, and `raw_payload = {"manual_entry": true, "entered_by":
+auth.uid(), "note": p_note}` (satisfies the `NOT NULL` constraint and keeps
+an audit trail without touching the free-text `provider` column); computes
+`expires_at` from the course's `access_type`/`access_duration_days` using
+the **same formula as the client-side manual-enroll path**
+(`useEnrollUser` in `useUserDetail.ts`) — necessarily re-implemented in SQL
+rather than shared code, since one runs in the browser and the other inside
+Postgres; see `rules.md` for the "keep both in sync by hand" invariant this
+creates; inserts the enrollment with `source='purchase'` (a payment now
+backs it, so it's semantically a purchase, not a bare manual enrollment) and
+`payment_id` set to the new payment's row. If the enrollment insert hits the
+`(user_id, course_id)` unique constraint, that specific exception is caught
+and re-raised as a plain, specific message ("This student already has an
+enrollment for this course.") — since the re-raise happens with nothing
+further catching it, the whole call still aborts and rolls back, so the
+payment insert from moments earlier is undone too. Returns the new
+payment's `id`.
+
 ---
 
 ## RLS policy matrix
@@ -264,7 +303,7 @@ the SQL self-explanatory.
 | `quiz_attempts` | self or admin | `service_role` only | — | — |
 | `enrollments` | self or admin | `service_role` or admin | `service_role` or admin | `service_role` or admin |
 | `lesson_progress` | self or admin | self | self | — |
-| `payments` | self or admin | `service_role` only | `service_role` (any column) or admin (scoped, see trigger table) | — |
+| `payments` | self or admin | `service_role`, or admin via `fn_create_manual_order` only (never a bare insert — migration 007) | `service_role` (any column) or admin (scoped, see trigger table) | — |
 | `xp_transactions` | self or admin | `service_role`, or admin when `source_type='manual'` | — | — |
 | `user_stats` | public (`true`) | — | — | — |
 | `badges` | any authenticated or admin | admin | admin | admin |
@@ -320,6 +359,7 @@ detail logged server-side via `console.error`.
 | 004 | `20260831135811_004_admin_scoped_writes.sql` | 2026-08-31 13:58:11 | Admin direct writes on `enrollments`; admin `manual`-only `xp_transactions`; admin `profiles.role` changes; `payments` reconciliation columns + guard trigger |
 | 005 | `20260901075705_005_auth_profile_trigger.sql` | 2026-09-01 07:57:05 | `fn_handle_new_user()` auto-creates `profiles` on signup |
 | 006 | `20260912092250_006_games_description_thumbnail.sql` | 2026-09-12 09:22:50 | Additive: `games.description`, `games.thumbnail_url` (both nullable) |
+| 007 | `20260918184559_007_manual_order_creation.sql` | 2026-09-18 18:45:59 | `payments_admin_insert` RLS policy (admin insert, no `provider` constraint); `fn_create_manual_order(...)` — plain function, atomically creates a manual payment + its backing enrollment |
 
 No migration has added `admin-user-management` — it's an Edge Function, not a
 schema change, deployed independently (see above).

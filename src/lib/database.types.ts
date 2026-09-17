@@ -850,6 +850,17 @@ export type Database = {
     }
     Functions: {
       fn_compute_level: { Args: { p_total_xp: number }; Returns: number }
+      fn_create_manual_order: {
+        Args: {
+          p_amount: number
+          p_course_id: string
+          p_currency: string
+          p_note?: string
+          p_provider: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       fn_evaluate_badges: { Args: { p_user_id: string }; Returns: undefined }
       fn_is_admin: { Args: never; Returns: boolean }
     }

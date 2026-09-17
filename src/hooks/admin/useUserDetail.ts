@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
-import { coursesQueryKey } from './useCourses'
+import { coursesQueryKey, type Course } from './useCourses'
 import { usersQueryKey } from './useUsers'
 
 export type Enrollment = Tables<'enrollments'>
@@ -90,6 +90,12 @@ export function useUserProfile(userId: string) {
 export function useUserEnrollments(userId: string) {
   return useQuery({
     queryKey: enrollmentsKey(userId),
+    // Guards the "no user picked yet" case (e.g. AddOrderDialog, where this
+    // is called before a student is selected) — without it, an empty
+    // string still fires as `user_id=eq.`, which Postgres rejects outright
+    // (invalid input syntax for type uuid) rather than just returning no
+    // rows.
+    enabled: userId.length > 0,
     queryFn: async (): Promise<EnrollmentWithCourse[]> => {
       const { data, error } = await supabase
         .from('enrollments')
@@ -181,6 +187,23 @@ export function useUserBadges(userId: string) {
 
 /** Postgres unique-violation — the (user_id, course_id) pair already has a row. */
 const UNIQUE_VIOLATION = '23505'
+
+/**
+ * Which courses a given user can validly be enrolled in right now: published
+ * only (a draft has no content ready to hand a student, an archived one is
+ * retired), and not one they already have any enrollment row for, in any
+ * status — the unique `(user_id, course_id)` constraint means offering one
+ * of those is a guaranteed failure even if the existing row was revoked.
+ *
+ * Shared between `EnrollCourseDialog.tsx` (manual enroll, from the user
+ * detail page) and `AddOrderDialog.tsx` (manual order, from Orders &
+ * Payments) — both pickers are gated by the exact same constraint, so this
+ * lives in one place rather than as two copies that could quietly drift.
+ */
+export function filterEnrollableCourses(courses: Course[], alreadyEnrolledIds: string[]): Course[] {
+  const enrolledSet = new Set(alreadyEnrolledIds)
+  return courses.filter((c) => c.status === 'published' && !enrolledSet.has(c.id))
+}
 
 /**
  * Straight through RLS (enrollments_admin_insert, migration 004), no Edge
