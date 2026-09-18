@@ -229,6 +229,30 @@ belongs in `context.md` or `state.md`, not here.
   singleton config table, rather than inventing a new mechanism — but it
   only fits a table that really is one global row; don't reach for it for
   something that's actually a list with exactly one entry today.
+- **`courses.currency` and `payments.currency` stay plain text, NOT foreign
+  keys to `currencies` (migration 011) — explicitly out of scope, not an
+  oversight.** `app_settings.default_currency` is FK'd to `currencies(code)`
+  because it's a single admin-set value; `courses.currency`/
+  `payments.currency` are per-row values written by existing paths
+  (`CourseForm.tsx`'s create/edit submit, `fn_create_manual_order`'s insert)
+  that would all need updating to validate against this table, which is
+  real additional scope beyond "manage a settings list" — see `state.md`
+  for the flagged follow-on. Don't "fix" this into a constraint without
+  first working through what happens to a course/payment already carrying
+  a currency code that later gets deleted from `currencies` (nothing
+  prevents that today, since nothing references those two columns).
+- **`manual_order_providers` and `currencies` are true hard deletes, not
+  deactivate-only** — verify the live RLS policy grants admin `DELETE`
+  before assuming a table's delete story from a stale doc or how a sibling
+  table works. `schema.md` incorrectly claimed for a while that
+  `manual_order_providers` had "no delete policy," when the migration had
+  granted one since it was written; the fix was to re-check `pg_policy`
+  directly, not to trust the existing prose. Both tables are safe to
+  hard-delete from because nothing else in the schema has a FK to
+  `manual_order_providers.id` or (aside from `app_settings.default_currency`,
+  which the FK itself blocks) `currencies.code` — confirm that's still true
+  before adding delete to the next config table, rather than assuming it
+  transfers.
 - **TypeScript only — no new `.js`/`.jsx` files.**
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any

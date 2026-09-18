@@ -1,15 +1,18 @@
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ManualOrderProvidersSection } from '@/components/admin/settings/ManualOrderProvidersSection'
-import { PlatformSettingsSection } from '@/components/admin/settings/PlatformSettingsSection'
+import { CommerceSettingsSection } from '@/components/admin/settings/CommerceSettingsSection'
+import { GamificationSettingsSection } from '@/components/admin/settings/GamificationSettingsSection'
+import { SiteIdentitySettingsSection } from '@/components/admin/settings/SiteIdentitySettingsSection'
 
 /**
- * Two tabs now that there's an actual second section, not a hypothetical
- * one — the earlier "structure it so a second section can be added later"
- * note (see git history / changelog) was written for exactly this moment.
- * Still no generic "settings framework": each tab renders one purpose-built
- * component, and a third tab would just be one more `TabsTrigger` +
- * `TabsContent` pair, not a registry to extend.
+ * Three tabs, one purpose-built component each — Commerce (Manual Order
+ * Providers + Currencies + the default currency picker), Gamification
+ * (quiz pass threshold, alone for now — matches the sidebar's own naming
+ * for this area), Site Identity (name/URL/support/legal links). Replaced
+ * the earlier Providers | Platform split now that Platform's fields have
+ * an actual home to be grouped by, rather than one undifferentiated
+ * second tab. Still no generic settings framework: a fourth tab is one
+ * more `TabsTrigger`/`TabsContent` pair, not a registry to extend.
  */
 export function SettingsPage() {
   const { tab } = useSearch({ from: '/admin/settings' })
@@ -24,19 +27,27 @@ export function SettingsPage() {
       <Tabs
         value={tab}
         onValueChange={(value) =>
-          navigate({ to: '/admin/settings', search: { tab: value as 'providers' | 'platform' }, replace: true })
+          navigate({
+            to: '/admin/settings',
+            search: { tab: value as 'commerce' | 'gamification' | 'identity' },
+            replace: true,
+          })
         }
       >
         <TabsList>
-          <TabsTrigger value="providers">Providers</TabsTrigger>
-          <TabsTrigger value="platform">Platform</TabsTrigger>
+          <TabsTrigger value="commerce">Commerce</TabsTrigger>
+          <TabsTrigger value="gamification">Gamification</TabsTrigger>
+          <TabsTrigger value="identity">Site Identity</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="providers" className="pt-4">
-          <ManualOrderProvidersSection />
+        <TabsContent value="commerce" className="pt-4">
+          <CommerceSettingsSection />
         </TabsContent>
-        <TabsContent value="platform" className="pt-4">
-          <PlatformSettingsSection />
+        <TabsContent value="gamification" className="pt-4">
+          <GamificationSettingsSection />
+        </TabsContent>
+        <TabsContent value="identity" className="pt-4">
+          <SiteIdentitySettingsSection />
         </TabsContent>
       </Tabs>
     </div>

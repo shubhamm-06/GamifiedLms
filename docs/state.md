@@ -264,13 +264,54 @@ rather than per-field. `AdminLayout`'s sidebar header now reads
 `app_settings.site_name` instead of a hardcoded string — confirmed live
 that an admin's save is reflected in the sidebar immediately (no reload)
 and survives a hard reload (a genuine read, not a client-only optimistic
-value).
+value). **This `?tab=providers|platform` shape was short-lived — see the
+2026-09-19 Currency management entry below, which replaced it with three
+tabs the same day.**
 
-**Deliberate follow-on, flagged rather than built here:**
+**2026-09-19, later the same day: Provider delete, currency management,
+Settings tab restructure.** Three pieces:
+- **Delete on Manual Order Providers.** The live RLS policy
+  (`manual_order_providers_admin_delete`) already granted admin `DELETE` —
+  re-verified directly against `pg_policy` rather than assumed, which
+  turned up that `schema.md` had been wrong the whole time claiming "no
+  delete policy exists" (corrected there, not left standing). Delete is a
+  true hard delete, confirmed safe by `payments.provider` having no FK to
+  this table; Deactivate and Delete both stay available in the UI, each
+  behind its own confirm `AlertDialog`.
+- **Migration 011: `currencies`.** Same admin-only RLS shape as
+  `manual_order_providers`. Seeded with the full ISO 4217 active-codes
+  list — 178 rows, sourced from Wikipedia's ISO 4217 article wikitext (not
+  hand-typed; cross-checked against Node's own `Intl.supportedValuesOf
+  ('currency')`, which returned only 162 — CLDR's currency data is a
+  curated subset of the official ISO list, so the wikitext source was used
+  as authoritative, including the precious-metal/special codes CLDR
+  omits). `app_settings.default_currency` is now a FK to `currencies(code)`
+  (`NO ACTION`) — confirmed live that this correctly refuses deleting
+  whichever currency is currently the platform default, with a friendly
+  message instead of a raw `23503`.
+- **`/admin/settings` restructured again, same day: `?tab=commerce|
+  gamification|identity`, replacing the brand-new `providers|platform`
+  pair from earlier today.** Commerce holds Providers + Currencies + the
+  default-currency picker; Gamification holds just the quiz threshold;
+  Site Identity holds the site/contact/legal fields. Splitting one
+  `app_settings` row across three tabs meant `useUpdateAppSettings`'s input
+  became a `Partial` so each tab (or, for the currency picker, each
+  selection) saves only the fields it owns. The default-currency picker
+  became a searchable `Popover`+`Command` combobox (first use of that
+  pattern in this codebase) — a plain `Select` doesn't work at ~180
+  options; confirmed live that typing actually filters the list (178 → 1
+  for an exact-name search) rather than just being visually scrollable.
+
+**Deliberate follow-on, flagged rather than built here (twice now):**
 `CourseForm.tsx`'s create-mode default (`currency: 'INR'`, hardcoded) should
 read `app_settings.default_currency` instead, so a platform-level currency
-change actually affects new courses. Small, separate change — not done as a
-side effect of adding the settings table itself.
+change actually affects new courses. **Additionally, and also explicitly
+deferred:** `courses.currency`/`payments.currency` stay plain text, not FK'd
+to the new `currencies` table — wiring that up touches `CourseForm.tsx` and
+`fn_create_manual_order`'s existing write paths and needs its own pass
+(including deciding what happens to a course/payment already carrying a
+currency code that later gets deleted or deactivated), not a side effect of
+adding the currencies list itself.
 
 **Deferred, explicitly out of scope for this task:** design-tokens theming
 (letting an admin adjust the locked color set in `ui.md` from
@@ -339,6 +380,13 @@ None.
   follow-on when Platform Settings landed, deliberately not built as a side
   effect of adding the settings table — wiring it up is a small, separate
   change to `CourseForm.tsx`'s initial values.
+- **`courses.currency`/`payments.currency` are NOT foreign keys to
+  `currencies` (migration 011) — plain text, by explicit design, not an
+  oversight.** Only `app_settings.default_currency` got the FK. Wiring the
+  other two up touches `CourseForm.tsx` and `fn_create_manual_order`'s
+  existing write paths and is real additional scope beyond "manage a
+  currency list" — flagged as a follow-on, not built here. See `rules.md`
+  for why this needs its own pass rather than a quick constraint add.
 - **Nav uses one `to as never` cast** (`AdminLayout`'s `NavLink`) because
   most nav targets aren't in the typed route tree yet. Remove as real routes
   land.

@@ -129,11 +129,13 @@ const adminOrdersRoute = createRoute({
 /**
  * Same `?tab=`-as-real-search-param convention as Course Builder and
  * `/admin/orders`'s `?view=` — survives a refresh, is linkable. Defaults to
- * `providers` since that's the section that already existed before Platform
- * landed.
+ * `commerce`, matching this tab's position as the first/leftmost one.
  */
-function validateSettingsTab(search: Record<string, unknown>): { tab: 'providers' | 'platform' } {
-  return { tab: search.tab === 'platform' ? 'platform' : 'providers' }
+function validateSettingsTab(
+  search: Record<string, unknown>,
+): { tab: 'commerce' | 'gamification' | 'identity' } {
+  const tab = search.tab === 'gamification' || search.tab === 'identity' ? search.tab : 'commerce'
+  return { tab }
 }
 
 const adminSettingsRoute = createRoute({

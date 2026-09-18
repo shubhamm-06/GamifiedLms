@@ -1,5 +1,15 @@
 import { useState, type FormEvent } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,8 +18,10 @@ import { Switch } from '@/components/ui/switch'
 import {
   LABEL_TAKEN,
   useCreateProvider,
+  useDeleteProvider,
   useManualOrderProviders,
   useSetProviderActive,
+  type ManualOrderProvider,
 } from '@/hooks/admin/useManualOrderProviders'
 
 /**
@@ -22,8 +34,10 @@ export function ManualOrderProvidersSection() {
   const { data: providers, isPending, isError } = useManualOrderProviders()
   const createProvider = useCreateProvider()
   const setActive = useSetProviderActive()
+  const deleteProvider = useDeleteProvider()
   const [label, setLabel] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<ManualOrderProvider | null>(null)
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -47,8 +61,8 @@ export function ManualOrderProvidersSection() {
         <h2 className="text-sm font-semibold">Manual Order Providers</h2>
         <p className="text-muted-foreground text-xs">
           Options offered in Add Order&rsquo;s Provider dropdown (Orders &amp; Payments). Only
-          active providers appear there — payments already recorded against a deactivated label
-          are unaffected.
+          active providers appear there — payments already recorded against a deactivated or
+          deleted label are unaffected.
         </p>
       </div>
 
@@ -101,11 +115,46 @@ export function ManualOrderProvidersSection() {
                     setActive.mutate({ id: provider.id, isActive: checked })
                   }
                 />
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={`Delete ${provider.label}`}
+                  onClick={() => setDeleteTarget(provider)}
+                >
+                  <Trash2 />
+                </Button>
               </div>
             </li>
           ))}
         </ul>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete &ldquo;{deleteTarget?.label}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the label for good — unlike deactivating, there&rsquo;s no undo. Any
+              payment already recorded with this provider keeps its own text copy and is
+              completely unaffected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteProvider.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={deleteProvider.isPending}
+              onClick={(event) => {
+                event.preventDefault()
+                if (!deleteTarget) return
+                deleteProvider.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })
+              }}
+            >
+              {deleteProvider.isPending ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

@@ -31,21 +31,26 @@ export function useAppSettings() {
 
 export interface UpdateAppSettingsInput {
   id: string
-  default_currency: string
-  quiz_pass_threshold_percent: number
-  site_name: string
-  site_url: string | null
-  support_email: string | null
-  terms_url: string | null
-  privacy_url: string | null
+  default_currency?: string
+  quiz_pass_threshold_percent?: number
+  site_name?: string
+  site_url?: string | null
+  support_email?: string | null
+  terms_url?: string | null
+  privacy_url?: string | null
 }
 
 /**
- * Saves the whole row in one write — this is config, not a list of
- * independent records, so there's no per-field save affordance to wire up
- * separately. `id` comes from whatever `useAppSettings()` already loaded
- * into the form, not a hardcoded constant, so this file never needs to
- * know or duplicate the seeded row's actual id.
+ * Partial by design: the three Settings tabs (Commerce, Gamification, Site
+ * Identity) each own a different slice of this one row and save
+ * independently — the Default currency picker saves just
+ * `default_currency` the instant it's picked, Gamification's form saves
+ * just the threshold, Site Identity's form saves just its five fields.
+ * None of them needs to know or carry the other tabs' current values;
+ * `.update(fields)` only ever touches the columns actually passed. `id`
+ * comes from whatever `useAppSettings()` already loaded, not a hardcoded
+ * constant, so this file never needs to know or duplicate the seeded row's
+ * actual id.
  */
 export function useUpdateAppSettings() {
   const queryClient = useQueryClient()

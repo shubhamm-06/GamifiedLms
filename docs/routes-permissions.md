@@ -19,7 +19,7 @@ file-based — new routes are added there, not by creating files under a
 | `/admin/courses/$courseId/edit` | `CourseEditPage` | Admin only | Course Builder: Basics + Curriculum tabs. Bad id or RLS-hidden row renders "Course not found", not a crash |
 | `/admin/games` | `GamesPage` | Admin only | Sortable/filterable list, same table conventions as `/admin/courses`. Create/edit is a `GameDialog`, not a route — games are a flat record with no nested child content. Delete is real (no archive/status column), refused with a friendly message if any lesson still references the game |
 | `/admin/orders` | `OrdersPage` | Admin only | Takes `?view=active\|trash` (defaults `active`, see `?view=` note below). KPI cards (revenue, unresolved, failed) always exclude trashed rows regardless of which view is open + sortable/filterable payments list (status, reconciliation status). Detail/reconciliation is an `OrderDetailDialog`, not a route — a flat record with a 2-field edit, same convention as Games. "Add order" (`AddOrderDialog`) records a payment made outside the gateway plus its enrollment, via the `fn_create_manual_order` RPC (migration 007) — not two sequential inserts; amount/currency auto-fill from the selected course (falls back to 0 for a free course), staying editable after. "Export CSV" dumps the currently-filtered, currently-viewed (active or trash) list; "Import CSV" (`ImportOrdersDialog`) bulk-creates via the same `fn_create_manual_order` RPC, once per row, per-row atomic (one bad row doesn't roll back the rest) — a results summary reports per-row success/failure. Bulk row selection (checkbox column, header select-all scoped to the active filter) drives a selection toolbar: Active offers Mark Resolved/Unresolved, Export selected, and Move to Trash; Trash offers Restore, Export selected, and Delete Permanently (migration 009) — each a single batched request, never one per row. Row-level equivalents live in a per-row dropdown menu once there's more than one possible action (View details/Move to Trash in Active; Restore/Delete Permanently in Trash). Permanent delete is real, RLS-gated to already-trashed rows only (`payments_admin_delete_from_trash`) — see `rules.md` |
-| `/admin/settings` | `SettingsPage` | Admin only | Takes `?tab=providers\|platform` (defaults `providers`, see `?tab=` note below). Providers tab: Manual Order Providers — a plain list (not a TanStack Table) to add/deactivate the labels offered by Add Order / Import CSV's provider dropdown. Platform tab (migration 010): one form over the `app_settings` singleton, grouped visually into Commerce / Gamification / Site Identity, saved as a whole row on submit — not a settings framework, just a second purpose-built tab now that there's an actual second section |
+| `/admin/settings` | `SettingsPage` | Admin only | Takes `?tab=commerce\|gamification\|identity` (defaults `commerce`, see `?tab=` note below). Commerce: Manual Order Providers + Currencies (both add/toggle/delete list editors, not TanStack Tables) + the Default currency picker (a searchable combobox, migration 011 — plain `Select` doesn't scale to ~180 seeded currencies). Gamification: quiz pass threshold, alone for now, matching the sidebar's own naming for this area. Site Identity: site name/URL, support email, terms/privacy URLs. Each tab saves its own slice of the `app_settings` singleton independently (or, for the currency picker, immediately on selection) — not one cross-tab form — still no settings framework, each tab is one purpose-built component |
 
 **`?tab=` search param.** Both course routes take `tab=basics|curriculum`
 (`validateSearch` coerces anything else to `basics`). It's a real search param
@@ -39,13 +39,16 @@ linkable, and switching it (via the `Tabs` control) clears any current row
 selection, since Active and Trash are disjoint row sets and a selection
 made in one means nothing in the other.
 
-**`?tab=` on `/admin/settings`.** Takes `tab=providers|platform` (defaults
-`providers`) — its own value set, unrelated to the course routes' `basics|
-curriculum`, but the identical convention: a real search param, not
-component state. Because `tab` is required on this route's search type too,
+**`?tab=` on `/admin/settings`.** Takes `tab=commerce|gamification|identity`
+(defaults `commerce`) — its own value set, unrelated to the course routes'
+`basics|curriculum`, but the identical convention: a real search param, not
+component state. Superseded a shorter-lived `providers|platform` pair from
+when this route had only two tabs (see `changelog.md`) — Platform's fields
+now have an actual home to be grouped by instead of one undifferentiated
+second tab. Because `tab` is required on this route's search type too,
 every `Link`/`navigate` to `/admin/settings` must pass one — e.g. Add
 Order's "no active providers, add one in Settings" link passes `search={{
-tab: 'providers' }}` explicitly rather than relying on the default.
+tab: 'commerce' }}` explicitly rather than relying on the default.
 
 **Nav targets that don't exist yet** — `/admin/gamification`. It's linked
 from the sidebar and 404s inside the admin shell on purpose; no placeholder

@@ -231,8 +231,12 @@ not implemented.**
 
 - shadcn components live in `src/components/ui/` (generated) — do not
   hand-edit generated files beyond the documented `eslint-disable` fix on
-  `button.tsx`/`badge.tsx` (see `context.md` gotchas) and the indeterminate-
-  icon fix on `checkbox.tsx` (see the row-selection entry below).
+  `button.tsx`/`badge.tsx` (see `context.md` gotchas), the indeterminate-
+  icon fix on `checkbox.tsx` (see the row-selection entry below), and
+  correcting `import { cn } from "cn"` back to `@/lib/utils` on every file
+  the Windows CLI bug generates (`popover.tsx`, `command.tsx`,
+  `input-group.tsx` needed this when adding the currency combobox) — see
+  `context.md`'s gotchas for the bug itself.
 - Feature-specific UI is grouped by domain: `components/auth/`,
   `components/admin/`, `components/admin/users/`, `components/admin/courses/`,
   `components/admin/games/`.
@@ -409,35 +413,75 @@ not implemented.**
   convention above, but standing up that machinery for a handful of rows
   today would be building for a scale problem that doesn't exist.
 - **`/admin/settings` is `Tabs` over purpose-built sections, not a generic
-  settings framework.** Providers (`ManualOrderProvidersSection.tsx`) and
-  Platform (`PlatformSettingsSection.tsx`, migration 010) are two
-  independent components, each rendered inside its own `TabsContent` —
-  adding a third section later is one more `TabsTrigger`/`TabsContent`
-  pair, not a registry or config-driven section list to extend. This is
-  the same `?tab=`-as-search-param convention as Course Builder (see
-  `routes-permissions.md`), reused rather than reinvented now that there's
-  an actual second section to switch between.
-- **A config table backing a single form is grouped visually by category,
-  not laid out as one flat list of fields.** `PlatformSettingsSection.tsx`
-  splits `app_settings`' seven columns into three bordered `Section`s
-  (Commerce / Gamification / Site Identity — the same small `Section` +
-  `Field` local helpers `CourseForm.tsx` already uses, not shared code,
-  since each is a ~10-line presentational wrapper with nothing to drift)
-  and saves the whole row in one submit. **No per-field save affordance** —
-  this is config, not a list of independent records, so there's nothing to
-  gain from letting one field save independently of the others.
+  settings framework.** Three tabs — Commerce
+  (`CommerceSettingsSection.tsx`: `ManualOrderProvidersSection.tsx` +
+  `CurrenciesSection.tsx` + the default-currency picker), Gamification
+  (`GamificationSettingsSection.tsx`), Site Identity
+  (`SiteIdentitySettingsSection.tsx`) — each rendered inside its own
+  `TabsContent`. This replaced an earlier, shorter-lived two-tab
+  Providers | Platform split (see `changelog.md`) once Platform's seven
+  fields had an actual category structure to be grouped by, rather than
+  landing in one undifferentiated second tab. Adding a fourth tab later is
+  one more `TabsTrigger`/`TabsContent` pair, not a registry to extend. Same
+  `?tab=`-as-search-param convention as Course Builder (see
+  `routes-permissions.md`).
+- **Splitting one config row across multiple tabs means each tab saves its
+  own slice independently, not one shared cross-tab form.**
+  `useUpdateAppSettings`'s input type is a `Partial` (besides `id`)
+  specifically so Gamification's form can submit just
+  `quiz_pass_threshold_percent`, Site Identity's just its five fields, and
+  the Commerce tab's currency picker just `default_currency` — none of them
+  needs to know or carry the other tabs' current values, and `.update()`
+  only ever touches the columns actually passed. This is a direct
+  consequence of the earlier one-form-one-submit `PlatformSettingsSection`
+  being split across tabs a user might not have both open — see
+  `changelog.md`.
+  **A discrete choice (the currency picker) auto-saves on selection, the
+  same immediate-action feel as the `Switch` toggles in the list editors
+  right above/below it in Commerce; typed fields (the quiz threshold,
+  Site Identity's text inputs) keep an explicit Save button**, since typing
+  a number or URL character-by-character has a meaningful "still typing"
+  state that a Select's onSelect doesn't. Match this split when adding the
+  next Settings field: pick the save behavior by whether partial input is
+  ever a valid intermediate state, not by copying whichever field is
+  nearest.
   **Initializing local form state from a query-loaded singleton row (not a
   dialog) still needs the "mount fresh" trick** — there's no open/close
-  moment to reset on the way a dialog has, so the parent renders the form
+  moment to reset on the way a dialog has, so the parent renders each form
   with `key={settings.id}` once the row has loaded. Since the singleton's
   `id` never changes across a refetch, this does NOT remount on every
   background refetch (which would blow away in-progress edits) — it only
   (re)mounts once, the first time real data replaces the loading state.
+- **A searchable combobox (Popover + `Command`, shadcn's standard shape) is
+  the pattern for any Select with too many options to scroll.** The default
+  currency picker in `CommerceSettingsSection.tsx` is the first use of
+  this — a plain `Select` was fine for the two-item course-currency
+  dropdown, but ~180 seeded currencies need to be filterable by typing.
+  `Command`'s built-in text-content filtering means `CommandItem`'s
+  rendered children (code + name) double as the search index — no separate
+  search-string prop needed unless the visible text and the intended match
+  text diverge. Reach for this combination the next time a Select's option
+  list is large enough that scrolling stops being a reasonable way to find
+  an entry; a plain `Select` stays correct below that threshold (see the
+  two-currency `Select` still used in `CourseForm.tsx`, deliberately not
+  touched — wiring courses to this full list is a flagged follow-on, not
+  done here, see `state.md`).
+- **A true hard delete on a config-list row (Providers, Currencies) needs
+  the live RLS policy checked, not assumed from a stale doc or a sibling
+  table's shape.** Both list editors offer Delete alongside Deactivate,
+  each behind its own confirm `AlertDialog` with copy specific to that
+  entity (not a shared cross-entity dialog — the add-form shapes already
+  differ enough, one field vs. two, that generalizing the confirm dialog
+  too would be indirection for two call sites). Deleting the currency
+  currently set as the platform default is expected to fail — the FK
+  blocks it — and the dialog in that case deliberately stays open on that
+  specific error (see `CurrenciesSection.tsx`) rather than closing, so the
+  toast explaining why stays legible next to the row that caused it.
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
   sonner, switch, checkbox, tabs (used since Course Builder, missing from
-  this list until now — corrected, not a new install). The generated
-  `checkbox.tsx` unconditionally
+  this list until now — corrected, not a new install), popover, command.
+  The generated `checkbox.tsx` unconditionally
   rendered `CheckIcon` for every checked state — hand-patched to swap in
   `MinusIcon` when `checked === "indeterminate"`, since a bulk-selection
   header checkbox needs the two states to actually look different (see the

@@ -1,7 +1,7 @@
 # Schema
 
 Postgres 17 via Supabase, project `Gamified LMS`, ref `dmmvftodhcdbubuljqme`,
-region `ap-northeast-1`. 16 tables across 6 domains, all RLS-enabled, plus 3
+region `ap-northeast-1`. 17 tables across 6 domains, all RLS-enabled, plus 3
 views and 1 deployed Edge Function.
 
 **Source of truth is `supabase/migrations/`.** If this file and the live
@@ -229,8 +229,34 @@ stays plain free text, NOT a foreign key to this table** — see `rules.md` for
 why that's a deliberate, permanent design call rather than an oversight.
 Deactivating a row here only removes it from the dropdown going forward;
 existing `payments.provider` values already copied from it are untouched
-(text snapshot, not a live reference). No delete policy exists — deactivate
-only, matching the project's archive-don't-delete convention elsewhere.
+(text snapshot, not a live reference). **`manual_order_providers_admin_delete`
+has existed since migration 008 and genuinely grants admin `DELETE`** — this
+file previously claimed "no delete policy exists," which was wrong the
+whole time (re-verified directly against `pg_policy`, not assumed, before
+correcting this). A hard delete here is safe for the same reason
+deactivating is: `payments.provider` has no FK to this table, so removing a
+row can never touch a historical payment record. Deactivate and delete both
+stay available in the UI, serving different purposes — deactivate hides a
+label temporarily, delete removes it for good.
+
+**`currencies`** (migration 011) — admin-configurable list of currencies.
+`code` (text PK, ISO 4217 — e.g. `'INR'`, `'USD'`), `name` (text, not null —
+e.g. "Indian rupee"), `is_active` (boolean, default true). Seeded with the
+full standard ISO 4217 active-codes list, 178 rows, sourced from the
+current ISO 4217 active-codes table rather than hand-typed, including the
+precious-metal and special codes (XAU/XAG/XPD/XPT, XDR/XSU/XUA/XTS/XXX) —
+so admins deactivate what this platform doesn't use rather than typing in
+what it does. Same admin-only-on-every-operation RLS shape as
+`manual_order_providers`. **`app_settings.default_currency` is a foreign
+key to `currencies(code)`** (`NO ACTION`, the Postgres default when
+unspecified — not `CASCADE`) — the correct, deliberate side effect is that
+an admin can no longer delete the currency currently set as the platform
+default without changing the default first; the client maps the resulting
+`23503` to a specific message rather than a raw Postgres error (see
+`useDeleteCurrency` in `useCurrencies.ts`), the same established pattern as
+the lesson-delete and payment-permanent-delete FK cases. **`courses.currency`
+and `payments.currency` stay plain text, NOT FK'd to this table** —
+explicitly out of scope, see `rules.md` and `state.md`.
 
 ### 5. Gamification
 
@@ -258,7 +284,8 @@ client-writable by any role. `user_id` (PK), `total_xp`, `level`,
 ### 6. Platform configuration — `app_settings`
 
 **A deliberate singleton (migration 010).** `id` (uuid PK), `default_currency`
-(text, not null, default `'INR'`), `quiz_pass_threshold_percent` (int, not
+(text, not null, default `'INR'`, **FK → `currencies(code)` since migration
+011** — see section 4 above), `quiz_pass_threshold_percent` (int, not
 null, default `70`), `site_name` (text, not null, default `'Wisdom Hatch
 Kids'`), `site_url` (nullable), `support_email` (nullable), `terms_url`
 (nullable), `privacy_url` (nullable). Exactly one row exists, seeded by the
@@ -381,6 +408,7 @@ the SQL self-explanatory.
 | `user_badges` | public (`true`) | `service_role` only | — | — |
 | `manual_order_providers` | admin only | admin only | admin only | admin only |
 | `app_settings` | public (`true`), including `anon` | — | admin only | — |
+| `currencies` | admin only | admin only | admin only | admin only |
 
 Blank cells mean no policy exists — RLS defaults to deny, so that operation
 is impossible for `anon`/`authenticated`. `user_stats` and `user_badges` have
@@ -439,6 +467,7 @@ detail logged server-side via `console.error`.
 | 008 | `20260917191418_008_manual_order_providers.sql` | 2026-09-18 | `manual_order_providers` table (admin-only RLS on all 4 ops), seeded with `bank_transfer`/`cash`/`comp`; sources the Add Order / Import Orders provider dropdown, not a FK from `payments.provider` |
 | 009 | `20260918211500_009_payments_soft_delete.sql` | 2026-09-18 21:15:00 | `payments.deleted_at` (nullable, no default) — the only soft-delete column in this schema; `fn_guard_payment_admin_update` re-verified live and updated to also permit `deleted_at`; `payments_admin_delete_from_trash` — real DELETE, only when already trashed |
 | 010 | `20260919090000_010_app_settings.sql` | 2026-09-19 09:00:00 | `app_settings` — a deliberate singleton table (one seeded row, no INSERT/DELETE policy for any role), public SELECT, admin-only UPDATE. Closes the `default_currency` and `quiz_pass_threshold_percent` gaps; `site_name` replaces `AdminLayout`'s hardcoded sidebar text |
+| 011 | `20260919120000_011_currencies.sql` | 2026-09-19 12:00:00 | `currencies` table, admin-only RLS, seeded with the full ISO 4217 active-codes list (178 rows); `app_settings.default_currency` becomes a FK to `currencies(code)` (`NO ACTION`) — an admin can no longer delete the platform's current default currency without changing it first |
 
 No migration has added `admin-user-management` — it's an Edge Function, not a
 schema change, deployed independently (see above).

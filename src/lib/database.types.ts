@@ -45,7 +45,15 @@ export type Database = {
           support_email?: string | null
           terms_url?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "app_settings_default_currency_fkey"
+            columns: ["default_currency"]
+            isOneToOne: false
+            referencedRelation: "currencies"
+            referencedColumns: ["code"]
+          },
+        ]
       }
       badges: {
         Row: {
@@ -187,6 +195,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      currencies: {
+        Row: {
+          code: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          code: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          code?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
       }
       enrollments: {
         Row: {

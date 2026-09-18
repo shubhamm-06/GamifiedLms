@@ -57,11 +57,12 @@ export function useCreateProvider() {
 }
 
 /**
- * Deactivate only — there is no delete mutation for this table, matching
- * the project's archive-don't-delete instinct elsewhere (courses). Safe
- * regardless: `payments.provider` is a text snapshot copied at insert
- * time, so deactivating (or even hypothetically removing) a label here
- * changes nothing about rows that already reference it in free text.
+ * Deactivate hides a label temporarily without losing it — the label stays
+ * addressable (and re-activatable) for admins who just want it out of the
+ * dropdown for a while. Safe regardless of what it's used for:
+ * `payments.provider` is a text snapshot copied at insert time, so
+ * deactivating a label here changes nothing about rows that already
+ * reference it in free text.
  */
 export function useSetProviderActive() {
   const invalidate = useProvidersInvalidator()
@@ -74,6 +75,31 @@ export function useSetProviderActive() {
       if (error) throw new Error(error.message)
     },
     onSuccess: () => invalidate(),
+    onError: (error: Error) => toast.error(error.message),
+  })
+}
+
+/**
+ * A true hard delete, verified against the live RLS policy
+ * (`manual_order_providers_admin_delete`, `FOR DELETE USING
+ * (fn_is_admin())`) before adding this rather than assumed from how the
+ * migration read. Safe to be a real delete, not deactivate-only:
+ * `payments.provider` is deliberately plain text with no FK to this table
+ * (see rules.md), so removing a label here can never touch a historical
+ * payment record. Deactivate and delete serve different purposes and both
+ * stay available — this doesn't replace `useSetProviderActive`.
+ */
+export function useDeleteProvider() {
+  const invalidate = useProvidersInvalidator()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('manual_order_providers').delete().eq('id', id)
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      invalidate()
+      toast.success('Provider deleted.')
+    },
     onError: (error: Error) => toast.error(error.message),
   })
 }

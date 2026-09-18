@@ -290,7 +290,7 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
             Add one in{' '}
             <Link
               to="/admin/settings"
-              search={{ tab: 'providers' }}
+              search={{ tab: 'commerce' }}
               className="text-teal-d hover:underline"
             >
               Settings
