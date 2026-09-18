@@ -356,6 +356,36 @@ not implemented.**
   toggling a checkbox must not regenerate `columnFilters`'s array reference,
   or it fires the same page-reset bug this file already warns about, just
   via a different field.
+- **A view toggle over two disjoint row sets is a real search param
+  (`?view=`), a `Tabs` control, and a cleared selection on switch** —
+  `/admin/orders`'s Active/Trash toggle (migration 009) follows Course
+  Builder's `?tab=` convention exactly (see `routes-permissions.md`), not a
+  new pattern. Selection is cleared on every view switch because Active and
+  Trash never share rows, so a selection made in one is meaningless in the
+  other — done in the `Tabs`'s `onValueChange` handler directly (an
+  ordinary event handler, not a `useEffect` reacting to the search param
+  changing, which the `react-hooks/set-state-in-effect` rule would reject
+  anyway).
+  **Selection also needs manual cleanup after a row disappears from view for
+  any reason** (trashed, restored, or actually deleted) — TanStack's own
+  row-selection skill docs call this out explicitly: selection is
+  independent state that does not clean itself up when the data it points
+  at changes shape. `OrdersPage.tsx`'s `removeFromSelection(ids)` deletes
+  exactly the acted-upon ids from the selection map rather than clearing it
+  entirely, since the same handler backs both a bulk toolbar action (`ids`
+  is the whole selection) and a single row's dropdown action (`ids` is just
+  that one row, which may not even be selected) — a blanket clear would be
+  wrong for the second case, wiping an unrelated in-progress selection.
+  **Not every destructive-sounding action gets the same confirmation
+  weight.** Move to Trash gets an ordinary confirm (reversible, but "trash"
+  language still warrants a pause); Delete Permanently gets its own
+  strongly-worded copy and a destructive-styled button, explicitly not
+  reusing Move to Trash's copy; Restore gets no confirmation dialog at all
+  — undoing a soft delete is the safe direction and the task that
+  introduced this deliberately only asked for confirmation on the other two.
+  A future action added to this toolbar should pick its confirmation weight
+  the same way: by what a wrong click actually costs, not by copying
+  whatever's nearest in the file.
 - **Toolbar-owned filters, table-owned pagination.** The search input and
   role/status select live on the page and are passed down as controlled
   state; the page-size select and prev/next live in the table's own footer
@@ -380,7 +410,9 @@ not implemented.**
   today would be building for a scale problem that doesn't exist.
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
-  sonner, switch, checkbox. The generated `checkbox.tsx` unconditionally
+  sonner, switch, checkbox, tabs (used since Course Builder, missing from
+  this list until now — corrected, not a new install). The generated
+  `checkbox.tsx` unconditionally
   rendered `CheckIcon` for every checked state — hand-patched to swap in
   `MinusIcon` when `checked === "indeterminate"`, since a bulk-selection
   header checkbox needs the two states to actually look different (see the

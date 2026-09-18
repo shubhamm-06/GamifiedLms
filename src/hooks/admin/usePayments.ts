@@ -81,11 +81,16 @@ export function useRevenue() {
       // Summed client-side because PostgREST aggregate functions aren't
       // guaranteed enabled on this project and adding a view/RPC would mean
       // a migration. Fine at present volume; revisit if payments grow.
+      //
+      // Excludes trashed rows (migration 009) — trashing a payment is
+      // meant to pull it out of the real numbers, not just hide it from
+      // the Active list.
       const { data, error } = await supabase
         .from('payments')
         .select('amount')
         .eq('status', 'paid')
         .eq('currency', DEFAULT_CURRENCY)
+        .is('deleted_at', null)
 
       if (error) throw error
       return (data ?? []).reduce((total, row) => total + (row.amount ?? 0), 0)
@@ -97,10 +102,12 @@ export function useUnresolvedPaymentsCount() {
   return useQuery({
     queryKey: [...paymentsQueryKey, 'unresolved-count'],
     queryFn: async () => {
+      // Excludes trashed rows (migration 009) — same reasoning as useRevenue.
       const { count, error } = await supabase
         .from('payments')
         .select('*', HEAD_COUNT)
         .eq('reconciliation_status', 'unresolved')
+        .is('deleted_at', null)
       if (error) throw new Error(error.message)
       return count ?? 0
     },
@@ -111,10 +118,12 @@ export function useFailedPaymentsCount() {
   return useQuery({
     queryKey: [...paymentsQueryKey, 'failed-count'],
     queryFn: async () => {
+      // Excludes trashed rows (migration 009) — same reasoning as useRevenue.
       const { count, error } = await supabase
         .from('payments')
         .select('*', HEAD_COUNT)
         .eq('status', 'failed')
+        .is('deleted_at', null)
       if (error) throw new Error(error.message)
       return count ?? 0
     },
@@ -202,6 +211,84 @@ export function useBulkUpdateReconciliation() {
       toast.success(`${n} order${n === 1 ? '' : 's'} updated.`)
     },
     onError: (error: Error) => toast.error(error.message),
+  })
+}
+
+/**
+ * One batched `.update({ deleted_at }).in('id', ids)` request — same
+ * "one write, not one per row" shape as `useBulkUpdateReconciliation`. Both
+ * trash and restore share this one mutation (restore just passes `null`),
+ * since they're the same write with the opposite value, not two different
+ * operations. Never touches `enrollments.payment_id` — trashing/restoring a
+ * payment only changes that payment row's own visibility/reporting, never a
+ * student's access (see rules.md).
+ */
+export function useSetPaymentsTrashed() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ ids, trashed }: { ids: string[]; trashed: boolean }) => {
+      const { error } = await supabase
+        .from('payments')
+        .update({ deleted_at: trashed ? new Date().toISOString() : null })
+        .in('id', ids)
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: paymentsQueryKey })
+      // Trashing/restoring changes what the KPI cards count (useRevenue,
+      // useUnresolvedPaymentsCount, useFailedPaymentsCount all now exclude
+      // trashed rows) and the Dashboard's own numbers draw from the same
+      // underlying table — invalidate the whole family, same as every
+      // other payments write above.
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+      const n = variables.ids.length
+      toast.success(
+        variables.trashed
+          ? `${n} order${n === 1 ? '' : 's'} moved to Trash.`
+          : `${n} order${n === 1 ? '' : 's'} restored.`,
+      )
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+}
+
+/** Postgres FK violation — enrollments.payment_id is NO ACTION, so a payment still backing an enrollment can't be hard-deleted. */
+const FK_VIOLATION = '23503'
+export const PAYMENT_LINKED_TO_ENROLLMENT = 'PAYMENT_LINKED_TO_ENROLLMENT'
+
+/**
+ * Real DELETE, one batched `.delete().in('id', ids)` call. RLS
+ * (`payments_admin_delete_from_trash`, migration 009) is the actual
+ * enforcement that this can only ever succeed on already-trashed rows —
+ * this mutation doesn't re-check `deleted_at` itself, since the database
+ * is what's supposed to refuse it, not the client being well-behaved.
+ *
+ * If any selected row is still linked to an enrollment, the whole batched
+ * DELETE fails as one statement (not a partial per-row outcome the way the
+ * CSV import's sequential RPC loop is) — the friendly message covers the
+ * batch, same wording either way per the task's exact copy.
+ */
+export function useDeletePaymentsPermanently() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { error } = await supabase.from('payments').delete().in('id', ids)
+      if (error?.code === FK_VIOLATION) throw new Error(PAYMENT_LINKED_TO_ENROLLMENT)
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: (_data, ids) => {
+      queryClient.invalidateQueries({ queryKey: paymentsQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+      const n = ids.length
+      toast.success(`${n} order${n === 1 ? '' : 's'} permanently deleted.`)
+    },
+    onError: (error: Error) => {
+      toast.error(
+        error.message === PAYMENT_LINKED_TO_ENROLLMENT
+          ? 'This payment is linked to an active enrollment; remove that enrollment first.'
+          : error.message,
+      )
+    },
   })
 }
 

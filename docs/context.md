@@ -163,8 +163,12 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
   close), not a `useEffect` that calls `setState`.
 - `supabase/functions` is in `eslint.config.js`'s `globalIgnores` — Deno
   runtime with `jsr:` specifiers, the browser/Vite lint config doesn't apply.
-- No soft-delete anywhere in `public` schema — every delete is a hard delete,
-  cascading from `auth.users` → `profiles`.
+- **Exactly one soft-delete column exists in `public`: `payments.deleted_at`**
+  (migration 009, nullable, no default — null means active). Every other
+  delete in this schema is still a hard delete, cascading from
+  `auth.users` → `profiles`. This is a deliberate, narrowly-scoped exception,
+  not a reversal of that default — see `rules.md` before generalizing the
+  pattern to another table.
 - `profiles.email` is not kept in sync by any trigger after signup — the
   `admin-user-management` `update_email` action updates it explicitly
   alongside the Auth email change, or the two drift.

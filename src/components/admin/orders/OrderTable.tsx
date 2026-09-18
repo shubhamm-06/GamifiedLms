@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { ArrowDown, ArrowUp, ChevronsUpDown, Eye } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
   createColumnHelper,
@@ -21,6 +21,12 @@ import { useTable } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -87,12 +93,25 @@ interface OrderTableProps {
   isError: boolean
   statusFilter: string
   reconciliationFilter: string
+  /** Which row set this is — decides the Trashed-on column and which row actions are on offer. */
+  view: 'active' | 'trash'
   onView: (payment: PaymentRow) => void
+  /** Active view only — opens the (small) trash confirmation for this one row. */
+  onTrash: (payment: PaymentRow) => void
+  /** Trash view only — restores immediately, no confirmation (see ui.md/state.md for why). */
+  onRestore: (payment: PaymentRow) => void
+  /** Trash view only — opens the strong permanent-delete confirmation for this one row. */
+  onDeletePermanently: (payment: PaymentRow) => void
   rowSelection: RowSelectionState
   onRowSelectionChange: OnChangeFn<RowSelectionState>
 }
 
-function buildColumns(onView: OrderTableProps['onView']) {
+type RowActionHandlers = Pick<
+  OrderTableProps,
+  'view' | 'onView' | 'onTrash' | 'onRestore' | 'onDeletePermanently'
+>
+
+function buildColumns({ view, onView, onTrash, onRestore, onDeletePermanently }: RowActionHandlers) {
   return columnHelper.columns([
     columnHelper.display({
       id: 'select',
@@ -193,26 +212,78 @@ function buildColumns(onView: OrderTableProps['onView']) {
       enableSorting: false,
       cell: (info) => <ReconciliationStatusPill status={info.getValue()} />,
     }),
+    // Trash-only column — `deleted_at` is meaningless (always null) in the
+    // Active view, so it's added conditionally rather than always present
+    // and blank.
+    ...(view === 'trash'
+      ? [
+          columnHelper.accessor('deleted_at', {
+            id: 'deleted_at',
+            header: 'Trashed on',
+            sortFn: 'datetime',
+            cell: (info) => {
+              const value = info.getValue()
+              return (
+                <span className="text-muted-foreground whitespace-nowrap">
+                  {value ? dateTimeFormatter.format(new Date(value)) : '—'}
+                </span>
+              )
+            },
+          }),
+        ]
+      : []),
     columnHelper.display({
       id: 'actions',
       header: '',
+      // A second per-row action (Move to Trash / Restore + Delete
+      // Permanently) is exactly the "reach for a DropdownMenu once a
+      // second action exists" threshold this file's own convention already
+      // names — a single Eye icon was fine when viewing details was the
+      // only thing a row could do.
       cell: ({ row }) => (
         <div className="text-right">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`View payment ${row.original.provider_payment_id}`}
-            onClick={() => onView(row.original)}
-          >
-            <Eye />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Actions for payment ${row.original.provider_payment_id}`}
+              >
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {view === 'active' ? (
+                <>
+                  <DropdownMenuItem onSelect={() => onView(row.original)}>
+                    View details
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onTrash(row.original)}>
+                    Move to Trash
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem onSelect={() => onRestore(row.original)}>
+                    Restore
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={() => onDeletePermanently(row.original)}
+                  >
+                    Delete Permanently
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     }),
   ])
 }
 
-const COLUMN_COUNT = 9
+const BASE_COLUMN_COUNT = 9
 
 export function OrderTable({
   payments,
@@ -220,10 +291,15 @@ export function OrderTable({
   isError,
   statusFilter,
   reconciliationFilter,
+  view,
   onView,
+  onTrash,
+  onRestore,
+  onDeletePermanently,
   rowSelection,
   onRowSelectionChange,
 }: OrderTableProps) {
+  const columnCount = view === 'trash' ? BASE_COLUMN_COUNT + 1 : BASE_COLUMN_COUNT
   // Memoised separately from `rowSelection` below, on purpose: toggling a
   // checkbox must not produce a new `columnFilters` array reference, or the
   // filtered row model reads that as "the filters changed" and resets to
@@ -247,7 +323,7 @@ export function OrderTable({
 
   const table = useTable({
     features: ordersFeatures,
-    columns: buildColumns(onView),
+    columns: buildColumns({ view, onView, onTrash, onRestore, onDeletePermanently }),
     data: payments,
     state,
     // Payment ids are stable and unique — selection must key off these, not
@@ -302,14 +378,14 @@ export function OrderTable({
             {isPending ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={COLUMN_COUNT}>
+                  <TableCell colSpan={columnCount}>
                     <Skeleton className="h-8 w-full" />
                   </TableCell>
                 </TableRow>
               ))
             ) : isError ? (
               <TableRow>
-                <TableCell colSpan={COLUMN_COUNT} className="h-28 text-center">
+                <TableCell colSpan={columnCount} className="h-28 text-center">
                   <p className="text-coral-d font-medium">Couldn&rsquo;t load orders.</p>
                   <p className="text-muted-foreground mt-1 text-sm">
                     Check your connection and try again.
@@ -318,13 +394,19 @@ export function OrderTable({
               </TableRow>
             ) : rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={COLUMN_COUNT} className="h-28 text-center">
+                <TableCell colSpan={columnCount} className="h-28 text-center">
                   <p className="font-medium">
-                    {payments.length === 0 ? 'No orders yet' : 'No orders match'}
+                    {payments.length === 0
+                      ? view === 'trash'
+                        ? 'Trash is empty'
+                        : 'No orders yet'
+                      : 'No orders match'}
                   </p>
                   <p className="text-muted-foreground mt-1 text-sm">
                     {payments.length === 0
-                      ? 'Payments will show up here once the first purchase comes through.'
+                      ? view === 'trash'
+                        ? 'Orders moved to Trash will show up here.'
+                        : 'Payments will show up here once the first purchase comes through.'
                       : isFiltered
                         ? 'Try a different status or reconciliation filter.'
                         : 'Try a different filter.'}

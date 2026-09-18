@@ -480,6 +480,7 @@ export type Database = {
           amount: number
           course_id: string
           currency: string
+          deleted_at: string | null
           email: string
           id: string
           provider: string
@@ -495,6 +496,7 @@ export type Database = {
           amount: number
           course_id: string
           currency?: string
+          deleted_at?: string | null
           email: string
           id?: string
           provider: string
@@ -510,6 +512,7 @@ export type Database = {
           amount?: number
           course_id?: string
           currency?: string
+          deleted_at?: string | null
           email?: string
           id?: string
           provider?: string

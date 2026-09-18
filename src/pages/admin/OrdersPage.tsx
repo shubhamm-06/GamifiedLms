@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Download, Plus, Upload } from 'lucide-react'
 import type { RowSelectionState } from '@tanstack/table-core'
 import { Button } from '@/components/ui/button'
@@ -10,8 +11,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AddOrderDialog } from '@/components/admin/orders/AddOrderDialog'
 import { BulkReconciliationDialog } from '@/components/admin/orders/BulkReconciliationDialog'
+import { BulkTrashDialog } from '@/components/admin/orders/BulkTrashDialog'
 import { ImportOrdersDialog } from '@/components/admin/orders/ImportOrdersDialog'
 import { OrderDetailDialog } from '@/components/admin/orders/OrderDetailDialog'
 import { OrderTable } from '@/components/admin/orders/OrderTable'
@@ -22,6 +25,7 @@ import {
   useFailedPaymentsCount,
   usePayments,
   useRevenue,
+  useSetPaymentsTrashed,
   useUnresolvedPaymentsCount,
   type PaymentRow,
 } from '@/hooks/admin/usePayments'
@@ -81,6 +85,9 @@ function KpiCard({
 }
 
 export function OrdersPage() {
+  const { view } = useSearch({ from: '/admin/orders' })
+  const navigate = useNavigate()
+
   const [statusFilter, setStatusFilter] = useState('all')
   const [reconciliationFilter, setReconciliationFilter] = useState('all')
   const [viewTarget, setViewTarget] = useState<PaymentRow | null>(null)
@@ -88,16 +95,53 @@ export function OrdersPage() {
   const [importOpen, setImportOpen] = useState(false)
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [bulkAction, setBulkAction] = useState<'resolved' | 'unresolved' | null>(null)
+  const [trashDialog, setTrashDialog] = useState<{ action: 'trash' | 'delete'; ids: string[] } | null>(
+    null,
+  )
 
   const { data, isPending, isError } = usePayments()
   const payments = data ?? []
-  const filteredForExport = filterPaymentsForExport(payments, statusFilter, reconciliationFilter)
+  // Active vs Trash is a split of the SAME fetched list, not a separate
+  // query — same client-side-everything reasoning as the status/
+  // reconciliation filters below, just one more dimension.
+  const activePayments = payments.filter((p) => p.deleted_at === null)
+  const trashedPayments = payments.filter((p) => p.deleted_at !== null)
+  const viewPayments = view === 'trash' ? trashedPayments : activePayments
+  const filteredForExport = filterPaymentsForExport(viewPayments, statusFilter, reconciliationFilter)
 
   // `rowSelection`'s keys are payment ids directly — `OrderTable` is wired
   // with `getRowId: (payment) => payment.id`, so no need to reach into the
   // table instance to turn a selection back into real rows here.
   const selectedIds = Object.keys(rowSelection)
-  const selectedPayments = payments.filter((p) => rowSelection[p.id])
+  const selectedPayments = viewPayments.filter((p) => rowSelection[p.id])
+
+  // Selection is independent state that doesn't clean itself up when the
+  // rows it points at disappear from view (trashed, restored, or actually
+  // deleted) — remove exactly the acted-upon ids rather than assuming a
+  // blanket clear, since this same handler backs both a bulk action
+  // (ids === the whole selection) and a single row's dropdown action (ids
+  // is just that one row, which may not even be selected).
+  function removeFromSelection(ids: string[]) {
+    setRowSelection((prev) => {
+      const next = { ...prev }
+      for (const id of ids) delete next[id]
+      return next
+    })
+  }
+
+  const setTrashed = useSetPaymentsTrashed()
+  function handleRestore(ids: string[]) {
+    setTrashed.mutate({ ids, trashed: false }, { onSuccess: () => removeFromSelection(ids) })
+  }
+
+  // Active and Trash are disjoint row sets, so a selection made in one view
+  // can't mean anything in the other — cleared on every switch rather than
+  // left to silently reference rows that are no longer even in the visible
+  // list.
+  function changeView(next: 'active' | 'trash') {
+    setRowSelection({})
+    navigate({ to: '/admin/orders', search: { view: next }, replace: true })
+  }
 
   const revenue = useRevenue()
   const unresolved = useUnresolvedPaymentsCount()
@@ -109,7 +153,9 @@ export function OrdersPage() {
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Orders & Payments</h1>
           <p className="text-muted-foreground text-sm">
-            {payments.length} {payments.length === 1 ? 'order' : 'orders'}
+            {view === 'trash'
+              ? `${trashedPayments.length} in Trash`
+              : `${activePayments.length} ${activePayments.length === 1 ? 'order' : 'orders'}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -127,6 +173,13 @@ export function OrdersPage() {
           </Button>
         </div>
       </header>
+
+      <Tabs value={view} onValueChange={(value) => changeView(value as 'active' | 'trash')}>
+        <TabsList>
+          <TabsTrigger value="active">Active</TabsTrigger>
+          <TabsTrigger value="trash">Trash</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard
@@ -182,27 +235,59 @@ export function OrdersPage() {
             {selectedIds.length} selected
           </span>
           <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="outline" onClick={() => exportPaymentsCsv(selectedPayments)}>
-              <Download />
-              Export selected
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setBulkAction('unresolved')}>
-              Mark Unresolved
-            </Button>
-            <Button size="sm" onClick={() => setBulkAction('resolved')}>
-              Mark Resolved
-            </Button>
+            {view === 'active' ? (
+              <>
+                <Button size="sm" variant="outline" onClick={() => setBulkAction('unresolved')}>
+                  Mark Unresolved
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setBulkAction('resolved')}>
+                  Mark Resolved
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => exportPaymentsCsv(selectedPayments)}>
+                  <Download />
+                  Export selected
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setTrashDialog({ action: 'trash', ids: selectedIds })}
+                >
+                  Move to Trash
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" onClick={() => handleRestore(selectedIds)}>
+                  Restore
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => exportPaymentsCsv(selectedPayments)}>
+                  <Download />
+                  Export selected
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => setTrashDialog({ action: 'delete', ids: selectedIds })}
+                >
+                  Delete Permanently
+                </Button>
+              </>
+            )}
           </div>
         </div>
       ) : null}
 
       <OrderTable
-        payments={payments}
+        payments={viewPayments}
         isPending={isPending}
         isError={isError}
         statusFilter={statusFilter}
         reconciliationFilter={reconciliationFilter}
+        view={view}
         onView={setViewTarget}
+        onTrash={(payment) => setTrashDialog({ action: 'trash', ids: [payment.id] })}
+        onRestore={(payment) => handleRestore([payment.id])}
+        onDeletePermanently={(payment) => setTrashDialog({ action: 'delete', ids: [payment.id] })}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
       />
@@ -219,6 +304,14 @@ export function OrdersPage() {
         open={bulkAction !== null}
         onOpenChange={(open) => !open && setBulkAction(null)}
         onSuccess={() => setRowSelection({})}
+      />
+
+      <BulkTrashDialog
+        action={trashDialog?.action ?? null}
+        ids={trashDialog?.ids ?? []}
+        open={trashDialog !== null}
+        onOpenChange={(open) => !open && setTrashDialog(null)}
+        onSuccess={() => trashDialog && removeFromSelection(trashDialog.ids)}
       />
 
       <AddOrderDialog open={addOrderOpen} onOpenChange={setAddOrderOpen} />

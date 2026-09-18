@@ -171,7 +171,8 @@ regardless), `email` (matches a later signup), `amount`, `currency`,
 `status` (`'paid'|'refunded'|'failed'`), `raw_payload` (jsonb, full webhook
 body), `received_at`, `reconciliation_status`
 (`'unresolved'|'resolved'`, admin-writable), `reconciliation_note`
-(admin-writable).
+(admin-writable), `deleted_at` (migration 009, nullable timestamptz, no
+default — null means active, non-null means trashed; see below).
 
 Pre-signup flow: leave `user_id` null, match unclaimed `paid` payments by
 `email` when the buyer eventually signs up, then create their enrollment.
@@ -184,8 +185,34 @@ decision), but only ever through `fn_create_manual_order(...)` (below), never
 a bare `.insert()` — the function is what generates a collision-proof
 `provider_payment_id`, looks up the paying user's email, and creates the
 backing enrollment in the same transaction. This is additive: the update
-guard (`fn_guard_payment_admin_update`) and the absence of any admin delete
-policy are both unchanged — see `rules.md`.
+guard (`fn_guard_payment_admin_update`) was unchanged at the time, and there
+was still no admin delete policy at all — see `rules.md`. **Both since
+superseded by migration 009, directly below** — the guard now also permits
+`deleted_at`, and a scoped delete policy exists.
+
+**Trash / permanent delete (migration 009).** `deleted_at` is the only
+soft-delete column anywhere in this schema, deliberately scoped to
+`payments` alone — see `rules.md` before treating it as a precedent.
+Trashing/restoring is an ordinary admin `UPDATE` of `deleted_at`
+(`payments_admin_update`, unconditional beyond `fn_is_admin()` — it doesn't
+care whether the row is already trashed), and
+`fn_guard_payment_admin_update`'s blocklist was never touched by
+`deleted_at` since the column didn't previously exist in it — updating it
+was already implicitly permitted the moment the column was added; the
+`CREATE OR REPLACE` in migration 009 only brings the error message text in
+line with reality. **Permanent delete is a real `DELETE`, gated by
+`payments_admin_delete_from_trash` (`FOR DELETE TO authenticated USING
+(fn_is_admin() AND deleted_at IS NOT NULL)`) — the actual enforcement
+mechanism, not a UI convention.** A bare `DELETE` from an authenticated
+admin session on a still-active row silently affects zero rows (RLS, not an
+error) — verified directly against the REST endpoint with a real admin
+bearer token, not just "the button doesn't appear." `enrollments.payment_id
+→ payments.id` is `NO ACTION` (confirmed via `pg_constraint`), so a payment
+still backing an enrollment can't be permanently deleted even once trashed —
+the client maps that `23503` to a specific message rather than a raw
+Postgres error (see `useDeletePaymentsPermanently` in `usePayments.ts`).
+Trashing/restoring never touches `enrollments.payment_id` — a payment's
+`deleted_at` only affects that payment row's own visibility and reporting.
 
 **`manual_order_providers`** (migration 008) — admin-configurable list of
 provider labels offered by the Add Order / Import Orders dropdown. `id` (uuid
@@ -249,7 +276,7 @@ All live as of migrations 002–005.
 | `trg_lessons_lesson_count` | `AFTER I/D lessons` | `fn_update_course_lesson_count` (`SECURITY DEFINER`) | Maintains `courses.total_lessons` — counts all statuses |
 | `trg_courses_updated_at` | `BEFORE UPDATE courses` | generic `updated_at` setter | |
 | `trg_profiles_prevent_role_change` | `BEFORE UPDATE profiles` | `fn_prevent_role_change` | Blocks `role` changes unless `service_role` or `fn_is_admin()` |
-| `trg_payments_guard_admin_update` | `BEFORE UPDATE payments` | `fn_guard_payment_admin_update` | Blocks any column but `reconciliation_status`/`reconciliation_note` from changing outside `service_role` |
+| `trg_payments_guard_admin_update` | `BEFORE UPDATE payments` | `fn_guard_payment_admin_update` | Blocks any column but `reconciliation_status`/`reconciliation_note`/`deleted_at` (migration 009) from changing outside `service_role` |
 
 **`fn_compute_level(total_xp)`** — per-level threshold, level `N` unlocks at
 `100 * N^1.5` total XP, recomputed on every rollup (not stored
@@ -315,7 +342,7 @@ the SQL self-explanatory.
 | `quiz_attempts` | self or admin | `service_role` only | — | — |
 | `enrollments` | self or admin | `service_role` or admin | `service_role` or admin | `service_role` or admin |
 | `lesson_progress` | self or admin | self | self | — |
-| `payments` | self or admin | `service_role`, or admin via `fn_create_manual_order` only (never a bare insert — migration 007) | `service_role` (any column) or admin (scoped, see trigger table) | — |
+| `payments` | self or admin | `service_role`, or admin via `fn_create_manual_order` only (never a bare insert — migration 007) | `service_role` (any column) or admin (scoped, see trigger table) | admin, only when `deleted_at IS NOT NULL` (migration 009) |
 | `xp_transactions` | self or admin | `service_role`, or admin when `source_type='manual'` | — | — |
 | `user_stats` | public (`true`) | — | — | — |
 | `badges` | any authenticated or admin | admin | admin | admin |
@@ -374,6 +401,7 @@ detail logged server-side via `console.error`.
 | 006 | `20260912092250_006_games_description_thumbnail.sql` | 2026-09-12 09:22:50 | Additive: `games.description`, `games.thumbnail_url` (both nullable) |
 | 007 | `20260918184559_007_manual_order_creation.sql` | 2026-09-18 18:45:59 | `payments_admin_insert` RLS policy (admin insert, no `provider` constraint); `fn_create_manual_order(...)` — plain function, atomically creates a manual payment + its backing enrollment |
 | 008 | `20260917191418_008_manual_order_providers.sql` | 2026-09-18 | `manual_order_providers` table (admin-only RLS on all 4 ops), seeded with `bank_transfer`/`cash`/`comp`; sources the Add Order / Import Orders provider dropdown, not a FK from `payments.provider` |
+| 009 | `20260918211500_009_payments_soft_delete.sql` | 2026-09-18 21:15:00 | `payments.deleted_at` (nullable, no default) — the only soft-delete column in this schema; `fn_guard_payment_admin_update` re-verified live and updated to also permit `deleted_at`; `payments_admin_delete_from_trash` — real DELETE, only when already trashed |
 
 No migration has added `admin-user-management` — it's an Edge Function, not a
 schema change, deployed independently (see above).

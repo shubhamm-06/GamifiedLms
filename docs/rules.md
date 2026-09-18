@@ -93,6 +93,13 @@ belongs in `context.md` or `state.md`, not here.
   created row is unmistakable from a real gateway one at a glance). A UI or
   migration that adds a second, more direct way to insert a payment row
   reopens exactly the gap this function exists to close.
+  **Superseded again by migration 009:** an admin CAN now also change
+  `deleted_at` (`fn_guard_payment_admin_update`'s blocklist never named it,
+  so this needed no loosening — just an updated error message), and a real
+  `DELETE` is now possible, but ONLY when `deleted_at IS NOT NULL`
+  (`payments_admin_delete_from_trash`) — an admin still cannot delete or
+  otherwise remove an active payment. See the dedicated trash/soft-delete
+  invariant below for the full shape of this.
 - **A sortable list's reorder mutation fires exactly once, in `onDragEnd`,
   never in `onDragOver`/`onDragMove`.** dnd-kit already gives the live,
   in-progress reordering preview for free from client-side sensor state — no
@@ -190,6 +197,24 @@ belongs in `context.md` or `state.md`, not here.
   would break the moment a provider row is deactivated (existing payments
   keep the old label as a text snapshot, by design) or renamed, and would
   reintroduce exactly the rigidity the free-text column was chosen to avoid.
+- **`payments.deleted_at` (migration 009) is the ONLY soft-delete column in
+  this schema — deliberately scoped to `payments` alone, not a precedent to
+  generalize to courses/games/lessons/anything else.** It exists because
+  payments are real financial records where an admin wanting them out of the
+  active list and KPI totals still shouldn't risk an irreversible mistake —
+  courses and games already have their own, different removal stories
+  (archive-only for courses; real hard delete with an FK-count check for
+  games) that solve the same underlying "don't lose data by accident"
+  problem without a second pattern. A future table reaching for a
+  `deleted_at` column "because payments has one" needs its own version of
+  this exact reasoning, not a copy-paste of the column. The actual
+  enforcement that a payment can't be hard-deleted while still active lives
+  in RLS (`payments_admin_delete_from_trash`, `USING (fn_is_admin() AND
+  deleted_at IS NOT NULL)`), at the database level — not in the UI only
+  offering "Delete Permanently" from the Trash view. A UI-only version of
+  this restriction would be bypassable by any client calling the REST API
+  directly; the RLS policy is what actually makes that impossible, verified
+  live via a direct authenticated REST call against an active row.
 - **TypeScript only — no new `.js`/`.jsx` files.**
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any

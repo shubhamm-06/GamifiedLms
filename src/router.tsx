@@ -110,10 +110,20 @@ const adminGamesRoute = createRoute({
   component: GamesPage,
 })
 
+/**
+ * Same `?tab=`-as-real-search-param convention as the Course Builder below
+ * (`validateCourseTab`) — lives in the URL so the Active/Trash toggle
+ * survives a refresh and is linkable, not component state.
+ */
+function validateOrdersView(search: Record<string, unknown>): { view: 'active' | 'trash' } {
+  return { view: search.view === 'trash' ? 'trash' : 'active' }
+}
+
 const adminOrdersRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'orders',
   component: OrdersPage,
+  validateSearch: validateOrdersView,
 })
 
 const adminSettingsRoute = createRoute({

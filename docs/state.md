@@ -183,6 +183,65 @@ seeded provider label (`bank_transfer`/`cash`/`comp`) could have collided
 with any existing free-text `provider` value — confirmed by direct query,
 not assumed.
 
+**2026-09-18, same day: Trash / permanent delete for `/admin/orders`.**
+Migration 009 adds `payments.deleted_at` (nullable, no default) — the only
+soft-delete column anywhere in this schema, deliberately scoped to payments
+alone (see `rules.md`'s new invariant for why this isn't a precedent).
+`fn_guard_payment_admin_update`'s live source was re-read via
+`pg_get_functiondef` before editing it, not assumed from the earlier
+migration's file — it turned out to be a blocklist of forbidden columns,
+not an allowlist as the task described it, so `deleted_at` was already
+implicitly permitted the moment the column existed; the `CREATE OR REPLACE`
+only updates the error message text to stay accurate. The actual
+enforcement that a payment can't be hard-deleted while still active is
+`payments_admin_delete_from_trash` (RLS, `USING (fn_is_admin() AND
+deleted_at IS NOT NULL)`) — confirmed live via a direct authenticated REST
+call (not just observing the button's absence) that a bare `DELETE` against
+an active row silently affects zero rows.
+
+`/admin/orders` gained a `?view=active|trash` toggle (`Tabs`, same
+`?tab=`-as-search-param convention as Course Builder). Active excludes
+trashed rows and its own row/bulk "Move to Trash" action opens a
+reversible-but-still-confirmed dialog; Trash shows only trashed rows plus a
+"Trashed on" column, with Restore (no confirmation — the safe direction)
+and Delete Permanently (a real DELETE, strongly worded, distinct copy from
+Move to Trash's) as its row/bulk actions. All KPI cards (revenue,
+unresolved, failed) now filter out trashed rows regardless of which view is
+open, since trashing is supposed to remove something from the real numbers,
+not just hide it from one list. Trashing/restoring never touches
+`enrollments.payment_id` — confirmed live that a payment backed by a real
+enrollment keeps that enrollment completely untouched through a trash cycle
+(the actual payment record's `deleted_at` is the only thing that changes).
+Permanent delete on a still-linked payment (enrollments.payment_id is
+`NO ACTION`) is mapped to a specific message ("This payment is linked to an
+active enrollment; remove that enrollment first") rather than a raw
+Postgres `23503`, the same established pattern as the lesson-delete FK
+case. The row-actions column changed from a single "View details" icon
+button to a `DropdownMenu` now that there's more than one possible
+per-row action, following this file's own already-stated threshold for
+when that switch is warranted.
+
+One subtlety worth remembering for the next bulk-toolbar feature:
+selection is independent state that doesn't clean itself up when a row
+disappears from view. `removeFromSelection(ids)` in `OrdersPage.tsx`
+deletes exactly the acted-upon ids from the selection map — not a blanket
+clear — since the same handler backs both a bulk action (`ids` is the
+whole selection) and a single row's dropdown action (`ids` is just that
+one row, possibly not even selected); a blanket clear would wipe an
+unrelated in-progress selection in the second case. Switching between
+Active and Trash also clears the whole selection, since the two views are
+disjoint row sets and a selection made in one means nothing in the other.
+
+Verified live end-to-end: trashing removes a row from Active and from every
+KPI total without touching its enrollment; restoring brings it back
+correctly (both the row and the KPI numbers); a direct REST `DELETE`
+against an active row is refused at the RLS level, not just hidden by the
+UI; permanent delete on a still-linked payment fails with the friendly
+message and the row survives; permanent delete on a genuinely orphaned
+trashed payment succeeds and the row is actually gone; both bulk Move to
+Trash and bulk Delete Permanently fire exactly one network request each for
+a two-row selection, not two.
+
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz
 questions) — a prior pass of this file mistyped that date as 2026-09-29;
