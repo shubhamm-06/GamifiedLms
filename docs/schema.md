@@ -11,8 +11,9 @@ via Supabase MCP second, regenerate `src/lib/database.types.ts` third, commit
 all three together.
 
 **Conventions:** all PKs are `uuid`. `timestamptz` for timestamps, default
-`now()` unless noted. Money is an `int` in minor units (e.g. paise), never a
-float. Every FK to `profiles.id` ultimately points at `auth.users.id` —
+`now()` unless noted. Money is an `int` in **whole currency units** (whole
+rupees for INR — not paise/cents), never a float; see `rules.md` for the
+invariant and why. Every FK to `profiles.id` ultimately points at `auth.users.id` —
 `profiles.id` **is** the auth user id, not a separate one. **Exactly one
 soft-delete column exists anywhere in `public`: `payments.deleted_at`**
 (migration 009, deliberately scoped there only — see `rules.md`); every
@@ -67,7 +68,7 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | thumbnail_url | text | nullable | |
 | status | text | default `'draft'` | `'draft'`, `'published'`, `'archived'` |
 | is_free | boolean | default false | |
-| price_amount | int | nullable | Minor units, null when `is_free` |
+| price_amount | int | nullable | Whole currency units (not minor units), null when `is_free` |
 | currency | text | default `'INR'` | |
 | external_product_id | text | nullable, indexed | Maps webhook payload → course |
 | access_type | text | default `'lifetime'` | `'lifetime'` or `'fixed'` |
@@ -147,8 +148,12 @@ learners; this is a calling-convention rule, not schema-enforced).
 **`lesson_progress`** — per-user, per-lesson state. `id`, `user_id`,
 `lesson_id` (unique together), `course_id` (denormalised), `status`
 (`'not_started'|'in_progress'|'completed'`), `progress_percent`,
-`completed_at`, `updated_at`. The unique `(user_id, lesson_id)` doubles as a
-guard against double-awarding completion XP.
+`completed_at`, `updated_at`. The unique `(user_id, lesson_id)` guarantees one
+row per user per lesson — it is **not** what prevents double-awarding
+completion XP, since nothing stops a row leaving and re-entering
+`'completed'`. That dedupe is `uq_xp_transactions_dedupe` on `xp_transactions`
+(see `fn_award_lesson_xp` below); `user_stats.lessons_completed` has no dedupe
+(see `state.md`).
 
 **`quiz_questions`** — `id`, `lesson_id` (FK cascade), `prompt`, `options`
 (jsonb array of `{id, text}`), `correct_option` (**must never reach the
@@ -158,7 +163,7 @@ answer key; the admin UI only ever offers the current options as choices and
 refuses to save a mismatch.
 
 ⚠️ **`lessons` has no `slug` column.** The original plan called for one and
-this file claimed it until 2026-09-29 — the live table has never had it.
+this file claimed it until 2026-09-09 — the live table has never had it.
 Lessons are addressed by `id`.
 
 **`quiz_attempts`** — every submission kept, not just the best. `id`,
@@ -352,7 +357,7 @@ not built, since that's a separate small change on its own).
 
 ## Trigger functions
 
-Live as of migrations 002–005, plus the level/XP-award functions and triggers from migration 012.
+Live as of migration 012 (introduced across migrations 002–012).
 
 | Trigger | Fires on | Function | Does |
 |---|---|---|---|
@@ -363,7 +368,7 @@ Live as of migrations 002–005, plus the level/XP-award functions and triggers 
 | `trg_level_thresholds_validate` | `BEFORE INSERT OR UPDATE level_thresholds` | `fn_validate_level_threshold` (migration 012) | Rejects a row whose `xp_required` isn't strictly greater than the level below it and strictly less than the level above it (`check_violation`, `23514`, with a human-readable message) |
 | `trg_enrollments_student_count` | `AFTER I/U/D enrollments` | `fn_update_course_student_count` (`SECURITY DEFINER`) | Maintains `courses.total_students` off transitions to/from `'active'` — decrements on **any** move away from active, including to `'expired'` (see `state.md` re: the stale inline comment) |
 | `trg_lessons_lesson_count` | `AFTER I/D lessons` | `fn_update_course_lesson_count` (`SECURITY DEFINER`) | Maintains `courses.total_lessons` — counts all statuses |
-| `trg_courses_updated_at` | `BEFORE UPDATE courses` | generic `updated_at` setter | |
+| `trg_courses_updated_at` | `BEFORE UPDATE courses` | `fn_set_updated_at` (generic `updated_at` setter) | Sets `updated_at = now()` |
 | `trg_profiles_prevent_role_change` | `BEFORE UPDATE profiles` | `fn_prevent_role_change` | Blocks `role` changes unless `service_role` or `fn_is_admin()` |
 | `trg_payments_guard_admin_update` | `BEFORE UPDATE payments` | `fn_guard_payment_admin_update` | Blocks any column but `reconciliation_status`/`reconciliation_note`/`deleted_at` (migration 009) from changing outside `service_role` |
 
@@ -438,11 +443,22 @@ payment's `id`.
 
 ## RLS policy matrix
 
-RLS enabled on all 15 tables (14 since migration 001, deny-all before
+RLS enabled on all 18 tables (14 since migration 001, deny-all before
 migration 003 landed; `manual_order_providers` since migration 008, admin-only
-from creation). Service-role rows below are documentation, not enforcement —
+from creation; `app_settings`, `currencies` and `level_thresholds` since
+migrations 010, 011 and 012 respectively). Every table has at least one
+policy. Service-role rows below are documentation, not enforcement —
 `service_role` bypasses RLS entirely regardless — but stating intent keeps
 the SQL self-explanatory.
+
+**Platform safety net, not in any migration:** a Supabase-provisioned event
+trigger `ensure_rls` (`ddl_command_end` on `CREATE TABLE` / `CREATE TABLE AS` /
+`SELECT INTO`, owned by `postgres`) calls `public.rls_auto_enable()`
+(`SECURITY DEFINER`), which runs `ALTER TABLE … ENABLE ROW LEVEL SECURITY` on
+any new table in `public`. It exists live only — no file in
+`supabase/migrations/` creates it — so a fresh database built purely from
+those files would not have it. Every migration here still enables RLS
+explicitly; don't lean on this.
 
 | Table | SELECT | INSERT | UPDATE | DELETE |
 |---|---|---|---|---|
@@ -487,7 +503,8 @@ Deno runtime, `jsr:@supabase/supabase-js@2`, `verify_jwt: true`. Version 1,
 created 2026-09-02 07:38:49 UTC (deployed outside any session with a direct
 record of it completing — the prior deploy attempt was blocked by the MCP
 connector being disconnected; confirmed live via `list_edge_functions` on
-2026-09-05). **The four actions below have not been end-to-end tested against
+2026-09-05 and again on 2026-09-19 — still version 1, ACTIVE, `verify_jwt`
+true). **The four actions below have not been end-to-end tested against
 the deployed function yet** — see `state.md`.
 
 Uses `SUPABASE_SERVICE_ROLE_KEY` (Deno default secret, never hardcoded).
@@ -501,7 +518,7 @@ Client-side guards are UX only; this is the real enforcement point.
 | `create` | `email`, `password`, `display_name`, `role` | `createUser({ email_confirm: true })`; `display_name` → `user_metadata` for the signup trigger. Trigger always writes `role='student'`; an `admin` request is a follow-up `UPDATE` — if that fails, reports the account was created as a student rather than a false success. Duplicate email → "Email already registered". |
 | `update_email` | `userId`, `newEmail` | `updateUserById({ email, email_confirm: true })`, then explicitly syncs `profiles.email` (nothing else does). |
 | `update_password` | `userId`, `newPassword` | Direct admin-set password, min 8 chars, no reset email/link, never echoed back. |
-| `delete` | `userId` | Refuses `PRIMARY_ADMIN_ID` (`91392b37-91f1-4975-afda-e4c238c4d821`) with 400 before touching Auth; otherwise `deleteUser`, cascades to `profiles`. |
+| `delete` | `userId` | Refuses `PRIMARY_ADMIN_ID` (`91392b37-91f1-4975-afda-e4c238c4d821`) with 400 before touching Auth; otherwise `deleteUser`, cascades to `profiles`. **In practice only a user with no child rows can be deleted:** every FK into `profiles(id)` (`enrollments`, `payments`, `lesson_progress`, `quiz_attempts`, `xp_transactions`, `user_stats`, `user_badges`, and `created_by` on `courses`/`games`/`badges`) is `NO ACTION`, so the cascade aborts and the call returns a 400. Inferred from `pg_constraint`; never exercised through the deployed function. |
 
 Raw Auth/Postgres errors never reach the client — mapped to a short message,
 detail logged server-side via `console.error`.
@@ -510,6 +527,11 @@ detail logged server-side via `console.error`.
 
 ## Migrations log
 
+**"Applied (UTC)" below is the live version from `list_migrations`** (the
+timestamp the Supabase MCP `apply_migration` call actually stamped), which for
+006–012 is **not** the timestamp in the filename — see the drift note under the
+table.
+
 | # | File | Applied (UTC) | Summary |
 |---|---|---|---|
 | 001 | `20260830151837_001_initial_schema.sql` | 2026-08-30 15:18:37 | 14 tables, RLS enabled (deny-all), `lesson_effective_xp` + `quiz_questions_public` views |
@@ -517,13 +539,28 @@ detail logged server-side via `console.error`.
 | 003 | `20260830153242_003_rls_policies.sql` | 2026-08-30 15:32:42 | Full access-matrix RLS policy set; `profiles_public` view; gated `quiz_questions_public` |
 | 004 | `20260831135811_004_admin_scoped_writes.sql` | 2026-08-31 13:58:11 | Admin direct writes on `enrollments`; admin `manual`-only `xp_transactions`; admin `profiles.role` changes; `payments` reconciliation columns + guard trigger |
 | 005 | `20260901075705_005_auth_profile_trigger.sql` | 2026-09-01 07:57:05 | `fn_handle_new_user()` auto-creates `profiles` on signup |
-| 006 | `20260912092250_006_games_description_thumbnail.sql` | 2026-09-12 09:22:50 | Additive: `games.description`, `games.thumbnail_url` (both nullable) |
-| 007 | `20260918184559_007_manual_order_creation.sql` | 2026-09-18 18:45:59 | `payments_admin_insert` RLS policy (admin insert, no `provider` constraint); `fn_create_manual_order(...)` — plain function, atomically creates a manual payment + its backing enrollment |
-| 008 | `20260917191418_008_manual_order_providers.sql` | 2026-09-18 | `manual_order_providers` table (admin-only RLS on all 4 ops), seeded with `bank_transfer`/`cash`/`comp`; sources the Add Order / Import Orders provider dropdown, not a FK from `payments.provider` |
-| 009 | `20260918211500_009_payments_soft_delete.sql` | 2026-09-18 21:15:00 | `payments.deleted_at` (nullable, no default) — the only soft-delete column in this schema; `fn_guard_payment_admin_update` re-verified live and updated to also permit `deleted_at`; `payments_admin_delete_from_trash` — real DELETE, only when already trashed |
-| 010 | `20260919090000_010_app_settings.sql` | 2026-09-19 09:00:00 | `app_settings` — a deliberate singleton table (one seeded row, no INSERT/DELETE policy for any role), public SELECT, admin-only UPDATE. Closes the `default_currency` and `quiz_pass_threshold_percent` gaps; `site_name` replaces `AdminLayout`'s hardcoded sidebar text |
-| 011 | `20260919120000_011_currencies.sql` | 2026-09-19 12:00:00 | `currencies` table, admin-only RLS, seeded with the full ISO 4217 active-codes list (178 rows); `app_settings.default_currency` becomes a FK to `currencies(code)` (`NO ACTION`) — an admin can no longer delete the platform's current default currency without changing it first |
-| 012 | `20260919150000_012_gamification.sql` | 2026-09-19 15:00:00 | `level_thresholds` (seeded 1–30 from the old formula's own math, strict-monotonic validation trigger, admin-write / authenticated-read RLS); `fn_compute_level` rewritten to read it (`IMMUTABLE` → `STABLE`); one-time `user_stats.level` backfill; `fn_award_lesson_xp` + `trg_lesson_progress_award_xp` (the actual lesson-completion XP award, gated on `gamification_enabled`) |
+| 006 | `20260912092250_006_games_description_thumbnail.sql` | 2026-09-12 09:22:59 | Additive: `games.description`, `games.thumbnail_url` (both nullable) |
+| 007 | `20260918184559_007_manual_order_creation.sql` | 2026-09-17 18:46:38 | `payments_admin_insert` RLS policy (admin insert, no `provider` constraint); `fn_create_manual_order(...)` — plain function, atomically creates a manual payment + its backing enrollment |
+| 008 | `20260917191418_008_manual_order_providers.sql` | 2026-09-17 19:15:12 | `manual_order_providers` table (admin-only RLS on all 4 ops), seeded with `bank_transfer`/`cash`/`comp`; sources the Add Order / Import Orders provider dropdown, not a FK from `payments.provider` |
+| 009 | `20260918211500_009_payments_soft_delete.sql` | 2026-09-18 07:31:44 | `payments.deleted_at` (nullable, no default) — the only soft-delete column in this schema; `fn_guard_payment_admin_update` re-verified live and updated to also permit `deleted_at`; `payments_admin_delete_from_trash` — real DELETE, only when already trashed |
+| 010 | `20260919090000_010_app_settings.sql` | 2026-09-18 10:47:27 | `app_settings` — a deliberate singleton table (one seeded row, no INSERT/DELETE policy for any role), public SELECT, admin-only UPDATE. Closes the `default_currency` and `quiz_pass_threshold_percent` gaps; `site_name` replaces `AdminLayout`'s hardcoded sidebar text |
+| 011 | `20260919120000_011_currencies.sql` | 2026-09-18 11:27:21 | `currencies` table, admin-only RLS, seeded with the full ISO 4217 active-codes list (178 rows); `app_settings.default_currency` becomes a FK to `currencies(code)` (`NO ACTION`) — an admin can no longer delete the platform's current default currency without changing it first |
+| 012 | `20260919150000_012_gamification.sql` | 2026-09-18 18:01:09 | `level_thresholds` (seeded 1–30 from the old formula's own math, strict-monotonic validation trigger, admin-write / authenticated-read RLS); `fn_compute_level` rewritten to read it (`IMMUTABLE` → `STABLE`); one-time `user_stats.level` backfill; `fn_award_lesson_xp` + `trg_lesson_progress_award_xp` (the actual lesson-completion XP award, gated on `gamification_enabled`) |
+
+**Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
+001–005 match `list_migrations` exactly. For 006–012 the MCP `apply_migration`
+call stamped its own version at apply time, and the hand-named files never
+matched it: 006 differs by 9 seconds; 007's file (`20260918184559`) is a day
+*after* its live version (`20260917184638`) and so sorts **after** 008's file
+(`20260917191418`); the files for 009–012 carry timestamps later than when they
+were actually applied. Consequences: the file order is 006, 008, 007, 009…, so
+the two files don't apply in numbered order (007 and 008 don't depend on each
+other, so nothing breaks), and the Supabase CLI — which matches local to remote
+history by version — would report all of 006–012 as unmatched. Nothing has hit
+this yet: the CLI has not been used for migrations on this project (no
+`SUPABASE_ACCESS_TOKEN`, see `env-deploy.md`). Renaming the files to the live
+versions is a migrations-folder change and was out of scope for the docs-only
+sync that found it.
 
 No migration has added `admin-user-management` — it's an Edge Function, not a
 schema change, deployed independently (see above).

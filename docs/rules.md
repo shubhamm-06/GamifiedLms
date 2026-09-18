@@ -69,23 +69,26 @@ belongs in `context.md` or `state.md`, not here.
   this rule in one place without the other means a manually-enrolled and a
   manually-ordered student on the same course silently end up with different
   access windows.
-- **On an *existing* payment, an admin can only ever change
-  `reconciliation_status` and `reconciliation_note` — nothing else — and
-  there is still no delete action for this table at all.**
-  `fn_guard_payment_admin_update` (migration 004) raises an exception if any
-  other column changes outside `service_role`, and no RLS policy grants
-  admin delete on `payments`. This is deliberate, not an oversight to route
-  around: a payment is the gateway's record of what actually happened, and
-  an admin correcting it wholesale (re-linking it to a different user,
-  changing the amount after the fact) would let the app's ledger silently
-  diverge from the real transaction. A future "link this payment to a user"
-  or delete action hits this trigger's exception or a missing RLS policy,
-  not a permissions setting that can be loosened; the fix is never in the
-  UI layer.
-  **Superseded by migration 007:** an admin CAN now create a payment
-  (`payments_admin_insert`, `FOR INSERT TO authenticated WITH CHECK
-  (fn_is_admin())`) — but only ever through `fn_create_manual_order(...)`,
-  never a bare `.insert()`. That function is the only thing allowed to
+- **On an *existing* payment, an admin can only change
+  `reconciliation_status`, `reconciliation_note` and `deleted_at` — no other
+  column — and can only hard-delete a payment that is already in the Trash.**
+  `fn_guard_payment_admin_update` raises an exception if any other column
+  changes outside `service_role`, and the only admin `DELETE` policy on
+  `payments` is `payments_admin_delete_from_trash` (`USING (fn_is_admin() AND
+  deleted_at IS NOT NULL)`), so an active payment cannot be deleted. This is
+  deliberate, not an oversight to route around: a payment is the record of
+  what actually happened (a gateway's, or an admin's entry for an offline
+  payment), and an admin correcting it wholesale (re-linking it to a
+  different user, changing the amount after the fact) would let the app's
+  ledger silently diverge from the real transaction. A future "link this
+  payment to a user" action hits this trigger's exception, not a permissions
+  setting that can be loosened; the fix is never in the UI layer. See the
+  trash/soft-delete invariant below for `deleted_at` itself.
+- **An admin creates a payment only through `fn_create_manual_order(...)`,
+  never a bare `.insert()`.** `payments_admin_insert` (migration 007, `FOR
+  INSERT TO authenticated WITH CHECK (fn_is_admin())`) does permit a bare
+  insert at the RLS layer, so this is an application-code invariant, not
+  something the database enforces. The function is the only thing allowed to
   decide `provider_payment_id` (system-generated, `'manual-' ||
   gen_random_uuid()`, never typed by an admin), `status` (always `'paid'` —
   a manual order records money already received, not a pending one), and
@@ -93,13 +96,6 @@ belongs in `context.md` or `state.md`, not here.
   created row is unmistakable from a real gateway one at a glance). A UI or
   migration that adds a second, more direct way to insert a payment row
   reopens exactly the gap this function exists to close.
-  **Superseded again by migration 009:** an admin CAN now also change
-  `deleted_at` (`fn_guard_payment_admin_update`'s blocklist never named it,
-  so this needed no loosening — just an updated error message), and a real
-  `DELETE` is now possible, but ONLY when `deleted_at IS NOT NULL`
-  (`payments_admin_delete_from_trash`) — an admin still cannot delete or
-  otherwise remove an active payment. See the dedicated trash/soft-delete
-  invariant below for the full shape of this.
 - **A sortable list's reorder mutation fires exactly once, in `onDragEnd`,
   never in `onDragOver`/`onDragMove`.** dnd-kit already gives the live,
   in-progress reordering preview for free from client-side sensor state — no
@@ -109,8 +105,8 @@ belongs in `context.md` or `state.md`, not here.
   defect turned out to be the opposite gap — no optimistic cache update *at*
   drop — but the "write only on drop" half of this was already correct and
   must stay that way. Pair this with `ui.md`'s `<DragOverlay>` +
-  optimistic-`onMutate` pattern for the next sortable list (Games, once that
-  page exists) — one without the other still janks.
+  optimistic-`onMutate` pattern for the next sortable list — one without the
+  other still janks.
 - **`lessons.position` is scoped per container (`module_id`, with NULL —
   Ungrouped — as its own container), not per course, and nothing in Postgres
   enforces it.** There is no unique constraint and no trigger; two lessons in

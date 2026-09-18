@@ -63,8 +63,9 @@ now has via `$userId`. The nav slot was dropped rather than repointed at
 "Admin Users" would be clutter, not a feature.
 
 Modules, lessons and quiz questions are deliberately **not** routes of their
-own — they only exist within a course, so they belong under a future
-`/admin/courses/$courseId`, not top-level nav.
+own — they only exist within a course, so they are managed inside Course
+Builder's Curriculum tab (`/admin/courses/$courseId/edit?tab=curriculum`), not
+top-level nav.
 
 ## The `/admin` guard
 

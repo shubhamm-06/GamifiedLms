@@ -57,10 +57,15 @@ Instance/column APIs are v8-familiar: `column.getToggleSortingHandler()`,
 filters can be passed straight in as controlled `state.columnFilters`.
 Everything is imported from `@tanstack/table-core` except `useTable`.
 - Framer Motion 13.1.1, lucide-react 1.38.0
+- dnd-kit (`@dnd-kit/core` 6.3.1, `@dnd-kit/sortable` 10.0.0,
+  `@dnd-kit/utilities` 3.2.2) — curriculum drag-and-drop; `cmdk` 1.1.1 —
+  searchable combobox; `sonner` 2.0.8 — toasts; fonts via
+  `@fontsource-variable/baloo-2` (kid-facing) and
+  `@fontsource-variable/geist` (admin)
 - Vite 8.2.2, npm only — no pnpm/yarn/bun lockfiles
 
 **Backend:** Supabase project `Gamified LMS`, ref `dmmvftodhcdbubuljqme`,
-region `ap-northeast-1`, Postgres 17.6.1.
+region `ap-northeast-1`, Postgres 17.6.
 
 **Folder structure** (type-based, deliberately simple — revisit only once
 multiple unrelated admin domains crowd these folders):
@@ -69,16 +74,28 @@ src/
   components/
     ui/       shadcn-generated primitives
     auth/      AuthCard, AuthField (login/signup shared UI)
-    admin/     AdminGuard; admin/users/* (table + 5 dialogs)
-  pages/       route-level components (HomePage, LoginPage, SignupPage, admin/UsersPage)
-  hooks/       TanStack Query hooks (admin/useUsers, admin/useUserMutations, useCourseCount)
+    admin/     AdminGuard, AdminLayout (shell); one subfolder per domain, each
+               holding that domain's table/dialogs/sections: users/, courses/,
+               games/, orders/, settings/, gamification/
+  pages/       route-level components: HomePage, LoginPage, SignupPage;
+               admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
+               CourseEdit, Games, Orders, Settings, Gamification)
+  hooks/       TanStack Query hooks: useAppSettings, useCourseCount; admin/ has
+               one file per domain (useUsers, useUserMutations, useUserDetail,
+               useCourses, useCurriculum, useGames, usePayments,
+               useManualOrderProviders, useCurrencies, useBadges,
+               useLevelThresholds, useDashboard)
   lib/         supabase.ts (client), database.types.ts (generated), queryClient.ts,
-               adminSession.ts (route guard logic), adminUserApi.ts, adminConstants.ts, utils.ts
-  styles.css   auth/kid-facing design tokens (see ui.md)
-  router.tsx   route tree
+               adminSession.ts (route guard logic), adminUserApi.ts,
+               adminConstants.ts, currency.ts, csv.ts, slug.ts, video.ts, utils.ts
+  index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,
+               shadcn tokens, Geist font
+  styles.css   brand tokens + Baloo 2 (auth/kid-facing; see ui.md)
+  main.tsx, router.tsx   entry, route tree
 supabase/
-  migrations/  001-005, source of truth for schema — write here first, apply via
+  migrations/  001-012, source of truth for schema — write here first, apply via
                Supabase MCP second, regenerate database.types.ts third, every time
+               (006-012 filenames drifted from live versions — see schema.md)
   functions/   admin-user-management (Deno) — the only Edge Function so far
 ```
 
@@ -98,9 +115,11 @@ supabase/
 - Service-role wall, "Option B": admins write `enrollments` and `manual`-only
   `xp_transactions` directly via RLS gated on `fn_is_admin()` — no Edge
   Function hop for these two, since the trigger check is exactly as
-  trustworthy as a server-side one. `payments` stays `service_role`-only
-  except `reconciliation_status`/`reconciliation_note` (admin-writable,
-  everything else guarded by `fn_guard_payment_admin_update`).
+  trustworthy as a server-side one. `payments` is `service_role`-writable in
+  full; an admin can only insert via `fn_create_manual_order` (migration 007),
+  update `reconciliation_status`/`reconciliation_note`/`deleted_at` (everything
+  else guarded by `fn_guard_payment_admin_update`), and hard-delete a row
+  already in Trash (migration 009). Full rule: `rules.md`.
 - Privileged user-account admin (create auth user, change someone else's
   email/password, delete account) goes through the `admin-user-management`
   Edge Function, since those need the `service_role` key. Ordinary column
@@ -143,13 +162,14 @@ is the real gate.
 **Money:** one formatter, `src/lib/currency.ts`, `Intl.NumberFormat` under
 `en-IN` (Indian grouping — 1,49,900 — is not hand-rolled). Currency code is
 read off the row (`payments.currency`, `courses.currency`, both default
-`'INR'`) rather than assumed. There IS now an app-wide default
-(`app_settings.default_currency`, migration 010, admin-settable via
-`/admin/settings`'s Platform tab) — but nothing reads it yet.
-`CourseForm.tsx`'s create-mode default is still the hardcoded string
-`'INR'`, not this column; wiring that up is a flagged follow-on, not done
-as a side effect of adding the settings table (see `state.md`). Unit and
-call-site rules are invariants — see `rules.md`.
+`'INR'`) rather than assumed. The admin-managed currency list is `currencies`
+(migration 011, `/admin/settings` Commerce tab), and the app-wide default is
+`app_settings.default_currency` (migration 010; an FK to `currencies(code)`
+since 011) — but nothing consumes that default yet. `CourseForm.tsx`'s
+create-mode default is still the hardcoded string `'INR'`, and
+`courses.currency`/`payments.currency` are plain text, not FK'd to
+`currencies`; both are flagged follow-ons (see `state.md`, `rules.md`). Unit
+(whole rupees) and call-site rules are invariants — see `rules.md`.
 
 **Naming conventions:** Postgres functions `fn_*`, triggers `trg_*`,
 migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
@@ -175,6 +195,10 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
   you happen to open.
 - `sonner` pulled in `next-themes` as a transitive dep; unused (no
   ThemeProvider), harmless, not worth fighting the generated file to remove.
+- **`npx tsc --noEmit` checks nothing here** — the root `tsconfig.json` only
+  holds project references, so a bare `--noEmit` compiles zero files and
+  passes vacuously. The real typecheck is `npx tsc -b` (what `npm run build`
+  runs first: `tsc -b && vite build`).
 - `react-hooks/set-state-in-effect` is strict: reset-form-on-dialog-open must
   be done by remounting an inner component (Radix unmounts dialog content on
   close), not a `useEffect` that calls `setState`.
@@ -196,19 +220,22 @@ This is a gamified Learning Management System — students work through video,
 text, quiz, and game lessons, earning XP, levels, streaks, and badges as they
 go, while admins author content and manage the platform. It's a React web
 app wrapped in Capacitor for mobile, backed by Supabase for auth, Postgres,
-and (eventually) serverless functions. Right now the project is deliberately
-scoped to the admin side only — no student-facing screens exist yet — while
-the underlying schema, security model, and gamification logic are built out
-first.
+and serverless functions. The work so far has deliberately gone into the
+admin side first, with the schema, security model, and gamification logic
+built out ahead of any student experience.
 
-The database is further along than the frontend: all 14 tables, their RLS
-policies, and the XP/badge/streak trigger machinery are live and have been
-verified against the real Supabase project rather than just read from SQL.
-The frontend has an auth flow (signup/login, with a Supabase trigger that
-auto-provisions a profile row), a working admin user-management page, and
-one deployed Edge Function that handles the privileged parts of that page
-(creating accounts, changing someone else's email or password, deleting
-users). Nothing beyond user management has been built on the admin side yet.
+That admin side is now broadly built. The database has 18 RLS-protected
+tables, with the XP, level, streak, and badge machinery live and verified
+against the real Supabase project rather than just read from SQL. The
+frontend covers signup and login (a trigger auto-provisions each profile),
+user management with a per-user detail page, a course builder with
+drag-and-drop curriculum and quiz questions, games, orders and payments
+(manual orders, CSV import and export, a trash), platform settings, and badge
+and level-threshold management. One deployed Edge Function handles the
+privileged account actions — creating accounts, changing someone else's email
+or password, and deleting users. What does not exist yet is everything a
+student would touch: no student screens, no quiz grading, no payment-gateway
+webhook, and no deployed frontend.
 
 If you want to understand this fast: start with `state.md` for what's
 actually in flight right now, then `schema.md` if you're touching the

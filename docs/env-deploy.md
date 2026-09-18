@@ -35,7 +35,10 @@ Supabase MCP connector (preferred) or the Supabase CLI (fallback, needs
 - **Migrations:** write to `supabase/migrations/`, apply via
   `Supabase:apply_migration`, regenerate `src/lib/database.types.ts` via
   `Supabase:generate_typescript_types`, commit all three together. Never a
-  direct dashboard schema edit.
+  direct dashboard schema edit. `apply_migration` stamps its own UTC version
+  at apply time, so the timestamp in the filename can differ from the live
+  version reported by `list_migrations` — it does today for 006–012 (see the
+  migrations log in `schema.md`).
 - **Edge Functions:** write to `supabase/functions/<name>/`, deploy via
   `Supabase:deploy_edge_function`, or
   `npx supabase functions deploy <name> --project-ref dmmvftodhcdbubuljqme`

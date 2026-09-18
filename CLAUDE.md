@@ -1,8 +1,10 @@
 # Documentation System — Governance Rules
 
-The canonical source of project truth is the 11-file set under `docs/`. This
-replaced the earlier single-file `PROJECT_CONTEXT.md` approach on 2026-09-04
-(and the `doc/` per-domain set before that). This file lives at the repo root
+The canonical source of project truth is the 11-file set defined under
+`docs/` (10 exist today — `analytics.md` is deliberately not created until
+analytics work starts). This replaced the earlier single-file
+`PROJECT_CONTEXT.md` approach on 2026-09-05 (and the `doc/` per-domain set
+before that). This file lives at the repo root
 so every Claude Code session loads it automatically at session start.
 
 These rules are hard requirements, not suggestions. A task is not "done" until

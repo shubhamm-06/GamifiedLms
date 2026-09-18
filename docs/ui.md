@@ -242,8 +242,10 @@ not implemented.**
   `input-group.tsx` needed this when adding the currency combobox) — see
   `context.md`'s gotchas for the bug itself.
 - Feature-specific UI is grouped by domain: `components/auth/`,
-  `components/admin/`, `components/admin/users/`, `components/admin/courses/`,
-  `components/admin/games/`.
+  `components/admin/` (shell only: `AdminGuard.tsx`, `AdminLayout.tsx`),
+  `components/admin/users/`, `components/admin/courses/`,
+  `components/admin/games/`, `components/admin/orders/`,
+  `components/admin/settings/`, `components/admin/gamification/`.
 - **Flat single-entity CRUD (no nested child content) uses a Dialog, not a
   dedicated route or wizard.** Games (`GameDialog.tsx`) follow Admin Users
   (`EditUserDialog.tsx`), not the Courses create/edit flow — a course has
@@ -287,13 +289,21 @@ not implemented.**
 - **A read-only record with a narrow, specific edit is still the Dialog
   convention, not a routed page.** `OrderDetailDialog.tsx` (payments) shows
   the full record read-only — including a pretty-printed `raw_payload` — and
-  exposes exactly two editable fields, mirroring Games' "flat record, one
-  Dialog" shape even though there's no create/delete action here at all (see
-  `rules.md` for why: the DB genuinely has no path for either). The table
-  row's action is a single icon button (`Eye`, "View details"), not a
-  `DropdownMenu` — a menu for exactly one possible action is one extra click
-  for nothing; reach for a `DropdownMenu` once a second action exists, not
-  before.
+  exposes exactly two editable fields (`reconciliation_status` and
+  `reconciliation_note`; trash/restore is a separate row action, not part of
+  this dialog — see `rules.md` for what an admin may change on a payment),
+  mirroring Games' "flat record, one Dialog" shape. Creating a payment is its
+  own dialog (`AddOrderDialog.tsx`, via `fn_create_manual_order`). The table
+  row's actions are a `DropdownMenu` — View details / Move to Trash in the
+  Active view, Restore / Delete Permanently in Trash. It started as a single
+  `Eye` icon button, since a menu for exactly one possible action is one extra
+  click for nothing; it became a `DropdownMenu` the moment a second action
+  existed (the trash actions), which is the threshold to apply again.
+- **A payment with no linked account (`user_id` null) is a normal state, not
+  an error.** A payment can arrive before its buyer signs up (see
+  `schema.md`), so `OrderTable.tsx` shows the raw `email` plus an outline
+  "Unclaimed" badge, and `OrderDetailDialog.tsx` says "Unclaimed — no account
+  yet" — no error styling in either.
 - **Shared *logic* gets extracted into one hook; shared *presentation* with
   no logic of its own doesn't have to be.** The Dashboard's and Orders
   page's revenue KPI card call the exact same `useRevenue()` (moved to
@@ -305,9 +315,12 @@ not implemented.**
   component for a wrapper this thin. Duplication is the default; only
   extract when there's a rule (like "revenue means paid + INR-only") that
   two copies could quietly stop agreeing on.
-- **All four admin list tables are TanStack Table v9** (`UserTable`,
-  `CourseTable`, `GameTable`, `OrderTable`) and search/filter/sort/paginate
-  entirely client-side over one fetched list. `/admin/users` was the last
+- **All five admin list tables are TanStack Table v9** (`UserTable`,
+  `CourseTable`, `GameTable`, `OrderTable`, `BadgeTable`) and
+  search/filter/sort/paginate entirely client-side over one fetched list. (The
+  Dashboard's "Recent activity" table also uses `useTable`, but with an empty
+  feature set — it's a read-only display, so it isn't one of the list tables
+  this convention describes.) `/admin/users` was the last
   plain `<table>` and was migrated; it previously filtered and paged
   server-side through PostgREST `.or()`/`.eq()`/`.range()`, which is gone. At
   account and catalog volumes bounded by real signups, a round-trip per
@@ -330,9 +343,9 @@ not implemented.**
   filters changed" and fires the model's `autoResetPageIndex`, which snaps
   the table back to page 1. The symptom is Next appearing to do nothing
   while page-size changes still work — so a table with only one page of rows
-  looks completely fine and the bug only surfaces once the data grows. All
-  three admin tables memoise their filter array and `state` object; copy
-  that, and don't pass an inline literal.
+  looks completely fine and the bug only surfaces once the data grows. Every
+  admin list table memoises its filter array and `state` object; copy that,
+  and don't pass an inline literal.
 - **Bulk row selection: `rowSelectionFeature`, a checkbox column, and
   controlled `state.rowSelection` lifted to the page** — `OrderTable.tsx` is
   the first table with this. `rowSelectionFeature` needs no row-model factory
@@ -518,7 +531,9 @@ not implemented.**
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
   sonner, switch, checkbox, tabs (used since Course Builder, missing from
-  this list until now — corrected, not a new install), popover, command.
+  this list until now — corrected, not a new install), popover, command,
+  input-group (pulled in by `command`, not imported directly), textarea, and
+  sheet (generated, currently unused by any page or component).
   The generated `checkbox.tsx` unconditionally
   rendered `CheckIcon` for every checked state — hand-patched to swap in
   `MinusIcon` when `checked === "indeterminate"`, since a bulk-selection
