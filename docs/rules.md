@@ -215,6 +215,20 @@ belongs in `context.md` or `state.md`, not here.
   this restriction would be bypassable by any client calling the REST API
   directly; the RLS policy is what actually makes that impossible, verified
   live via a direct authenticated REST call against an active row.
+- **A singleton config table enforces "exactly one row" by omitting the
+  INSERT policy entirely, not by a CHECK constraint or a fixed-value PK
+  trick.** `app_settings` (migration 010) is the first and, so far, only
+  table shaped this way: one row, seeded by the migration itself (which
+  runs outside RLS), and no INSERT policy for any client role — so a
+  second row can never be created through the app. No DELETE policy either,
+  since nothing should be able to remove the one row config depends on.
+  Verified live, not assumed: even an admin's direct `INSERT` against the
+  REST API is refused with a `42501` RLS violation. Reach for this exact
+  shape (public or admin-scoped SELECT, admin-only UPDATE, no INSERT/DELETE
+  policy at all, migration seeds the one row) for the next genuinely
+  singleton config table, rather than inventing a new mechanism — but it
+  only fits a table that really is one global row; don't reach for it for
+  something that's actually a list with exactly one entry today.
 - **TypeScript only — no new `.js`/`.jsx` files.**
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any

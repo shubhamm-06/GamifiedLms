@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { adminSessionQueryOptions, clearAdminSession } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
+import { useAppSettings } from '@/hooks/useAppSettings'
 
 interface NavItem {
   label: string
@@ -113,6 +114,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const title = useCurrentPageTitle()
   const { data: session } = useQuery(adminSessionQueryOptions)
+  const { data: appSettings } = useAppSettings()
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -128,7 +130,12 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     <div className="bg-background text-foreground flex min-h-screen font-sans">
       <aside className="flex w-60 shrink-0 flex-col border-r">
         <div className="flex h-14 items-center border-b px-5">
-          <span className="text-sm font-semibold tracking-tight">Wisdom Hatch Kids</span>
+          {/* Read from app_settings.site_name (migration 010), not
+              hardcoded — falls back to the column's own DB default only
+              for the instant before the first fetch resolves. */}
+          <span className="text-sm font-semibold tracking-tight">
+            {appSettings?.site_name ?? 'Wisdom Hatch Kids'}
+          </span>
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto p-3">
           {NAV_GROUPS.map((group, index) => (

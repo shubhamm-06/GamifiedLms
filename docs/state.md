@@ -242,6 +242,43 @@ trashed payment succeeds and the row is actually gone; both bulk Move to
 Trash and bulk Delete Permanently fire exactly one network request each for
 a two-row selection, not two.
 
+**2026-09-19: Platform Settings.** Migration 010 adds `app_settings`, a
+deliberate singleton table — one seeded row, no INSERT or DELETE policy for
+any client role at all, which is the actual mechanism (not a UI convention)
+that keeps it a singleton; verified live that even an admin's direct
+`INSERT` against the REST API is refused with a `42501` RLS violation.
+SELECT is public (`using (true)`, readable by `anon`), UPDATE is admin-only.
+Closes two confirmed gaps: `default_currency` (referenced by
+`courses.currency`/`payments.currency` defaults, but nothing previously let
+an admin set what "the platform default" actually is) and
+`quiz_pass_threshold_percent` (needed before quiz grading exists, stored
+nowhere before this — still not consumed by anything, this task only makes
+it settable and storable).
+
+`/admin/settings` split into `?tab=providers|platform` (`Tabs`, same
+search-param convention as Course Builder and `/admin/orders`'s `?view=`) —
+Providers is the pre-existing Manual Order Providers section, unchanged;
+Platform is one form over the `app_settings` row, grouped into Commerce /
+Gamification / Site Identity `Section`s, saving the whole row on submit
+rather than per-field. `AdminLayout`'s sidebar header now reads
+`app_settings.site_name` instead of a hardcoded string — confirmed live
+that an admin's save is reflected in the sidebar immediately (no reload)
+and survives a hard reload (a genuine read, not a client-only optimistic
+value).
+
+**Deliberate follow-on, flagged rather than built here:**
+`CourseForm.tsx`'s create-mode default (`currency: 'INR'`, hardcoded) should
+read `app_settings.default_currency` instead, so a platform-level currency
+change actually affects new courses. Small, separate change — not done as a
+side effect of adding the settings table itself.
+
+**Deferred, explicitly out of scope for this task:** design-tokens theming
+(letting an admin adjust the locked color set in `ui.md` from
+`/admin/settings`) is the next piece this Settings page would need for a
+genuinely white-labelable platform, but nothing here builds toward it —
+`ui.md`'s token set stays locked and code-only until a task actually asks
+for that.
+
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz
 questions) — a prior pass of this file mistyped that date as 2026-09-29;
@@ -296,6 +333,12 @@ None.
 - **Revenue is filtered to INR.** Summing mixed currencies is meaningless.
   If a second currency ever appears this needs a per-currency breakdown, not
   a wider filter.
+- **`app_settings.default_currency` (migration 010) is settable in
+  `/admin/settings` but not consumed anywhere yet.** `CourseForm.tsx`'s
+  create-mode default is still the hardcoded string `'INR'`. Flagged as a
+  follow-on when Platform Settings landed, deliberately not built as a side
+  effect of adding the settings table — wiring it up is a small, separate
+  change to `CourseForm.tsx`'s initial values.
 - **Nav uses one `to as never` cast** (`AdminLayout`'s `NavLink`) because
   most nav targets aren't in the typed route tree yet. Remove as real routes
   land.
@@ -331,8 +374,10 @@ None.
   inflate their streak. Not fixed — flagged for review, since fixing it
   means deciding whether `source_type = 'manual'` should skip the streak
   update entirely, which is a product call, not an obvious bug fix.
-- **Quiz pass threshold isn't stored anywhere** — needs a schema decision
-  before quiz authoring/grading is built.
+- **Quiz pass threshold is now stored (`app_settings.quiz_pass_threshold_percent`,
+  migration 010) but still consumed by nothing** — quiz grading itself
+  still doesn't exist. The schema-decision gap is closed; the grading logic
+  that would read this value is a separate, later task.
 - **`courses.gamification_enabled` is unenforced everywhere** — no trigger,
   no Edge Function, no UI check. The dashboard's attention list surfaces this
   gap and its copy must keep saying so rather than implying the flag does

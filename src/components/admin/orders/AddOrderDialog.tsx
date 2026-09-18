@@ -288,7 +288,11 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
         ) : activeProviders.length === 0 ? (
           <p className="text-muted-foreground text-xs">
             Add one in{' '}
-            <Link to="/admin/settings" className="text-teal-d hover:underline">
+            <Link
+              to="/admin/settings"
+              search={{ tab: 'providers' }}
+              className="text-teal-d hover:underline"
+            >
               Settings
             </Link>{' '}
             first.

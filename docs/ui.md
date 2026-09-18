@@ -408,6 +408,31 @@ not implemented.**
   list needs sorting, filtering or pagination it graduates to the TanStack
   convention above, but standing up that machinery for a handful of rows
   today would be building for a scale problem that doesn't exist.
+- **`/admin/settings` is `Tabs` over purpose-built sections, not a generic
+  settings framework.** Providers (`ManualOrderProvidersSection.tsx`) and
+  Platform (`PlatformSettingsSection.tsx`, migration 010) are two
+  independent components, each rendered inside its own `TabsContent` —
+  adding a third section later is one more `TabsTrigger`/`TabsContent`
+  pair, not a registry or config-driven section list to extend. This is
+  the same `?tab=`-as-search-param convention as Course Builder (see
+  `routes-permissions.md`), reused rather than reinvented now that there's
+  an actual second section to switch between.
+- **A config table backing a single form is grouped visually by category,
+  not laid out as one flat list of fields.** `PlatformSettingsSection.tsx`
+  splits `app_settings`' seven columns into three bordered `Section`s
+  (Commerce / Gamification / Site Identity — the same small `Section` +
+  `Field` local helpers `CourseForm.tsx` already uses, not shared code,
+  since each is a ~10-line presentational wrapper with nothing to drift)
+  and saves the whole row in one submit. **No per-field save affordance** —
+  this is config, not a list of independent records, so there's nothing to
+  gain from letting one field save independently of the others.
+  **Initializing local form state from a query-loaded singleton row (not a
+  dialog) still needs the "mount fresh" trick** — there's no open/close
+  moment to reset on the way a dialog has, so the parent renders the form
+  with `key={settings.id}` once the row has loaded. Since the singleton's
+  `id` never changes across a refetch, this does NOT remount on every
+  background refetch (which would blow away in-progress edits) — it only
+  (re)mounts once, the first time real data replaces the loading state.
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
   sonner, switch, checkbox, tabs (used since Course Builder, missing from

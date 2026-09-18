@@ -1,7 +1,7 @@
 # Schema
 
 Postgres 17 via Supabase, project `Gamified LMS`, ref `dmmvftodhcdbubuljqme`,
-region `ap-northeast-1`. 15 tables across 5 domains, all RLS-enabled, plus 3
+region `ap-northeast-1`. 16 tables across 6 domains, all RLS-enabled, plus 3
 views and 1 deployed Edge Function.
 
 **Source of truth is `supabase/migrations/`.** If this file and the live
@@ -13,8 +13,12 @@ all three together.
 **Conventions:** all PKs are `uuid`. `timestamptz` for timestamps, default
 `now()` unless noted. Money is an `int` in minor units (e.g. paise), never a
 float. Every FK to `profiles.id` ultimately points at `auth.users.id` —
-`profiles.id` **is** the auth user id, not a separate one. No soft-delete
-column exists anywhere in `public` — every delete is a hard delete.
+`profiles.id` **is** the auth user id, not a separate one. **Exactly one
+soft-delete column exists anywhere in `public`: `payments.deleted_at`**
+(migration 009, deliberately scoped there only — see `rules.md`); every
+other delete in this schema is still a hard delete. (This line previously
+claimed no soft-delete column existed at all — stale as of migration 009,
+corrected here rather than left wrong.)
 
 ---
 
@@ -159,7 +163,10 @@ Lessons are addressed by `id`.
 
 **`quiz_attempts`** — every submission kept, not just the best. `id`,
 `user_id`, `lesson_id`, `score`, `max_score`, `passed`, `answers` (jsonb),
-`attempted_at`. No pass-threshold column anywhere — see `state.md`.
+`attempted_at`. The pass threshold itself now lives in
+`app_settings.quiz_pass_threshold_percent` (migration 010) — not on this
+table, and not yet read by anything, since quiz grading doesn't exist. See
+`state.md`.
 
 ### 4. Commerce — `payments`
 
@@ -247,6 +254,31 @@ client-writable by any role. `user_id` (PK), `total_xp`, `level`,
 
 **`user_badges`** — `id`, `user_id`, `badge_id` (unique together),
 `unlocked_at`.
+
+### 6. Platform configuration — `app_settings`
+
+**A deliberate singleton (migration 010).** `id` (uuid PK), `default_currency`
+(text, not null, default `'INR'`), `quiz_pass_threshold_percent` (int, not
+null, default `70`), `site_name` (text, not null, default `'Wisdom Hatch
+Kids'`), `site_url` (nullable), `support_email` (nullable), `terms_url`
+(nullable), `privacy_url` (nullable). Exactly one row exists, seeded by the
+migration itself — **no INSERT policy exists for any client role**, which is
+the actual mechanism that keeps it a singleton; a bare `.insert()` from an
+authenticated (even admin) session raises a `42501` RLS violation, verified
+live, not assumed. No DELETE policy either, for the same reason: nothing
+should ever be able to remove the one row the app depends on.
+
+Two confirmed gaps this closes: `default_currency` gives an actual place to
+set what "the platform default" is (previously `courses.currency` and
+`payments.currency` each independently defaulted to `'INR'` with nothing
+admin-configurable behind that); `quiz_pass_threshold_percent` gives quiz
+grading a value to eventually read (nothing consumes it yet — quiz grading
+doesn't exist — this table only makes the value settable and storable). See
+`state.md` for the specific follow-on this unblocks (`CourseForm.tsx`'s
+hardcoded `currency: 'INR'` default should read from here instead — flagged,
+not built, since that's a separate small change on its own).
+
+`site_name` replaces `AdminLayout.tsx`'s previously-hardcoded sidebar text.
 
 ---
 
@@ -348,11 +380,15 @@ the SQL self-explanatory.
 | `badges` | any authenticated or admin | admin | admin | admin |
 | `user_badges` | public (`true`) | `service_role` only | — | — |
 | `manual_order_providers` | admin only | admin only | admin only | admin only |
+| `app_settings` | public (`true`), including `anon` | — | admin only | — |
 
 Blank cells mean no policy exists — RLS defaults to deny, so that operation
 is impossible for `anon`/`authenticated`. `user_stats` and `user_badges` have
 **no client write policy for any role** — only the trigger functions above
-write them.
+write them. `app_settings` has no INSERT or DELETE policy for any role
+either, but for a different reason than `user_stats`/`user_badges` — it's a
+deliberate singleton (migration 010), not a trigger-maintained rollup;
+nothing should ever add a second row or remove the one it has.
 
 Two `SELECT` layers on `quiz_questions`: the base table's policy is
 admin-only. Students must always read through `quiz_questions_public`
@@ -402,6 +438,7 @@ detail logged server-side via `console.error`.
 | 007 | `20260918184559_007_manual_order_creation.sql` | 2026-09-18 18:45:59 | `payments_admin_insert` RLS policy (admin insert, no `provider` constraint); `fn_create_manual_order(...)` — plain function, atomically creates a manual payment + its backing enrollment |
 | 008 | `20260917191418_008_manual_order_providers.sql` | 2026-09-18 | `manual_order_providers` table (admin-only RLS on all 4 ops), seeded with `bank_transfer`/`cash`/`comp`; sources the Add Order / Import Orders provider dropdown, not a FK from `payments.provider` |
 | 009 | `20260918211500_009_payments_soft_delete.sql` | 2026-09-18 21:15:00 | `payments.deleted_at` (nullable, no default) — the only soft-delete column in this schema; `fn_guard_payment_admin_update` re-verified live and updated to also permit `deleted_at`; `payments_admin_delete_from_trash` — real DELETE, only when already trashed |
+| 010 | `20260919090000_010_app_settings.sql` | 2026-09-19 09:00:00 | `app_settings` — a deliberate singleton table (one seeded row, no INSERT/DELETE policy for any role), public SELECT, admin-only UPDATE. Closes the `default_currency` and `quiz_pass_threshold_percent` gaps; `site_name` replaces `AdminLayout`'s hardcoded sidebar text |
 
 No migration has added `admin-user-management` — it's an Edge Function, not a
 schema change, deployed independently (see above).

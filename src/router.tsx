@@ -126,10 +126,21 @@ const adminOrdersRoute = createRoute({
   validateSearch: validateOrdersView,
 })
 
+/**
+ * Same `?tab=`-as-real-search-param convention as Course Builder and
+ * `/admin/orders`'s `?view=` — survives a refresh, is linkable. Defaults to
+ * `providers` since that's the section that already existed before Platform
+ * landed.
+ */
+function validateSettingsTab(search: Record<string, unknown>): { tab: 'providers' | 'platform' } {
+  return { tab: search.tab === 'platform' ? 'platform' : 'providers' }
+}
+
 const adminSettingsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'settings',
   component: SettingsPage,
+  validateSearch: validateSettingsTab,
 })
 
 /**

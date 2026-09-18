@@ -137,9 +137,13 @@ is the real gate.
 **Money:** one formatter, `src/lib/currency.ts`, `Intl.NumberFormat` under
 `en-IN` (Indian grouping — 1,49,900 — is not hand-rolled). Currency code is
 read off the row (`payments.currency`, `courses.currency`, both default
-`'INR'`) rather than assumed; there is no app-wide currency setting and no
-settings table to hold one. Unit and call-site rules are invariants — see
-`rules.md`.
+`'INR'`) rather than assumed. There IS now an app-wide default
+(`app_settings.default_currency`, migration 010, admin-settable via
+`/admin/settings`'s Platform tab) — but nothing reads it yet.
+`CourseForm.tsx`'s create-mode default is still the hardcoded string
+`'INR'`, not this column; wiring that up is a flagged follow-on, not done
+as a side effect of adding the settings table (see `state.md`). Unit and
+call-site rules are invariants — see `rules.md`.
 
 **Naming conventions:** Postgres functions `fn_*`, triggers `trg_*`,
 migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.

@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          default_currency: string
+          id: string
+          privacy_url: string | null
+          quiz_pass_threshold_percent: number
+          site_name: string
+          site_url: string | null
+          support_email: string | null
+          terms_url: string | null
+        }
+        Insert: {
+          default_currency?: string
+          id?: string
+          privacy_url?: string | null
+          quiz_pass_threshold_percent?: number
+          site_name?: string
+          site_url?: string | null
+          support_email?: string | null
+          terms_url?: string | null
+        }
+        Update: {
+          default_currency?: string
+          id?: string
+          privacy_url?: string | null
+          quiz_pass_threshold_percent?: number
+          site_name?: string
+          site_url?: string | null
+          support_email?: string | null
+          terms_url?: string | null
+        }
+        Relationships: []
+      }
       badges: {
         Row: {
           condition_type: string
