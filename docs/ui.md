@@ -338,6 +338,14 @@ not implemented.**
   on close), rather than a `useEffect` resetting state — the lint rule
   `react-hooks/set-state-in-effect` will reject the effect version. See
   `EditUserDialog.tsx` / `CreateUserDialog.tsx` for the pattern.
+- **A handful of admin-config rows (add + toggle, no sort/filter/paginate
+  need) is a plain `<ul>`, not a TanStack Table instance.**
+  `ManualOrderProvidersSection.tsx` (`/admin/settings`) lists
+  `manual_order_providers` as a bordered `<ul className="divide-y rounded-md
+  border">` with a `<Switch>` per row toggling `is_active` — the moment this
+  list needs sorting, filtering or pagination it graduates to the TanStack
+  convention above, but standing up that machinery for a handful of rows
+  today would be building for a scale problem that doesn't exist.
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
-  sonner.
+  sonner, switch.

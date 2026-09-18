@@ -18,6 +18,28 @@ export interface PaymentRow extends Payment {
 
 export const paymentsQueryKey = ['admin', 'payments'] as const
 
+/**
+ * The exact same status/reconciliation-status matching `OrderTable.tsx`'s
+ * own column filters apply — used by CSV export so what gets exported is
+ * whatever the admin currently has filtered on screen, not silently
+ * everything. Kept as its own tiny function rather than reaching into the
+ * table's TanStack instance for its filtered row model, since the
+ * predicate itself (two exact-match checks) is simple enough that
+ * duplicating it here is lower-risk than coupling export to the table
+ * component's internals.
+ */
+export function filterPaymentsForExport(
+  payments: PaymentRow[],
+  statusFilter: string,
+  reconciliationFilter: string,
+): PaymentRow[] {
+  return payments.filter(
+    (p) =>
+      (statusFilter === 'all' || p.status === statusFilter) &&
+      (reconciliationFilter === 'all' || p.reconciliation_status === reconciliationFilter),
+  )
+}
+
 const HEAD_COUNT = { count: 'exact', head: true } as const
 
 /**
@@ -151,45 +173,174 @@ export interface CreateManualOrderInput {
 }
 
 /**
- * Records a payment that happened outside the gateway (bank transfer, cash,
- * a goodwill comp) and the enrollment it backs, in one call. Goes through
- * `fn_create_manual_order` — a single RPC, not two sequential `.insert()`s
- * — so the payment and enrollment can never partially succeed from the
+ * The one and only place `fn_create_manual_order` is invoked from the
+ * client. A plain async function, not a hook, specifically so both
+ * `useCreateManualOrder` (below, for Add Order's single-order submit) and
+ * the CSV bulk importer (`importManualOrders`) call the exact same path —
+ * "reuse the exact same atomic path Add Order uses, not a parallel
+ * bulk-insert implementation" only holds if there's one function to call,
+ * not a hook's `mutationFn` copied a second time.
+ *
+ * Goes through the RPC — a single call, not two sequential `.insert()`s —
+ * so the payment and enrollment can never partially succeed from the
  * client's point of view; the function's own transaction is what actually
  * guarantees that (verified live: forcing the enrollment insert to fail
  * leaves no orphaned payment row, since the friendly re-raised error is
- * never caught inside the function and so aborts the whole call).
+ * never caught inside the function and so aborts the whole call — true on
+ * every call site, including a bulk import, since it's the same function).
  *
  * The function is a PLAIN one, not `SECURITY DEFINER` — its two inserts run
  * under this admin's own RLS (`payments_admin_insert`,
  * `enrollments_admin_insert`), which is what should gate this, not "can call
  * this RPC". See rules.md.
  */
-export function useCreateManualOrder() {
+async function callCreateManualOrder(input: CreateManualOrderInput): Promise<string> {
+  const { data, error } = await supabase.rpc('fn_create_manual_order', {
+    p_user_id: input.userId,
+    p_course_id: input.courseId,
+    p_provider: input.provider,
+    p_amount: input.amount,
+    p_currency: input.currency,
+    p_note: input.note ?? undefined,
+  })
+  if (error) throw new Error(error.message)
+  return data
+}
+
+function useInvalidateAfterOrder() {
   const queryClient = useQueryClient()
+  return () => {
+    queryClient.invalidateQueries({ queryKey: paymentsQueryKey })
+    queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+    queryClient.invalidateQueries({ queryKey: coursesQueryKey })
+    // Enrollment lists are keyed per-user (['admin','userDetail','enrollments',userId])
+    // in useUserDetail.ts — broad-invalidate that family rather than
+    // importing its private key builder.
+    queryClient.invalidateQueries({ queryKey: ['admin', 'userDetail'] })
+  }
+}
+
+export function useCreateManualOrder() {
+  const invalidate = useInvalidateAfterOrder()
   return useMutation({
-    mutationFn: async (input: CreateManualOrderInput) => {
-      const { data, error } = await supabase.rpc('fn_create_manual_order', {
-        p_user_id: input.userId,
-        p_course_id: input.courseId,
-        p_provider: input.provider,
-        p_amount: input.amount,
-        p_currency: input.currency,
-        p_note: input.note ?? undefined,
-      })
-      if (error) throw new Error(error.message)
-      return data
-    },
+    mutationFn: callCreateManualOrder,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: paymentsQueryKey })
-      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
-      queryClient.invalidateQueries({ queryKey: coursesQueryKey })
-      // Enrollment lists are keyed per-user (['admin','userDetail','enrollments',userId])
-      // in useUserDetail.ts — broad-invalidate that family rather than
-      // importing its private key builder.
-      queryClient.invalidateQueries({ queryKey: ['admin', 'userDetail'] })
+      invalidate()
       toast.success('Order recorded.')
     },
     onError: (error: Error) => toast.error(error.message),
   })
+}
+
+export interface ImportOrderRow {
+  email: string
+  courseSlug: string
+  amount: string
+  currency: string
+  provider: string
+  note: string
+}
+
+export interface ImportRowResult {
+  /** 1-based, matching a spreadsheet's row numbers (header is row 1). */
+  row: number
+  email: string
+  success: boolean
+  error?: string
+}
+
+export interface ImportOrdersResult {
+  results: ImportRowResult[]
+  succeededCount: number
+  failedCount: number
+}
+
+/**
+ * Bulk-creates orders by calling `callCreateManualOrder` once per row,
+ * sequentially — not `Promise.all`, and not a parallel bulk-insert of any
+ * kind. Per-row atomic, not whole-file atomic: one bad row (unknown email,
+ * unknown course slug, an already-enrolled pair) is caught and recorded as
+ * that row's failure without touching the rows before or after it, so 199
+ * good rows ahead of a bad one are never rolled back by it.
+ *
+ * Email → user id and slug → course id are resolved from two lookups
+ * fetched once up front, not once per row — this is the only place import
+ * queries anything beyond the RPC itself.
+ *
+ * Known, accepted limit (see state.md): this is one RPC round-trip per row
+ * from the client. Fine at the scale this project is at; a real bulk
+ * import of thousands of rows at once would need a server-side path
+ * instead, which nothing here builds toward speculatively.
+ */
+export async function importManualOrders(rows: ImportOrderRow[]): Promise<ImportOrdersResult> {
+  const [{ data: profiles, error: profilesError }, { data: courses, error: coursesError }] =
+    await Promise.all([
+      supabase.from('profiles').select('id, email'),
+      supabase.from('courses').select('id, slug'),
+    ])
+  if (profilesError) throw new Error(profilesError.message)
+  if (coursesError) throw new Error(coursesError.message)
+
+  const emailToUserId = new Map((profiles ?? []).map((p) => [p.email.toLowerCase(), p.id]))
+  const slugToCourseId = new Map((courses ?? []).map((c) => [c.slug, c.id]))
+
+  const results: ImportRowResult[] = []
+
+  for (const [index, row] of rows.entries()) {
+    const rowNumber = index + 2
+    const email = row.email.trim()
+    const slug = row.courseSlug.trim()
+
+    const userId = emailToUserId.get(email.toLowerCase())
+    if (!userId) {
+      results.push({ row: rowNumber, email, success: false, error: `No user found with email "${email}".` })
+      continue
+    }
+    const courseId = slugToCourseId.get(slug)
+    if (!courseId) {
+      results.push({ row: rowNumber, email, success: false, error: `No course found with slug "${slug}".` })
+      continue
+    }
+    const amount = Number(row.amount)
+    if (!row.amount.trim() || Number.isNaN(amount) || amount < 0) {
+      results.push({ row: rowNumber, email, success: false, error: `Invalid amount "${row.amount}".` })
+      continue
+    }
+    const currency = row.currency.trim()
+    const provider = row.provider.trim()
+    if (!currency || !provider) {
+      results.push({ row: rowNumber, email, success: false, error: 'Currency and provider are required.' })
+      continue
+    }
+
+    try {
+      await callCreateManualOrder({
+        userId,
+        courseId,
+        provider,
+        amount,
+        currency: currency.toUpperCase(),
+        note: row.note.trim() || null,
+      })
+      results.push({ row: rowNumber, email, success: true })
+    } catch (err) {
+      results.push({
+        row: rowNumber,
+        email,
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }
+
+  return {
+    results,
+    succeededCount: results.filter((r) => r.success).length,
+    failedCount: results.filter((r) => !r.success).length,
+  }
+}
+
+/** Invalidates the same query families `useCreateManualOrder` does, once for the whole batch rather than once per row. */
+export function useInvalidateAfterImport() {
+  return useInvalidateAfterOrder()
 }

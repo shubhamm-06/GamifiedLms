@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { Plus } from 'lucide-react'
+import { Download, Plus, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -10,16 +10,35 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AddOrderDialog } from '@/components/admin/orders/AddOrderDialog'
+import { ImportOrdersDialog } from '@/components/admin/orders/ImportOrdersDialog'
 import { OrderDetailDialog } from '@/components/admin/orders/OrderDetailDialog'
 import { OrderTable } from '@/components/admin/orders/OrderTable'
 import { formatAmount } from '@/lib/currency'
+import { downloadTextFile, stringifyCsv } from '@/lib/csv'
 import {
+  filterPaymentsForExport,
   useFailedPaymentsCount,
   usePayments,
   useRevenue,
   useUnresolvedPaymentsCount,
   type PaymentRow,
 } from '@/hooks/admin/usePayments'
+
+const EXPORT_HEADER = ['Received', 'Email', 'Course', 'Amount', 'Currency', 'Provider', 'Status', 'Reconciliation']
+
+function exportPaymentsCsv(payments: PaymentRow[]) {
+  const rows = payments.map((p) => [
+    p.received_at.slice(0, 10),
+    p.email,
+    p.courses?.title ?? '',
+    p.amount,
+    p.currency,
+    p.provider,
+    p.status,
+    p.reconciliation_status,
+  ])
+  downloadTextFile(`orders-${new Date().toISOString().slice(0, 10)}.csv`, stringifyCsv([EXPORT_HEADER, ...rows]))
+}
 
 /**
  * Same card shape as `DashboardPage.tsx`'s `KpiCard` — kept as a separate,
@@ -64,9 +83,11 @@ export function OrdersPage() {
   const [reconciliationFilter, setReconciliationFilter] = useState('all')
   const [viewTarget, setViewTarget] = useState<PaymentRow | null>(null)
   const [addOrderOpen, setAddOrderOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   const { data, isPending, isError } = usePayments()
   const payments = data ?? []
+  const filteredForExport = filterPaymentsForExport(payments, statusFilter, reconciliationFilter)
 
   const revenue = useRevenue()
   const unresolved = useUnresolvedPaymentsCount()
@@ -81,10 +102,20 @@ export function OrdersPage() {
             {payments.length} {payments.length === 1 ? 'order' : 'orders'}
           </p>
         </div>
-        <Button onClick={() => setAddOrderOpen(true)}>
-          <Plus />
-          Add order
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => exportPaymentsCsv(filteredForExport)}>
+            <Download />
+            Export CSV
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload />
+            Import CSV
+          </Button>
+          <Button onClick={() => setAddOrderOpen(true)}>
+            <Plus />
+            Add order
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -151,6 +182,7 @@ export function OrdersPage() {
       />
 
       <AddOrderDialog open={addOrderOpen} onOpenChange={setAddOrderOpen} />
+      <ImportOrdersDialog open={importOpen} onOpenChange={setImportOpen} />
     </div>
   )
 }

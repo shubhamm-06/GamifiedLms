@@ -18,7 +18,8 @@ file-based — new routes are added there, not by creating files under a
 | `/admin/courses/new` | `CourseCreatePage` | Admin only | Always inserts as `draft`. Curriculum tab locked until saved |
 | `/admin/courses/$courseId/edit` | `CourseEditPage` | Admin only | Course Builder: Basics + Curriculum tabs. Bad id or RLS-hidden row renders "Course not found", not a crash |
 | `/admin/games` | `GamesPage` | Admin only | Sortable/filterable list, same table conventions as `/admin/courses`. Create/edit is a `GameDialog`, not a route — games are a flat record with no nested child content. Delete is real (no archive/status column), refused with a friendly message if any lesson still references the game |
-| `/admin/orders` | `OrdersPage` | Admin only | KPI cards (revenue, unresolved, failed) + sortable/filterable payments list (status, reconciliation status). Detail/reconciliation is an `OrderDetailDialog`, not a route — a flat record with a 2-field edit, same convention as Games. "Add order" (`AddOrderDialog`) records a payment made outside the gateway plus its enrollment, via the `fn_create_manual_order` RPC (migration 007) — not two sequential inserts. Still no delete action for this table at all; see `rules.md` |
+| `/admin/orders` | `OrdersPage` | Admin only | KPI cards (revenue, unresolved, failed) + sortable/filterable payments list (status, reconciliation status). Detail/reconciliation is an `OrderDetailDialog`, not a route — a flat record with a 2-field edit, same convention as Games. "Add order" (`AddOrderDialog`) records a payment made outside the gateway plus its enrollment, via the `fn_create_manual_order` RPC (migration 007) — not two sequential inserts; amount/currency auto-fill from the selected course (falls back to 0 for a free course), staying editable after. "Export CSV" dumps the currently-filtered list; "Import CSV" (`ImportOrdersDialog`) bulk-creates via the same `fn_create_manual_order` RPC, once per row, per-row atomic (one bad row doesn't roll back the rest) — a results summary reports per-row success/failure. Still no delete action for this table at all; see `rules.md` |
+| `/admin/settings` | `SettingsPage` | Admin only | One section so far: Manual Order Providers — a plain list (not a TanStack Table) to add/deactivate the labels offered by Add Order / Import CSV's provider dropdown. Structured so a future second section is just another component rendered below, not a settings framework |
 
 **`?tab=` search param.** Both course routes take `tab=basics|curriculum`
 (`validateSearch` coerces anything else to `basics`). It's a real search param
@@ -31,9 +32,10 @@ There is deliberately **no `/admin/courses/$courseId` index route** —
 `$courseId/edit` stands alone, and the builder's Curriculum tab is where
 modules, lessons and quiz questions are managed.
 
-**Nav targets that don't exist yet** — `/admin/gamification`,
-`/admin/settings`. They're linked from the sidebar and 404 inside the admin
-shell on purpose; no placeholder routes or stub pages were created for them.
+**Nav targets that don't exist yet** — `/admin/gamification`. It's linked
+from the sidebar and 404s inside the admin shell on purpose; no placeholder
+route or stub page was created for it. (`/admin/settings` previously lived
+here too — it's now a real route, above.)
 
 **There is no `/admin/students` nav entry, and never a route.** A standalone
 students list would just duplicate `/admin/users` (already lists everyone,

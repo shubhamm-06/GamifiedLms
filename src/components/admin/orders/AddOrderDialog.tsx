@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useCourses } from '@/hooks/admin/useCourses'
+import { useManualOrderProviders } from '@/hooks/admin/useManualOrderProviders'
 import { useCreateManualOrder } from '@/hooks/admin/usePayments'
 import { filterEnrollableCourses, useUserEnrollments } from '@/hooks/admin/useUserDetail'
 import { useUsers, type AdminUserRow } from '@/hooks/admin/useUsers'
@@ -116,6 +118,8 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const { data: allCourses } = useCourses()
+  const { data: providers } = useManualOrderProviders()
+  const activeProviders = (providers ?? []).filter((p) => p.is_active)
   // Only fetched once a user is picked (enabled: false otherwise — see
   // useUserEnrollments) — there is nothing to scope the course list to
   // before then.
@@ -144,14 +148,34 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
     setCourseId('')
   }
 
+  /**
+   * Amount/currency pre-fill from the course's own price whenever the
+   * selection changes, then stay freely editable — goodwill comps and
+   * partial amounts are a real, named use case (see the dialog's own
+   * description), so this can never lock the field. A free course or one
+   * with no price set (`price_amount` null) falls back to 0, not blank —
+   * that's a real, submittable amount here (see the relaxed `>= 0` check
+   * in handleSubmit below), not a placeholder asking to be filled in.
+   */
+  function handleCourseChange(nextCourseId: string) {
+    setCourseId(nextCourseId)
+    const course = eligibleCourses.find((c) => c.id === nextCourseId)
+    if (course) {
+      setAmount(course.price_amount == null ? '0' : String(course.price_amount))
+      setCurrency(course.currency)
+    }
+  }
+
   function handleSubmit() {
     const next: Record<string, string> = {}
     if (!user) next.user = 'Pick a student.'
     if (!courseId) next.course = 'Pick a course.'
-    if (!provider.trim()) next.provider = 'Provider is required.'
+    if (!provider.trim()) next.provider = 'Pick a provider.'
     const parsedAmount = Number(amount)
-    if (!amount.trim() || Number.isNaN(parsedAmount) || parsedAmount <= 0) {
-      next.amount = 'Enter an amount greater than 0.'
+    // >= 0, not > 0: a free course or a full comp is legitimately a
+    // zero-amount order, not an invalid one — see handleCourseChange.
+    if (!amount.trim() || Number.isNaN(parsedAmount) || parsedAmount < 0) {
+      next.amount = 'Enter an amount of 0 or more.'
     }
     if (!currency.trim()) next.currency = 'Currency is required.'
 
@@ -181,7 +205,7 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
 
       <div className="space-y-1.5">
         <Label htmlFor="order-course">Course</Label>
-        <Select value={courseId} onValueChange={setCourseId} disabled={!enrollmentsSettled}>
+        <Select value={courseId} onValueChange={handleCourseChange} disabled={!enrollmentsSettled}>
           <SelectTrigger id="order-course" className="w-full">
             <SelectValue
               placeholder={
@@ -215,7 +239,7 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
           <Input
             id="order-amount"
             type="number"
-            min={1}
+            min={0}
             value={amount}
             aria-invalid={!!errors.amount}
             onChange={(e) => setAmount(e.target.value)}
@@ -223,7 +247,10 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
           {errors.amount ? (
             <p className="text-coral-d text-sm">{errors.amount}</p>
           ) : (
-            <p className="text-muted-foreground text-xs">Whole rupees, not paise.</p>
+            <p className="text-muted-foreground text-xs">
+              Whole rupees, not paise. Fills in from the course&rsquo;s price — stays editable
+              for comps and partial amounts.
+            </p>
           )}
         </div>
         <div className="space-y-1.5">
@@ -240,18 +267,36 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
 
       <div className="space-y-1.5">
         <Label htmlFor="order-provider">Provider</Label>
-        <Input
-          id="order-provider"
-          placeholder="e.g. bank_transfer, cash, comp"
-          value={provider}
-          aria-invalid={!!errors.provider}
-          onChange={(e) => setProvider(e.target.value)}
-        />
+        <Select value={provider} onValueChange={setProvider} disabled={activeProviders.length === 0}>
+          <SelectTrigger id="order-provider" className="w-full">
+            <SelectValue
+              placeholder={
+                activeProviders.length === 0 ? 'No active providers configured' : 'Select a provider…'
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {activeProviders.map((p) => (
+              <SelectItem key={p.id} value={p.label}>
+                {p.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {errors.provider ? (
           <p className="text-coral-d text-sm">{errors.provider}</p>
+        ) : activeProviders.length === 0 ? (
+          <p className="text-muted-foreground text-xs">
+            Add one in{' '}
+            <Link to="/admin/settings" className="text-teal-d hover:underline">
+              Settings
+            </Link>{' '}
+            first.
+          </p>
         ) : (
           <p className="text-muted-foreground text-xs">
-            Free text — however you want to label how this was actually paid.
+            However you want to label how this was actually paid — configured in Settings, not
+            free text.
           </p>
         )}
       </div>

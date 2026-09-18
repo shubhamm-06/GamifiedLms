@@ -179,6 +179,17 @@ belongs in `context.md` or `state.md`, not here.
   updating that file first.** An undocumented one-off color silently
   fragments the design system. Hardcoded hex values are never acceptable —
   the tokens are exposed as Tailwind utilities for exactly this reason.
+- **`payments.provider` is plain free text — it is never made a foreign key
+  to `manual_order_providers` (migration 008).** That table only sources the
+  Add Order / Import CSV provider dropdown's options; nothing at the DB level
+  enforces that a payment's `provider` value matches an active (or even
+  existing) row there. This is the same "let the admin type freely" call
+  made when `payments_admin_insert` was added (migration 007) — the dropdown
+  standardizes labels for new entries, it doesn't reverse that decision. A
+  future pass adding a `REFERENCES manual_order_providers(label)` constraint
+  would break the moment a provider row is deactivated (existing payments
+  keep the old label as a text snapshot, by design) or renamed, and would
+  reintroduce exactly the rigidity the free-text column was chosen to avoid.
 - **TypeScript only — no new `.js`/`.jsx` files.**
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any

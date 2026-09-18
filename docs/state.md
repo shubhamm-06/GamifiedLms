@@ -138,6 +138,51 @@ row (the real student, the real "Wisdom Hatch Kids" course, `source =
 'manual'`) predates this task and wasn't created by anything in this
 session — left alone rather than assumed safe to delete.
 
+**2026-09-18, same day: Add Order refinements — auto-fill, `/admin/settings`,
+CSV export/import.** Three pieces landed together:
+- **Amount/currency auto-fill.** Picking a course in `AddOrderDialog` fills
+  `amount`/`currency` from `courses.price_amount`/`courses.currency`
+  (`handleCourseChange`, mirroring `CourseForm.tsx`'s title→slug pattern
+  rather than a `useEffect`), falling back to `0` for a free/unpriced course.
+  Stays editable afterward — goodwill comps and partial amounts are a named
+  use case. This required relaxing amount validation from "> 0" to "≥ 0",
+  since `0` is now a legitimate auto-filled, submittable value.
+- **`/admin/settings` landed**, migration 008's `manual_order_providers`
+  table (admin-only RLS, seeded `bank_transfer`/`cash`/`comp`) behind it. One
+  section, `ManualOrderProvidersSection.tsx` — add a label, toggle
+  active/inactive via a plain `<ul>` + `<Switch>`, deliberately not a
+  TanStack Table (see `ui.md`). Deactivate only, no delete — the table has no
+  delete RLS policy at all. `payments.provider` stays free text, NOT a FK to
+  this table — see `rules.md`'s new invariant. Add Order's Provider field
+  changed from a free-text `Input` to a `Select` sourced from this table's
+  active rows only.
+- **CSV export/import on `/admin/orders`.** Export dumps whatever the
+  page's current status/reconciliation filters show (`filterPaymentsForExport`
+  in `usePayments.ts`, a small deliberate duplicate of `OrderTable`'s filter
+  predicate rather than a refactor into its TanStack internals). Import
+  (`ImportOrdersDialog.tsx`) calls `fn_create_manual_order` once per row —
+  the same RPC and code path Add Order uses (`callCreateManualOrder`,
+  extracted out of `useCreateManualOrder`'s `mutationFn` so both call sites
+  share it) — sequentially and per-row atomically: one bad row (unknown
+  email, unknown course slug, duplicate enrollment) is caught individually
+  and reported in a results summary, not rolled back with the rest. A
+  downloadable template CSV ships with the dialog. Confirmed live: the
+  no-orphaned-payment guarantee holds in this bulk path too, not just
+  Add Order's single-row path — pre-seeded a real conflicting enrollment,
+  confirmed the payment count for that exact pair was identical before and
+  after a partially-failing import.
+
+Verified live end-to-end for all three: course-selection auto-fill including
+the free-course-to-0 case; adding/deactivating a provider correctly changes
+what Add Order's dropdown offers; export matches an applied filter, both
+unfiltered and filtered; import correctly bulk-creates a valid row and
+distinctly reports all three failure kinds (bad email, bad slug, duplicate
+enrollment) with the no-orphaned-payment guarantee intact. The `payments`
+table was completely empty at the time migration 008 was written, so no
+seeded provider label (`bank_transfer`/`cash`/`comp`) could have collided
+with any existing free-text `provider` value — confirmed by direct query,
+not assumed.
+
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz
 questions) — a prior pass of this file mistyped that date as 2026-09-29;
@@ -153,8 +198,9 @@ removed after each verification pass.
 
 Earlier the same phase: `/admin/courses` list with lifecycle actions, the
 admin shell (sidebar/topbar, dashboard), and role-aware post-login routing.
-Remaining nav items — Badges & XP, Settings — still point at routes that
-don't exist and 404 inside the shell by design.
+Remaining nav item — Badges & XP — still points at a route that doesn't
+exist and 404s inside the shell by design. (`/admin/settings` is real now,
+see above.)
 
 ## Live data reality
 
@@ -181,8 +227,7 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). UI and Edge Function both refuse
    it; a direct `service_role`/dashboard delete or `auth.users` cascade still
    isn't stopped.
-3. The remaining nav destinations — Badges & XP, Settings, in no particular
-   order.
+3. The remaining nav destination — Badges & XP.
 
 ## Known shortcuts / tech debt
 
@@ -242,6 +287,14 @@ None.
   unstable-`state` pagination bug; all three now memoise it, verified live
   against 15 courses and 14 games. Kept as a line here only because the
   failure mode is easy to reintroduce — see `ui.md`.
+- **CSV order import is one RPC round-trip per row, client-side, sequential.**
+  `importManualOrders` (`usePayments.ts`) calls `fn_create_manual_order` once
+  per row in a loop rather than any server-side bulk path — fine at the scale
+  this project is at (a handful to low hundreds of rows), since it's what
+  lets a single bad row fail without a special-case rollback for the rest.
+  Would need a real server-side bulk endpoint if anyone ever imports
+  thousands of rows at once; not built now, since that scale problem doesn't
+  exist yet.
 - **`games.bundle_size_bytes`/`checksum` are accepted but never verified.**
   The admin form takes them as optional plain inputs (defaulting to `0`/`''`
   if left blank) because nothing downstream reads them yet — there is no

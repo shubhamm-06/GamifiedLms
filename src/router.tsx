@@ -19,6 +19,7 @@ import { CoursesPage } from '@/pages/admin/CoursesPage'
 import { DashboardPage } from '@/pages/admin/DashboardPage'
 import { GamesPage } from '@/pages/admin/GamesPage'
 import { OrdersPage } from '@/pages/admin/OrdersPage'
+import { SettingsPage } from '@/pages/admin/SettingsPage'
 import { UserDetailPage } from '@/pages/admin/UserDetailPage'
 import { UsersPage } from '@/pages/admin/UsersPage'
 
@@ -115,6 +116,12 @@ const adminOrdersRoute = createRoute({
   component: OrdersPage,
 })
 
+const adminSettingsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'settings',
+  component: SettingsPage,
+})
+
 /**
  * Builder tab lives in the URL so it survives a refresh and is linkable.
  * Create mode has no course row yet, so it can only ever be on Basics.
@@ -150,6 +157,7 @@ const routeTree = rootRoute.addChildren([
     adminCoursesRoute,
     adminGamesRoute,
     adminOrdersRoute,
+    adminSettingsRoute,
     adminCourseCreateRoute,
     adminCourseEditRoute,
   ]),

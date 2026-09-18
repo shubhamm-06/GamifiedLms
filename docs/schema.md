@@ -1,7 +1,7 @@
 # Schema
 
 Postgres 17 via Supabase, project `Gamified LMS`, ref `dmmvftodhcdbubuljqme`,
-region `ap-northeast-1`. 14 tables across 5 domains, all RLS-enabled, plus 3
+region `ap-northeast-1`. 15 tables across 5 domains, all RLS-enabled, plus 3
 views and 1 deployed Edge Function.
 
 **Source of truth is `supabase/migrations/`.** If this file and the live
@@ -187,6 +187,17 @@ backing enrollment in the same transaction. This is additive: the update
 guard (`fn_guard_payment_admin_update`) and the absence of any admin delete
 policy are both unchanged — see `rules.md`.
 
+**`manual_order_providers`** (migration 008) — admin-configurable list of
+provider labels offered by the Add Order / Import Orders dropdown. `id` (uuid
+PK), `label` (text, unique, not null), `is_active` (boolean, default true),
+`created_at`. Seeded with `bank_transfer`, `cash`, `comp`. **`payments.provider`
+stays plain free text, NOT a foreign key to this table** — see `rules.md` for
+why that's a deliberate, permanent design call rather than an oversight.
+Deactivating a row here only removes it from the dropdown going forward;
+existing `payments.provider` values already copied from it are untouched
+(text snapshot, not a live reference). No delete policy exists — deactivate
+only, matching the project's archive-don't-delete convention elsewhere.
+
 ### 5. Gamification
 
 **`xp_transactions`** — append-only ledger, **never** updated or deleted;
@@ -287,8 +298,9 @@ payment's `id`.
 
 ## RLS policy matrix
 
-RLS enabled on all 14 tables since migration 001 (deny-all before migration
-003 landed). Service-role rows below are documentation, not enforcement —
+RLS enabled on all 15 tables (14 since migration 001, deny-all before
+migration 003 landed; `manual_order_providers` since migration 008, admin-only
+from creation). Service-role rows below are documentation, not enforcement —
 `service_role` bypasses RLS entirely regardless — but stating intent keeps
 the SQL self-explanatory.
 
@@ -308,6 +320,7 @@ the SQL self-explanatory.
 | `user_stats` | public (`true`) | — | — | — |
 | `badges` | any authenticated or admin | admin | admin | admin |
 | `user_badges` | public (`true`) | `service_role` only | — | — |
+| `manual_order_providers` | admin only | admin only | admin only | admin only |
 
 Blank cells mean no policy exists — RLS defaults to deny, so that operation
 is impossible for `anon`/`authenticated`. `user_stats` and `user_badges` have
@@ -360,6 +373,7 @@ detail logged server-side via `console.error`.
 | 005 | `20260901075705_005_auth_profile_trigger.sql` | 2026-09-01 07:57:05 | `fn_handle_new_user()` auto-creates `profiles` on signup |
 | 006 | `20260912092250_006_games_description_thumbnail.sql` | 2026-09-12 09:22:50 | Additive: `games.description`, `games.thumbnail_url` (both nullable) |
 | 007 | `20260918184559_007_manual_order_creation.sql` | 2026-09-18 18:45:59 | `payments_admin_insert` RLS policy (admin insert, no `provider` constraint); `fn_create_manual_order(...)` — plain function, atomically creates a manual payment + its backing enrollment |
+| 008 | `20260917191418_008_manual_order_providers.sql` | 2026-09-18 | `manual_order_providers` table (admin-only RLS on all 4 ops), seeded with `bank_transfer`/`cash`/`comp`; sources the Add Order / Import Orders provider dropdown, not a FK from `payments.provider` |
 
 No migration has added `admin-user-management` — it's an Edge Function, not a
 schema change, deployed independently (see above).

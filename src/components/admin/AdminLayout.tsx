@@ -40,9 +40,9 @@ interface NavGroup {
  * same destination as "Admin Users" would just be visual clutter.
  *
  * Only `/admin`, `/admin/users` (+ `/admin/users/$userId`), `/admin/courses`,
- * `/admin/games` and `/admin/orders` resolve today. The rest point at routes
- * that don't exist yet and will 404 — that's intended, rather than filling
- * the tree with placeholder pages.
+ * `/admin/games`, `/admin/orders` and `/admin/settings` resolve today. The
+ * rest point at routes that don't exist yet and will 404 — that's intended,
+ * rather than filling the tree with placeholder pages.
  */
 const NAV_GROUPS: NavGroup[] = [
   {

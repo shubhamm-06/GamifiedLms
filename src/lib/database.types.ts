@@ -422,6 +422,27 @@ export type Database = {
           },
         ]
       }
+      manual_order_providers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+        }
+        Relationships: []
+      }
       modules: {
         Row: {
           course_id: string
