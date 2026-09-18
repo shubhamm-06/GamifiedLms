@@ -231,7 +231,8 @@ not implemented.**
 
 - shadcn components live in `src/components/ui/` (generated) — do not
   hand-edit generated files beyond the documented `eslint-disable` fix on
-  `button.tsx`/`badge.tsx` (see `context.md` gotchas).
+  `button.tsx`/`badge.tsx` (see `context.md` gotchas) and the indeterminate-
+  icon fix on `checkbox.tsx` (see the row-selection entry below).
 - Feature-specific UI is grouped by domain: `components/auth/`,
   `components/admin/`, `components/admin/users/`, `components/admin/courses/`,
   `components/admin/games/`.
@@ -324,6 +325,37 @@ not implemented.**
   looks completely fine and the bug only surfaces once the data grows. All
   three admin tables memoise their filter array and `state` object; copy
   that, and don't pass an inline literal.
+- **Bulk row selection: `rowSelectionFeature`, a checkbox column, and
+  controlled `state.rowSelection` lifted to the page** — `OrderTable.tsx` is
+  the first table with this. `rowSelectionFeature` needs no row-model factory
+  of its own; its "select all"/"is all selected" getters read straight off
+  whichever row model is already registered (`getFilteredRowModel()` here,
+  since this table has no grouping/expansion) — this is what makes
+  `table.toggleAllRowsSelected()` naturally scope to the *currently filtered*
+  rows, not the full unfiltered list, with zero extra wiring. Selection
+  state is a plain `{[id]: true}` map, so `getRowId: (payment) => payment.id`
+  is required — the default index-into-`data` id would make a selected set
+  point at the wrong rows the moment a filter or refetch reorders `data`.
+  Because ids are real payment ids, the page can turn `rowSelection` back
+  into actual rows (`payments.filter(p => rowSelection[p.id])`) without
+  reaching into the table instance at all — only the checkbox cells
+  themselves (header + per-row) need `table`/`row`, and both live inside
+  `OrderTable`. Two things worth copying, one easy to get backwards:
+  - **Indeterminate must be scoped to the filtered set, not
+    `table.getIsSomeRowsSelected()`** — that getter counts selected ids
+    table-wide regardless of the active filter, so it reads "some selected"
+    even when every selected row is currently filtered out of view. Use
+    `table.getFilteredSelectedRowModel().rows.length > 0` instead.
+  - **Clicking an indeterminate checkbox selects everything, it does not
+    clear the selection** — same as a native indeterminate `<input>`; the
+    visual "indeterminate" is a rendering hint only, and the underlying
+    value it resolves to on click is `true`. Design around this rather than
+    assuming a single click round-trips indeterminate back to empty.
+  Selection state itself must stay out of the memoised `state` object's
+  other fields' dependency arrays (see the stable-identity rule above) —
+  toggling a checkbox must not regenerate `columnFilters`'s array reference,
+  or it fires the same page-reset bug this file already warns about, just
+  via a different field.
 - **Toolbar-owned filters, table-owned pagination.** The search input and
   role/status select live on the page and are passed down as controlled
   state; the page-size select and prev/next live in the table's own footer
@@ -348,4 +380,10 @@ not implemented.**
   today would be building for a scale problem that doesn't exist.
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
-  sonner, switch.
+  sonner, switch, checkbox. The generated `checkbox.tsx` unconditionally
+  rendered `CheckIcon` for every checked state — hand-patched to swap in
+  `MinusIcon` when `checked === "indeterminate"`, since a bulk-selection
+  header checkbox needs the two states to actually look different (see the
+  row-selection entry above). Documented here because it's a hand-edit to a
+  generated file, same disclosure obligation as `button.tsx`/`badge.tsx` in
+  `context.md`'s gotchas.

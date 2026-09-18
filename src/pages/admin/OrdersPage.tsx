@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Download, Plus, Upload } from 'lucide-react'
+import type { RowSelectionState } from '@tanstack/table-core'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -10,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { AddOrderDialog } from '@/components/admin/orders/AddOrderDialog'
+import { BulkReconciliationDialog } from '@/components/admin/orders/BulkReconciliationDialog'
 import { ImportOrdersDialog } from '@/components/admin/orders/ImportOrdersDialog'
 import { OrderDetailDialog } from '@/components/admin/orders/OrderDetailDialog'
 import { OrderTable } from '@/components/admin/orders/OrderTable'
@@ -84,10 +86,18 @@ export function OrdersPage() {
   const [viewTarget, setViewTarget] = useState<PaymentRow | null>(null)
   const [addOrderOpen, setAddOrderOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
+  const [bulkAction, setBulkAction] = useState<'resolved' | 'unresolved' | null>(null)
 
   const { data, isPending, isError } = usePayments()
   const payments = data ?? []
   const filteredForExport = filterPaymentsForExport(payments, statusFilter, reconciliationFilter)
+
+  // `rowSelection`'s keys are payment ids directly — `OrderTable` is wired
+  // with `getRowId: (payment) => payment.id`, so no need to reach into the
+  // table instance to turn a selection back into real rows here.
+  const selectedIds = Object.keys(rowSelection)
+  const selectedPayments = payments.filter((p) => rowSelection[p.id])
 
   const revenue = useRevenue()
   const unresolved = useUnresolvedPaymentsCount()
@@ -166,6 +176,26 @@ export function OrdersPage() {
         </Select>
       </div>
 
+      {selectedIds.length > 0 ? (
+        <div className="bg-muted/40 flex items-center gap-3 rounded-lg border px-3 py-2">
+          <span className="text-sm font-medium">
+            {selectedIds.length} selected
+          </span>
+          <div className="ml-auto flex gap-2">
+            <Button size="sm" variant="outline" onClick={() => exportPaymentsCsv(selectedPayments)}>
+              <Download />
+              Export selected
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setBulkAction('unresolved')}>
+              Mark Unresolved
+            </Button>
+            <Button size="sm" onClick={() => setBulkAction('resolved')}>
+              Mark Resolved
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <OrderTable
         payments={payments}
         isPending={isPending}
@@ -173,12 +203,22 @@ export function OrdersPage() {
         statusFilter={statusFilter}
         reconciliationFilter={reconciliationFilter}
         onView={setViewTarget}
+        rowSelection={rowSelection}
+        onRowSelectionChange={setRowSelection}
       />
 
       <OrderDetailDialog
         payment={viewTarget}
         open={!!viewTarget}
         onOpenChange={(open) => !open && setViewTarget(null)}
+      />
+
+      <BulkReconciliationDialog
+        action={bulkAction}
+        ids={selectedIds}
+        open={bulkAction !== null}
+        onOpenChange={(open) => !open && setBulkAction(null)}
+        onSuccess={() => setRowSelection({})}
       />
 
       <AddOrderDialog open={addOrderOpen} onOpenChange={setAddOrderOpen} />

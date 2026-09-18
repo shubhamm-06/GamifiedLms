@@ -149,7 +149,13 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
   files into a literal `./@/...` directory instead of resolving `@/*` to
   `src/`. Move files out and delete the stray dir after every run. It also
   silently regenerates `button.tsx` and drops any local `eslint-disable`
-  comment — check before overwriting.
+  comment — check before overwriting. Same bug also emits a broken
+  `import { cn } from "cn"` (instead of `@/lib/utils`) in the misplaced
+  file, which drags in and installs an unrelated npm package literally named
+  `cn` as a real `package.json` dependency to satisfy that import — caught
+  and reverted (`npm uninstall cn`) when adding `checkbox.tsx`; check
+  `package.json`/`package-lock.json` for this after every `add`, not just
+  the misplaced-directory symptom.
 - `sonner` pulled in `next-themes` as a transitive dep; unused (no
   ThemeProvider), harmless, not worth fighting the generated file to remove.
 - `react-hooks/set-state-in-effect` is strict: reset-form-on-dialog-open must

@@ -8,15 +8,19 @@ import {
   createSortedRowModel,
   filterFn_equalsString,
   rowPaginationFeature,
+  rowSelectionFeature,
   rowSortingFeature,
   sortFn_basic,
   sortFn_datetime,
   sortFn_text,
   tableFeatures,
+  type OnChangeFn,
+  type RowSelectionState,
 } from '@tanstack/table-core'
 import { useTable } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -37,11 +41,23 @@ import { ReconciliationStatusPill } from './ReconciliationStatusPill'
  * this shape looks the way it does (v9's static feature-module wiring, no
  * `getSortedRowModel()` option like v8). No `globalFilteringFeature` here —
  * this table has no search box, only the two status filters below.
+ *
+ * `rowSelectionFeature` needs no row-model factory of its own (unlike
+ * filtering/sorting/pagination) — its select-all and "is all selected"
+ * getters read straight off whatever row model is already registered
+ * (`getFilteredRowModel()` for "all"/"some", `getPaginatedRowModel()` for
+ * "all on this page", which this table doesn't use). Verified against the
+ * installed v9 source before writing this — v9's shape here (an ID map in
+ * `state.rowSelection`, `getIsAllRowsSelected`/`getFilteredSelectedRowModel`
+ * as table-level getters) matches v8's `rowSelection` closely enough that
+ * assuming parity would have been *mostly* safe, but "mostly" is exactly
+ * why this got checked rather than assumed, same as sorting/filtering were.
  */
 const ordersFeatures = tableFeatures({
   columnFilteringFeature,
   rowSortingFeature,
   rowPaginationFeature,
+  rowSelectionFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
   paginatedRowModel: createPaginatedRowModel(),
@@ -72,10 +88,44 @@ interface OrderTableProps {
   statusFilter: string
   reconciliationFilter: string
   onView: (payment: PaymentRow) => void
+  rowSelection: RowSelectionState
+  onRowSelectionChange: OnChangeFn<RowSelectionState>
 }
 
 function buildColumns(onView: OrderTableProps['onView']) {
   return columnHelper.columns([
+    columnHelper.display({
+      id: 'select',
+      // Header/row checkboxes read and drive `rowSelectionFeature`'s own
+      // getters/setters directly off `table`/`row` — no separate wiring
+      // needed beyond registering the feature and passing controlled
+      // `rowSelection` state into `useTable`, below.
+      header: ({ table }) => {
+        const isAllSelected = table.getIsAllRowsSelected()
+        // Deliberately NOT `table.getIsSomeRowsSelected()` — that getter
+        // counts selected ids table-wide, regardless of the active filter,
+        // so it would show indeterminate even when every row selected
+        // happens to be filtered out of view right now. Scoping "some" to
+        // `getFilteredSelectedRowModel()` keeps the header checkbox honest
+        // about only what's currently on screen.
+        const hasFilteredSelection = table.getFilteredSelectedRowModel().rows.length > 0
+        return (
+          <Checkbox
+            checked={isAllSelected ? true : hasFilteredSelection ? 'indeterminate' : false}
+            onCheckedChange={(value) => table.toggleAllRowsSelected(value === true)}
+            aria-label="Select all filtered orders"
+          />
+        )
+      },
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(value === true)}
+          aria-label={`Select payment ${row.original.provider_payment_id}`}
+        />
+      ),
+      enableSorting: false,
+    }),
     columnHelper.accessor('received_at', {
       id: 'received_at',
       header: 'Received',
@@ -162,7 +212,7 @@ function buildColumns(onView: OrderTableProps['onView']) {
   ])
 }
 
-const COLUMN_COUNT = 8
+const COLUMN_COUNT = 9
 
 export function OrderTable({
   payments,
@@ -171,21 +221,28 @@ export function OrderTable({
   statusFilter,
   reconciliationFilter,
   onView,
+  rowSelection,
+  onRowSelectionChange,
 }: OrderTableProps) {
-  // Memoised — the filtered row model compares `state` by reference, and a
-  // fresh literal each render fires autoResetPageIndex, pinning the table
-  // to page 1. See ui.md; this bug has already been caught (and fixed)
-  // three times over on the other admin tables — don't reintroduce it here.
-  const state = useMemo(
-    () => ({
-      columnFilters: [
-        ...(statusFilter !== 'all' ? [{ id: 'status', value: statusFilter }] : []),
-        ...(reconciliationFilter !== 'all'
-          ? [{ id: 'reconciliation_status', value: reconciliationFilter }]
-          : []),
-      ],
-    }),
+  // Memoised separately from `rowSelection` below, on purpose: toggling a
+  // checkbox must not produce a new `columnFilters` array reference, or the
+  // filtered row model reads that as "the filters changed" and resets to
+  // page 1 — the exact bug this file's own comment already warns about, just
+  // one field over. `state` itself composes the two, so it's a fresh object
+  // every render either of its inputs changes, but each field individually
+  // keeps its identity unless what it actually represents changed.
+  const columnFilters = useMemo(
+    () => [
+      ...(statusFilter !== 'all' ? [{ id: 'status', value: statusFilter }] : []),
+      ...(reconciliationFilter !== 'all'
+        ? [{ id: 'reconciliation_status', value: reconciliationFilter }]
+        : []),
+    ],
     [statusFilter, reconciliationFilter],
+  )
+  const state = useMemo(
+    () => ({ columnFilters, rowSelection }),
+    [columnFilters, rowSelection],
   )
 
   const table = useTable({
@@ -193,6 +250,12 @@ export function OrderTable({
     columns: buildColumns(onView),
     data: payments,
     state,
+    // Payment ids are stable and unique — selection must key off these, not
+    // the default index-into-`data` id, so a selected set survives a filter
+    // change or a refetch reordering rows rather than silently pointing at
+    // whatever row now happens to sit at that index.
+    getRowId: (payment) => payment.id,
+    onRowSelectionChange,
   })
 
   const rows = table.getRowModel().rows

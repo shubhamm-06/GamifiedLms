@@ -163,6 +163,48 @@ export function useUpdatePaymentReconciliation() {
   })
 }
 
+export interface BulkReconciliationUpdate {
+  ids: string[]
+  reconciliation_status: string
+  /**
+   * Omit entirely (rather than passing `null`) to leave every selected
+   * row's existing note untouched — that's what "Mark Unresolved" does
+   * (no note prompt at all) and what "Mark Resolved" does when its optional
+   * note field is left blank. Passing a string overwrites all selected
+   * rows' notes identically.
+   */
+  reconciliation_note?: string | null
+}
+
+/**
+ * One batched `.update(...).in('id', ids)` request, not N sequential
+ * per-row updates — same "one write, not one per row" principle as the
+ * curriculum reorder mutation. `fn_guard_payment_admin_update` still only
+ * allows `reconciliation_status`/`reconciliation_note` to change outside
+ * `service_role`, and the payload here is built explicitly from just those
+ * two keys (never spread), same reasoning as `useUpdatePaymentReconciliation`.
+ */
+export function useBulkUpdateReconciliation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ ids, reconciliation_status, reconciliation_note }: BulkReconciliationUpdate) => {
+      const payload: { reconciliation_status: string; reconciliation_note?: string | null } = {
+        reconciliation_status,
+      }
+      if (reconciliation_note !== undefined) payload.reconciliation_note = reconciliation_note
+      const { error } = await supabase.from('payments').update(payload).in('id', ids)
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: paymentsQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] })
+      const n = variables.ids.length
+      toast.success(`${n} order${n === 1 ? '' : 's'} updated.`)
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+}
+
 export interface CreateManualOrderInput {
   userId: string
   courseId: string
