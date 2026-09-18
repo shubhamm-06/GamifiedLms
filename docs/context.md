@@ -120,10 +120,16 @@ or the fallback fires. Email confirmation is enabled on this project —
 
 **Data flow — XP/leveling:** insert into `xp_transactions` → trigger
 `fn_process_xp_transaction` → upserts `user_stats.total_xp`, recomputes
-`level` via `fn_compute_level()` (per-level threshold, `100 * N^1.5`, open
-question on cumulative-vs-threshold — see `state.md`), updates streak → calls
-`fn_evaluate_badges()`. `lesson_progress` reaching `'completed'` separately
-bumps `lessons_completed` and re-runs badge evaluation.
+`level` via `fn_compute_level()` (reads the admin-editable `level_thresholds`
+table since migration 012 — no hardcoded curve; `STABLE`, not `IMMUTABLE`),
+updates streak → calls `fn_evaluate_badges()`. `lesson_progress` reaching
+`'completed'` fires TWO independent triggers: `fn_award_lesson_xp` (inserts
+the `xp_transactions` row above — skipped when the course has
+`gamification_enabled = false`) and `fn_update_lessons_completed` (bumps
+`lessons_completed`, re-runs badge evaluation — NOT gated on
+`gamification_enabled`; known gap, see `state.md`). `user_stats.level` is
+denormalised: editing `level_thresholds` does not recompute it until a
+student's next XP event.
 
 **Data flow — admin user actions:** table reads join `profiles` +
 `user_stats` directly via supabase-js (RLS permits admin reads). Profile

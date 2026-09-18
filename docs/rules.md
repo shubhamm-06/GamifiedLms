@@ -253,6 +253,43 @@ belongs in `context.md` or `state.md`, not here.
   which the FK itself blocks) `currencies.code` — confirm that's still true
   before adding delete to the next config table, rather than assuming it
   transfers.
+- **`level_thresholds.xp_required` must stay strictly increasing by `level`
+  — enforced by `trg_level_thresholds_validate` in the database, never only
+  in the UI (migration 012).** A misordered table makes
+  `fn_compute_level` return confusing levels for real students, so the admin
+  page's client-side check is deliberately just fast feedback in front of the
+  trigger. Any path that writes this table (service role, SQL, a future
+  import) hits the same trigger. **Level 1 is the one deliberate exception to
+  "DB enforces it":** its "must exist, must stay 0 XP" rule lives only in the
+  admin UI (field disabled, no delete button) because special-casing it in the
+  trigger was judged not worth fighting SQL for. Anything writing
+  `level_thresholds` outside that UI must keep level 1 present at 0 itself;
+  `fn_compute_level` degrades to level 1 rather than erroring if it doesn't.
+- **`fn_compute_level` is `STABLE` and must never be marked `IMMUTABLE`
+  again.** It reads `level_thresholds`; an `IMMUTABLE` marker on a function
+  whose answer depends on table contents lets the planner cache a stale level
+  — quietly wrong, not a cosmetic leftover. Same goes for any future function
+  that reads config tables.
+- **The lesson-completion XP award has exactly one path:
+  `fn_award_lesson_xp` — and its two easy-to-get-wrong rules are hard
+  invariants.** (1) `lessons.xp_reward` of `0` means "no XP" and only `NULL`
+  falls back to `courses.default_lesson_xp` — never `coalesce(nullif(x, 0),
+  ...)`-style shortcuts that would treat 0 as unset; a `<= 0` amount inserts
+  no `xp_transactions` row at all (a 0-amount row still runs the rollup,
+  bumping the streak, and burns the dedupe slot). (2) Its `ON CONFLICT` must
+  carry the `WHERE source_id IS NOT NULL` predicate matching the partial
+  dedupe index `uq_xp_transactions_dedupe` — a bare column list fails with
+  `42P10`.
+- **`courses.gamification_enabled = false` disables lesson XP ONLY — do not
+  assume it turns off gamification wholesale.** `fn_update_lessons_completed`
+  (the `lessons_completed` counter bump) and the badge evaluation it triggers
+  are not gated on it, so a gamification-off course still increments
+  `user_stats.lessons_completed` and can still unlock
+  `lessons_completed`/`course_complete` badges. This was flagged, verified
+  live, and deliberately left unfixed when the XP award landed (fixing it means
+  deciding what "gamification off" should mean for badges, a product call) —
+  see `state.md`. Nothing may rely on "gamification off ⇒ no gamification
+  side effects" until that's resolved.
 - **TypeScript only — no new `.js`/`.jsx` files.**
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any

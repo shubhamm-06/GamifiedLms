@@ -224,8 +224,12 @@ not implemented.**
 - Topbar shows the page title derived from the active route (exact match,
   falling back to the longest matching section prefix so deep routes still
   label correctly), the signed-in admin's `display_name`, and sign-out.
-- `NavLink` carries one `to as never` cast because most nav targets aren't in
-  the typed route tree yet; drop it as real routes land.
+- `NavLink` still carries one `to as never` cast, but for a different reason
+  than when it was added: every nav target is a real route now, yet
+  `/admin/orders` and `/admin/settings` declare a required search param
+  (`?view=`/`?tab=`, validated with a default), which a typed `Link` would
+  force every nav entry to pass explicitly. Don't "clean up" the cast just
+  because all the routes exist — it would break the typecheck.
 
 ## Component conventions
 
@@ -477,6 +481,40 @@ not implemented.**
   blocks it — and the dialog in that case deliberately stays open on that
   specific error (see `CurrenciesSection.tsx`) rather than closing, so the
   toast explaining why stays legible next to the row that caused it.
+- **`/admin/gamification` stacks two sections instead of using tabs.**
+  Badges (`BadgesSection.tsx`) and Level Thresholds
+  (`LevelThresholdsSection.tsx`) are both real workspaces rather than small
+  config forms, and an admin editing one usually wants the other in view — a
+  badge's "Total XP" threshold only means something against the level curve
+  below it. Settings uses `Tabs` because its sections are independent small
+  forms; that's the distinguishing question for the next admin page with two
+  sections, not "how many are there."
+- **A condition field whose meaning depends on another field changes its
+  label AND hint, not just its validation.** `BadgeDialog.tsx`'s
+  `condition_value` reads "Total XP" / "Consecutive days" / "Lessons
+  completed" / "Courses completed" with a matching one-line hint, driven off
+  the selected `condition_type` (metadata lives beside the hook in
+  `useBadges.ts`'s `CONDITION_TYPES`, so the table's "Unlocks at" column and
+  the form can't drift). A bare "Condition value" over four different units
+  would be a guessing game.
+- **An editable numeric list keeps a per-row draft with an explicit Save,
+  keyed by the saved value.** `ThresholdRow` in `LevelThresholdsSection.tsx`
+  holds its own draft `useState`, and the parent keys it
+  `${level}:${xp_required}`, so a successful save (list refetches, saved value
+  changes) remounts the row with a fresh draft — no `useEffect` resetting
+  state, which `react-hooks/set-state-in-effect` would reject. Save appears
+  only when the draft differs from the saved value and is disabled while
+  invalid: a half-typed number (`2` on the way to `2700`) is a real
+  intermediate state, which is the same reason typed Settings fields keep a
+  Save button while discrete controls auto-save. The client-side rule check
+  (`validateThreshold` in `useLevelThresholds.ts`) deliberately mirrors the DB
+  trigger's messages word for word — it's fast feedback in front of the
+  trigger, never a replacement, and a DB rejection that slips through (a
+  concurrent edit) still surfaces the trigger's own human-readable text.
+  **Protect a structurally special row (level 1) in the UI with a disabled
+  field and no delete affordance** rather than special-casing it in SQL —
+  and record that the DB does NOT enforce it (see `rules.md`) so nobody
+  assumes it does.
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
   sonner, switch, checkbox, tabs (used since Course Builder, missing from

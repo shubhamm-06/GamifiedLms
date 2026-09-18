@@ -320,6 +320,52 @@ genuinely white-labelable platform, but nothing here builds toward it —
 `ui.md`'s token set stays locked and code-only until a task actually asks
 for that.
 
+**2026-09-19, later still: Gamification — level thresholds, badges CRUD,
+lesson XP award.** Migration 012 plus `/admin/gamification` (the last nav
+target that 404'd by design).
+- **Level thresholds.** `level_thresholds` replaces the hardcoded curve in
+  `fn_compute_level`. Seeded 1–30 by running the OLD formula's own math
+  (inlined in the migration) — verified identical to the old function for
+  every XP value 0–16,431 (zero mismatches), and the one real student (600
+  XP) stayed at level 4 through the backfill, so nothing needed to change for
+  them. `schema.md` had the curve off by one (`100·N^1.5`; it's `100·(N−1)^1.5`).
+  `fn_compute_level` went `IMMUTABLE` → `STABLE`. A DB trigger enforces strict
+  monotonicity — verified by refusing bad writes directly (below, equal to,
+  and above a neighbor) and through a direct admin REST call, not just via the
+  UI, which also checks first for fast feedback. Level 1's "exists, stays 0" is
+  UI-only by design (see `rules.md`).
+- **Lesson XP award.** New `fn_award_lesson_xp` + `trg_lesson_progress_award_xp`,
+  independent of the existing counter-bump trigger. Verified via direct SQL
+  `lesson_progress` writes on both the INSERT-as-completed and
+  UPDATE-transition paths: awards `lessons.xp_reward` when set; falls back to
+  `courses.default_lesson_xp` only when NULL; an explicit 0 creates no
+  transaction at all; nothing in a `gamification_enabled = false` course;
+  re-completing the same lesson (UPDATE or delete + re-insert) doesn't
+  double-award. **The task's literal `ON CONFLICT (user_id, source_type,
+  source_id) DO NOTHING` does not work** against the partial dedupe index
+  (`42P10`, verified) — the migration adds the matching `WHERE source_id IS
+  NOT NULL` predicate.
+- **Also found while verifying** (both pre-existing, both untouched, both
+  recorded under Known shortcuts): the `lessons_completed` counter and its
+  badges are not gated on `gamification_enabled` (the gap the task asked to
+  flag — confirmed live), and the counter isn't deduped on re-completion.
+  `schema.md`'s trigger table also claimed `trg_lesson_progress_completed`
+  fired on `UPDATE` only; `pg_get_triggerdef` says `INSERT OR UPDATE` —
+  corrected.
+- **Badges CRUD.** List + `BadgeDialog` (a Dialog, not a route — same
+  convention as Games), condition-value label/hint follow the selected type,
+  Deactivate as the non-destructive alternative to Delete. Delete-while-unlocked
+  is refused with "N student(s) already unlocked this" — verified against a
+  `user_badges` row produced by the real `fn_evaluate_badges` path (a manual XP
+  award crossing the badge's threshold), then again succeeding once that row
+  was gone.
+- **Copy fixed as a direct consequence:** the dashboard attention item for
+  `gamification_enabled = false` courses said "XP still accrues" — false as of
+  this migration. Reworded to "lesson XP is skipped, but lesson counts and
+  badges still accrue" (`useDashboard.ts`). Not in the task's scope list, but
+  leaving an untrue statement in the admin UI that this change made untrue
+  wasn't reasonable.
+
 Course Builder itself landed 2026-09-09 (the tabbed create/edit shell and
 the Curriculum tab's create/edit/delete for topics, lessons, and quiz
 questions) — a prior pass of this file mistyped that date as 2026-09-29;
@@ -335,9 +381,8 @@ removed after each verification pass.
 
 Earlier the same phase: `/admin/courses` list with lifecycle actions, the
 admin shell (sidebar/topbar, dashboard), and role-aware post-login routing.
-Remaining nav item — Badges & XP — still points at a route that doesn't
-exist and 404s inside the shell by design. (`/admin/settings` is real now,
-see above.)
+Every sidebar nav target is a real route now — `/admin/gamification` (Badges
+& XP) was the last one to land, see the 2026-09-19 Gamification entry above.
 
 ## Live data reality
 
@@ -364,7 +409,9 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). UI and Edge Function both refuse
    it; a direct `service_role`/dashboard delete or `auth.users` cascade still
    isn't stopped.
-3. The remaining nav destination — Badges & XP.
+3. Quiz authoring/grading is the next real gamification gap — nothing
+   reads `app_settings.quiz_pass_threshold_percent` yet, and `xp_transactions`
+   `source_type` `'quiz'`/`'game'` have no award path (only `'lesson'` does now).
 
 ## Known shortcuts / tech debt
 
@@ -387,9 +434,10 @@ None.
   existing write paths and is real additional scope beyond "manage a
   currency list" — flagged as a follow-on, not built here. See `rules.md`
   for why this needs its own pass rather than a quick constraint add.
-- **Nav uses one `to as never` cast** (`AdminLayout`'s `NavLink`) because
-  most nav targets aren't in the typed route tree yet. Remove as real routes
-  land.
+- **Nav uses one `to as never` cast** (`AdminLayout`'s `NavLink`). Every
+  nav target is a real route now, but the cast is still load-bearing:
+  `/admin/orders` and `/admin/settings` declare a required search param, which
+  a typed `Link` would force every nav entry to pass. Not a leftover to remove.
 - **No Storage bucket exists** (`storage.buckets` is empty), so
   `courses.thumbnail_url` and a lesson's `video_url` are both paste-a-URL
   fields. No upload flow is wired; building one means creating a bucket and
@@ -426,12 +474,35 @@ None.
   migration 010) but still consumed by nothing** — quiz grading itself
   still doesn't exist. The schema-decision gap is closed; the grading logic
   that would read this value is a separate, later task.
-- **`courses.gamification_enabled` is unenforced everywhere** — no trigger,
-  no Edge Function, no UI check. The dashboard's attention list surfaces this
-  gap and its copy must keep saying so rather than implying the flag does
-  something.
-- **Level formula** (`fn_compute_level`) is a per-level XP threshold
-  (`100 * N^1.5`); cumulative-sum alternative still open.
+- **`courses.gamification_enabled` is enforced for lesson XP ONLY** (since
+  migration 012). `fn_update_lessons_completed` — the `lessons_completed`
+  counter bump and the badge evaluation it runs — is NOT gated on it, and never
+  was, so a gamification-off course still increments
+  `user_stats.lessons_completed` and can still unlock
+  `lessons_completed`/`course_complete` badges; it just never awards XP.
+  Verified live (counter 3→4 in a gamification-off course), deliberately not
+  fixed — that's a product call about what "off" means for badges. The
+  dashboard's attention item wording was updated to say exactly this (it
+  previously said "XP still accrues", which stopped being true).
+- **`user_stats.lessons_completed` is not deduped on re-completion.** Found
+  while testing the XP trigger: the counter bumps on every transition into
+  `'completed'`, so resetting a lesson and completing it again (or a
+  delete + re-insert of the `lesson_progress` row) increments it again
+  (verified live, 4→6), even though the XP award correctly does not repeat.
+  Pre-existing behavior of `fn_update_lessons_completed`, not touched here —
+  it can over-count toward `lessons_completed` badges. XP is unaffected
+  (deduped by `uq_xp_transactions_dedupe`).
+- **Editing `level_thresholds` does not recompute stored levels.**
+  `user_stats.level` is denormalised and only recomputed on a student's next
+  XP event; migration 012's backfill was one-time. The admin UI says so.
+  Add a recompute-on-save (or a "recalculate levels" action) if that ever
+  matters.
+- **Level curve edge behaviors, all intentional:** above the highest level
+  (30 as seeded) a student stays at it until an admin adds more (the old
+  formula was unbounded — it would have reached level 31 at 16,432 XP);
+  deleting a middle level leaves a numbering gap (the list skips it — level
+  numbers are not renumbered); level 1's "exists, stays 0" rule is UI-only,
+  not in the DB (see `rules.md`).
 - **Capacitor session handling** unaudited in a webview; no native platforms.
 - **No Edge Function** yet for quiz grading, game XP clamping, the payment
   webhook receiver, or pre-signup payment claiming.

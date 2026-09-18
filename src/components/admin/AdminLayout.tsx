@@ -40,10 +40,8 @@ interface NavGroup {
  * nav slot rather than repointing it at /admin/users — a second link to the
  * same destination as "Admin Users" would just be visual clutter.
  *
- * Only `/admin`, `/admin/users` (+ `/admin/users/$userId`), `/admin/courses`,
- * `/admin/games`, `/admin/orders` and `/admin/settings` resolve today. The
- * rest point at routes that don't exist yet and will 404 — that's intended,
- * rather than filling the tree with placeholder pages.
+ * Every entry below resolves to a real route now (`/admin/gamification` was
+ * the last one that 404'd by design).
  */
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -79,9 +77,12 @@ const PAGE_TITLES = new Map(
 )
 
 /**
- * `Link`'s `to` is typed against the registered route tree, and most nav
- * targets aren't in it yet. One contained cast here beats scattering casts
- * across every nav entry; remove it as the real routes land.
+ * `Link`'s `to` is typed against the registered route tree, and nav targets
+ * are plain strings here. Every target is a real route now, but the cast
+ * still earns its keep: `/admin/orders` and `/admin/settings` declare a
+ * required search param (`?view=`/`?tab=`, validated with a default), which a
+ * typed `Link` would otherwise force every nav entry to pass explicitly.
+ * One contained cast here beats scattering `search` props across the nav.
  */
 function NavLink({ to, children }: { to: string; children: ReactNode }) {
   return (

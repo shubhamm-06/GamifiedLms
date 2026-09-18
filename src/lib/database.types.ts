@@ -481,6 +481,21 @@ export type Database = {
           },
         ]
       }
+      level_thresholds: {
+        Row: {
+          level: number
+          xp_required: number
+        }
+        Insert: {
+          level: number
+          xp_required: number
+        }
+        Update: {
+          level?: number
+          xp_required?: number
+        }
+        Relationships: []
+      }
       manual_order_providers: {
         Row: {
           created_at: string

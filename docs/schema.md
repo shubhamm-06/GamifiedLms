@@ -1,7 +1,7 @@
 # Schema
 
 Postgres 17 via Supabase, project `Gamified LMS`, ref `dmmvftodhcdbubuljqme`,
-region `ap-northeast-1`. 17 tables across 6 domains, all RLS-enabled, plus 3
+region `ap-northeast-1`. 18 tables across 6 domains, all RLS-enabled, plus 3
 views and 1 deployed Edge Function.
 
 **Source of truth is `supabase/migrations/`.** If this file and the live
@@ -74,7 +74,7 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | access_duration_days | int | nullable | Required (and `> 0`) when `access_type = 'fixed'` (check constraint) |
 | enrollment_status | text | default `'open'` | `'open'`, `'paused'`, `'closed'` — deliberately separate from `status`: a published course can pause enrollment while staying usable for existing learners |
 | default_lesson_xp | int | default 10 | Fallback when a lesson has no `xp_reward` |
-| gamification_enabled | boolean | default true | **Unenforced anywhere** — see `state.md` |
+| gamification_enabled | boolean | default true | Gates ONLY the lesson-completion XP award (`fn_award_lesson_xp`, migration 012). **Still not enforced** on the `lessons_completed` counter bump or its badge evaluation — see `state.md` |
 | total_students | int | default 0 | Trigger-maintained, see Triggers below |
 | total_lessons | int | default 0 | Trigger-maintained, counts draft+published — see `state.md` |
 | created_by | uuid | FK → `profiles.id` | |
@@ -268,18 +268,46 @@ corrections are negative-amount rows. `id`, `user_id`, `amount`, `reason`,
 IS NOT NULL` makes replayed events a no-op instead of a double-award —
 insert with `ON CONFLICT DO NOTHING`.
 
+**`level_thresholds`** (migration 012) — `level` (int PK), `xp_required`
+(int, not null). The admin-editable level curve `fn_compute_level` reads.
+Seeded with levels 1–30, **computed from the old formula's own math** (smallest
+XP at which it first reached each level — verified identical to the old
+`fn_compute_level` for every XP value 0–16,431, zero mismatches), so there was
+no discontinuity for anyone who already had XP. Level `N` unlocks at
+`100·(N−1)^1.5` XP under that seed (this file previously said `100·N^1.5`,
+which was off by one level). RLS: `SELECT` for `authenticated` (a level-progress
+UI will eventually read it; `anon` cannot), `INSERT`/`UPDATE`/`DELETE`
+admin-only. **Strict monotonicity is enforced by
+`trg_level_thresholds_validate`, not just the UI** — verified by refusing bad
+writes directly (below neighbor, equal to a neighbor, above neighbor) and via
+a direct admin REST call. **Level 1 (must exist, `xp_required` must stay 0) is
+deliberately NOT enforced in the DB** — protected only in the admin UI (field
+disabled, no delete); `fn_compute_level` degrades gracefully if it's ever
+missing or nonzero (`coalesce(..., 1)`).
+
 **`user_stats`** — one row per user, trigger-maintained only, never
 client-writable by any role. `user_id` (PK), `total_xp`, `level`,
 `current_streak`, `longest_streak`, `last_activity_date`,
-`lessons_completed`.
+`lessons_completed`. **`level` is denormalised** — recomputed by
+`fn_process_xp_transaction` on each XP event, so editing `level_thresholds`
+does not change any stored level until that student's next XP event (migration
+012 ran a one-time backfill; nothing repeats it).
 
 **`badges`** — `id`, `slug`, `name`, `description`, `icon_url`,
 `condition_type`
 (`'lessons_completed'|'streak_days'|'total_xp'|'course_complete'`),
-`condition_value`, `is_active` (enforced — see Triggers), `created_by`.
+`condition_value`, `is_active` (enforced — see Triggers), `created_by`. No
+`created_at` column. Admin CRUD via `/admin/gamification` (RLS:
+`badges_admin_insert/update/delete`, `fn_is_admin()`). `slug` is unique
+(`badges_slug_key`).
 
 **`user_badges`** — `id`, `user_id`, `badge_id` (unique together),
-`unlocked_at`.
+`unlocked_at`. **`badge_id → badges.id` is `NO ACTION`** (confirmed via
+`pg_constraint`), so deleting a badge any student has unlocked is refused with
+`23503`; the client maps that to "N student(s) already unlocked this —
+deactivate it instead" (verified against a real row produced by the real
+evaluator, not just the FK's existence). Deactivating (`is_active = false`)
+stops new unlocks without touching anyone who already earned it.
 
 ### 6. Platform configuration — `app_settings`
 
@@ -324,23 +352,49 @@ not built, since that's a separate small change on its own).
 
 ## Trigger functions
 
-All live as of migrations 002–005.
+Live as of migrations 002–005, plus the level/XP-award functions and triggers from migration 012.
 
 | Trigger | Fires on | Function | Does |
 |---|---|---|---|
 | `trg_auth_user_created` | `AFTER INSERT auth.users` | `fn_handle_new_user` (`SECURITY DEFINER`) | Creates the matching `profiles` row; `display_name`/`phone_number` from `raw_user_meta_data` (email-local-part fallback for `display_name`); `role` hardcoded `'student'`; `ON CONFLICT (id) DO NOTHING` |
 | `trg_xp_transactions_process` | `AFTER INSERT xp_transactions` | `fn_process_xp_transaction` (`SECURITY DEFINER`) | Upserts `user_stats.total_xp`, recomputes `level` via `fn_compute_level()`, updates streak, calls `fn_evaluate_badges()` |
-| `trg_lesson_progress_completed` | `AFTER UPDATE lesson_progress` (→ `'completed'`) | `fn_update_lessons_completed` (`SECURITY DEFINER`) | Bumps `user_stats.lessons_completed`, re-runs badge evaluation |
+| `trg_lesson_progress_completed` | `AFTER INSERT OR UPDATE lesson_progress` (acts on the transition into `'completed'`) | `fn_update_lessons_completed` (`SECURITY DEFINER`) | Bumps `user_stats.lessons_completed`, re-runs badge evaluation. **Not gated on `courses.gamification_enabled`, and not deduped** — see `state.md` (this row previously said `AFTER UPDATE` only; corrected against `pg_get_triggerdef`) |
+| `trg_lesson_progress_award_xp` | `AFTER INSERT OR UPDATE lesson_progress` (same transition) | `fn_award_lesson_xp` (`SECURITY DEFINER`, migration 012) | Inserts the lesson's `xp_transactions` row — see below |
+| `trg_level_thresholds_validate` | `BEFORE INSERT OR UPDATE level_thresholds` | `fn_validate_level_threshold` (migration 012) | Rejects a row whose `xp_required` isn't strictly greater than the level below it and strictly less than the level above it (`check_violation`, `23514`, with a human-readable message) |
 | `trg_enrollments_student_count` | `AFTER I/U/D enrollments` | `fn_update_course_student_count` (`SECURITY DEFINER`) | Maintains `courses.total_students` off transitions to/from `'active'` — decrements on **any** move away from active, including to `'expired'` (see `state.md` re: the stale inline comment) |
 | `trg_lessons_lesson_count` | `AFTER I/D lessons` | `fn_update_course_lesson_count` (`SECURITY DEFINER`) | Maintains `courses.total_lessons` — counts all statuses |
 | `trg_courses_updated_at` | `BEFORE UPDATE courses` | generic `updated_at` setter | |
 | `trg_profiles_prevent_role_change` | `BEFORE UPDATE profiles` | `fn_prevent_role_change` | Blocks `role` changes unless `service_role` or `fn_is_admin()` |
 | `trg_payments_guard_admin_update` | `BEFORE UPDATE payments` | `fn_guard_payment_admin_update` | Blocks any column but `reconciliation_status`/`reconciliation_note`/`deleted_at` (migration 009) from changing outside `service_role` |
 
-**`fn_compute_level(total_xp)`** — per-level threshold, level `N` unlocks at
-`100 * N^1.5` total XP, recomputed on every rollup (not stored
-independently). Whether it should instead be a cumulative sum of thresholds
-is open — see `state.md`.
+**`fn_compute_level(total_xp)`** (rewritten in migration 012) — `select
+coalesce(max(level), 1) from level_thresholds where xp_required <=
+p_total_xp`. **`STABLE`, not `IMMUTABLE`** as it was before: it now reads
+mutable table data, and leaving `IMMUTABLE` on a function whose result
+depends on table contents would let the planner cache a stale answer — quietly
+wrong, not just a leftover marker (verified `provolatile = 's'` live). A
+plain SQL function (not `SECURITY DEFINER`); it's only ever called from
+`SECURITY DEFINER` triggers and the one-time backfill, so it reads
+`level_thresholds` as the owner. Above the highest seeded level a student
+stays at that level until an admin adds more (the old formula was unbounded).
+`user_stats.level` remains denormalised: it is recomputed on each XP event,
+**not** when `level_thresholds` is edited.
+
+**`fn_award_lesson_xp()`** (migration 012) — `SECURITY DEFINER` trigger
+function, independent of `fn_update_lessons_completed` (the two never call
+each other). On the transition into `'completed'`: no-op if the lesson's
+course has `gamification_enabled = false`; amount is `lessons.xp_reward` when
+NOT NULL (an explicit `0` is a real "no XP" decision — only `NULL` falls back
+to `courses.default_lesson_xp`); **no transaction at all when the amount is
+`<= 0`** (a 0-amount row would still run the rollup — bumping the streak and
+re-evaluating badges — and burn the dedupe slot); otherwise inserts
+`xp_transactions(source_type='lesson', source_id=lesson_id)` with
+`ON CONFLICT (user_id, source_type, source_id) WHERE source_id IS NOT NULL DO
+NOTHING`. **The `WHERE` predicate is required**: `uq_xp_transactions_dedupe` is
+a partial index, and a bare column list fails with `42P10` (verified live). The
+"insert with `ON CONFLICT DO NOTHING`" convention documented under
+`xp_transactions` (bare, no target) also works; the targeted form just needs
+the predicate.
 
 **`fn_evaluate_badges(user_id)`** — loops every `is_active` badge, checks
 `condition_type` against current `user_stats`, or for `course_complete`
@@ -409,6 +463,7 @@ the SQL self-explanatory.
 | `manual_order_providers` | admin only | admin only | admin only | admin only |
 | `app_settings` | public (`true`), including `anon` | — | admin only | — |
 | `currencies` | admin only | admin only | admin only | admin only |
+| `level_thresholds` | any authenticated (not `anon`) | admin | admin | admin |
 
 Blank cells mean no policy exists — RLS defaults to deny, so that operation
 is impossible for `anon`/`authenticated`. `user_stats` and `user_badges` have
@@ -468,6 +523,7 @@ detail logged server-side via `console.error`.
 | 009 | `20260918211500_009_payments_soft_delete.sql` | 2026-09-18 21:15:00 | `payments.deleted_at` (nullable, no default) — the only soft-delete column in this schema; `fn_guard_payment_admin_update` re-verified live and updated to also permit `deleted_at`; `payments_admin_delete_from_trash` — real DELETE, only when already trashed |
 | 010 | `20260919090000_010_app_settings.sql` | 2026-09-19 09:00:00 | `app_settings` — a deliberate singleton table (one seeded row, no INSERT/DELETE policy for any role), public SELECT, admin-only UPDATE. Closes the `default_currency` and `quiz_pass_threshold_percent` gaps; `site_name` replaces `AdminLayout`'s hardcoded sidebar text |
 | 011 | `20260919120000_011_currencies.sql` | 2026-09-19 12:00:00 | `currencies` table, admin-only RLS, seeded with the full ISO 4217 active-codes list (178 rows); `app_settings.default_currency` becomes a FK to `currencies(code)` (`NO ACTION`) — an admin can no longer delete the platform's current default currency without changing it first |
+| 012 | `20260919150000_012_gamification.sql` | 2026-09-19 15:00:00 | `level_thresholds` (seeded 1–30 from the old formula's own math, strict-monotonic validation trigger, admin-write / authenticated-read RLS); `fn_compute_level` rewritten to read it (`IMMUTABLE` → `STABLE`); one-time `user_stats.level` backfill; `fn_award_lesson_xp` + `trg_lesson_progress_award_xp` (the actual lesson-completion XP award, gated on `gamification_enabled`) |
 
 No migration has added `admin-user-management` — it's an Edge Function, not a
 schema change, deployed independently (see above).
