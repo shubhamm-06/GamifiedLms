@@ -405,7 +405,10 @@ export async function importManualOrders(rows: ImportOrderRow[]): Promise<Import
   const [{ data: profiles, error: profilesError }, { data: courses, error: coursesError }] =
     await Promise.all([
       supabase.from('profiles').select('id, email'),
-      supabase.from('courses').select('id, slug'),
+      // Live courses only: with slug uniqueness now scoped to live rows, a
+      // trashed course can share a slug with a live one, and an import must
+      // never resolve to (or enroll into) the trashed copy.
+      supabase.from('courses').select('id, slug').is('deleted_at', null),
     ])
   if (profilesError) throw new Error(profilesError.message)
   if (coursesError) throw new Error(coursesError.message)

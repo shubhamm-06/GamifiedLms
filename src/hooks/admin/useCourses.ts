@@ -44,9 +44,11 @@ export const LIFECYCLE_LABEL: Record<LifecycleAction, string> = {
 }
 
 /**
- * Every course in one query — the catalog is tiny (0 rows today) and the
- * table sorts, filters and paginates client-side. Revisit if it grows into
- * the hundreds.
+ * Every LIVE course in one query — the catalog is tiny and the table sorts,
+ * filters and paginates client-side. Revisit if it grows into the hundreds.
+ * Trashed courses (migration 013) are excluded: this hook also feeds the
+ * Add Order and manual-enroll course pickers, which must never offer one.
+ * An admin's RLS lets them read trashed rows, so the filter has to be here.
  */
 export function useCourses() {
   return useQuery({
@@ -55,6 +57,7 @@ export function useCourses() {
       const { data, error } = await supabase
         .from('courses')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
       if (error) throw new Error(error.message)

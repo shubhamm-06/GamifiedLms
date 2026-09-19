@@ -60,6 +60,8 @@ export type Database = {
           condition_type: string
           condition_value: number
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           icon_url: string | null
           id: string
@@ -71,6 +73,8 @@ export type Database = {
           condition_type: string
           condition_value: number
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           icon_url?: string | null
           id?: string
@@ -82,6 +86,8 @@ export type Database = {
           condition_type?: string
           condition_value?: number
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           icon_url?: string | null
           id?: string
@@ -104,6 +110,20 @@ export type Database = {
             referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "badges_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "badges_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       courses: {
@@ -114,6 +134,8 @@ export type Database = {
           created_by: string | null
           currency: string
           default_lesson_xp: number
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           enrollment_status: string
           external_product_id: string | null
@@ -138,6 +160,8 @@ export type Database = {
           created_by?: string | null
           currency?: string
           default_lesson_xp?: number
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           enrollment_status?: string
           external_product_id?: string | null
@@ -162,6 +186,8 @@ export type Database = {
           created_by?: string | null
           currency?: string
           default_lesson_xp?: number
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           enrollment_status?: string
           external_product_id?: string | null
@@ -190,6 +216,20 @@ export type Database = {
           {
             foreignKeyName: "courses_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles_public"
             referencedColumns: ["id"]
@@ -284,6 +324,8 @@ export type Database = {
           checksum: string
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           id: string
           max_xp: number
@@ -298,6 +340,8 @@ export type Database = {
           checksum: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
           max_xp?: number
@@ -312,6 +356,8 @@ export type Database = {
           checksum?: string
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
           max_xp?: number
@@ -330,6 +376,20 @@ export type Database = {
           {
             foreignKeyName: "games_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_deleted_by_fkey"
+            columns: ["deleted_by"]
             isOneToOne: false
             referencedRelation: "profiles_public"
             referencedColumns: ["id"]
@@ -411,6 +471,8 @@ export type Database = {
           content_type: string
           course_id: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           duration_seconds: number | null
           game_id: string | null
           id: string
@@ -428,6 +490,8 @@ export type Database = {
           content_type: string
           course_id: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           duration_seconds?: number | null
           game_id?: string | null
           id?: string
@@ -445,6 +509,8 @@ export type Database = {
           content_type?: string
           course_id?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           duration_seconds?: number | null
           game_id?: string | null
           id?: string
@@ -463,6 +529,20 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lessons_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lessons_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
           {
@@ -521,6 +601,8 @@ export type Database = {
         Row: {
           course_id: string
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
           position: number
           title: string
@@ -528,6 +610,8 @@ export type Database = {
         Insert: {
           course_id: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           position: number
           title: string
@@ -535,6 +619,8 @@ export type Database = {
         Update: {
           course_id?: string
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
           position?: number
           title?: string
@@ -545,6 +631,20 @@ export type Database = {
             columns: ["course_id"]
             isOneToOne: false
             referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "modules_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "modules_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
         ]
@@ -626,6 +726,8 @@ export type Database = {
         Row: {
           avatar_url: string | null
           created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
           display_name: string
           email: string
           id: string
@@ -635,6 +737,8 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           display_name: string
           email: string
           id: string
@@ -644,13 +748,30 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           display_name?: string
           email?: string
           id?: string
           phone_number?: string | null
           role?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quiz_attempts: {
         Row: {
@@ -948,6 +1069,17 @@ export type Database = {
     }
     Functions: {
       fn_compute_level: { Args: { p_total_xp: number }; Returns: number }
+      fn_course_delete_blockers: {
+        Args: { p_course_id: string }
+        Returns: {
+          enrollment_count: number
+          lesson_progress_count: number
+          payment_count: number
+          quiz_attempt_count: number
+          xp_transaction_count: number
+        }[]
+      }
+      fn_course_is_live: { Args: { p_course_id: string }; Returns: boolean }
       fn_create_manual_order: {
         Args: {
           p_amount: number
@@ -959,8 +1091,30 @@ export type Database = {
         }
         Returns: string
       }
+      fn_delete_module_permanently: {
+        Args: { p_module_id: string }
+        Returns: number
+      }
       fn_evaluate_badges: { Args: { p_user_id: string }; Returns: undefined }
       fn_is_admin: { Args: never; Returns: boolean }
+      fn_lesson_is_live: { Args: { p_lesson_id: string }; Returns: boolean }
+      fn_recompute_course_lesson_count: {
+        Args: { p_course_id: string }
+        Returns: undefined
+      }
+      fn_restore_blockers: {
+        Args: { p_id: string; p_type: string }
+        Returns: {
+          blocking_id: string
+          blocking_title: string
+          blocking_type: string
+        }[]
+      }
+      fn_revoke_user_sessions: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
+      fn_user_is_trashed: { Args: { p_user_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
