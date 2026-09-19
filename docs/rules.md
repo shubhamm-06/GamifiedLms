@@ -19,11 +19,16 @@ belongs in `context.md` or `state.md`, not here.
   Student reads go through `quiz_questions_public` only, never the base
   table.
 - **The primary admin account
-  (`91392b37-91f1-4975-afda-e4c238c4d821`) is never deletable through the
-  application** — UI and the `admin-user-management` Edge Function both
-  refuse it. Deleting it would leave nobody able to reach the admin section
-  at all. (The DB layer itself doesn't enforce this yet — see `state.md` —
-  but nothing in the app is allowed to attempt it regardless.)
+  (`91392b37-91f1-4975-afda-e4c238c4d821`) is never trashable or deletable
+  through the application** — UI and the `admin-user-management` Edge
+  Function both refuse it. Losing it would leave nobody able to reach the
+  admin section at all. (The DB layer itself doesn't enforce this yet — see
+  `state.md` — but nothing in the app is allowed to attempt it regardless.)
+- **An admin can never trash or delete themselves, and the last remaining
+  non-trashed admin can never be trashed or deleted — enforced in the
+  `admin-user-management` Edge Function, not only the UI.** The guards apply
+  to both `trash` and `delete`, and the caller must themselves be a
+  non-trashed admin (a trashed admin's token stays valid until it expires).
 - **`admin-user-management`'s `verify_jwt` stays `true`.** The function does
   its own admin-role check on top, but that check assumes a verified JWT is
   already guaranteed by the platform — turning this off removes a layer the
@@ -151,13 +156,17 @@ belongs in `context.md` or `state.md`, not here.
   delete the moment any student has touched the lesson. Surfacing the raw FK
   violation would read as a bug rather than as the intended protection, and
   the admin would have no idea that unpublishing is the way out.
-- **Courses are never hard-deleted from the admin UI — archive only.** The FK
-  behaviour is mixed and dangerous in both directions: `modules.course_id` and
-  `lessons.course_id` are `ON DELETE CASCADE` (a delete silently destroys all
-  content beneath the course), while `payments.course_id`,
-  `enrollments.course_id` and `lesson_progress.course_id` are `NO ACTION` (the
-  delete fails with a raw FK error the moment any transaction history exists).
-  RLS permits the delete; that is not a reason to expose one.
+- **A course is permanently deleted only from the Trash, and only when
+  `fn_course_delete_blockers` reports nothing referencing it — otherwise it
+  stays in Trash (or is archived).** The FK behaviour is mixed and dangerous
+  in both directions: `modules.course_id` and `lessons.course_id` are `ON
+  DELETE CASCADE` (a delete silently destroys all content beneath the
+  course), while `payments.course_id`, `enrollments.course_id` and
+  `lesson_progress.course_id` are `NO ACTION` (the delete fails with a raw FK
+  error the moment any transaction history exists). Lesson-sourced
+  `xp_transactions` have no FK to the course, so that check is an application
+  rule the database will not catch. `archived` is a separate status,
+  independent of trash.
 - **`published_at` is set once, on first publish, and never overwritten.** No
   trigger maintains it — the UI owns it, and only stamps it when it is still
   null. Re-publishing after an archive must preserve the original
@@ -193,17 +202,14 @@ belongs in `context.md` or `state.md`, not here.
   would break the moment a provider row is deactivated (existing payments
   keep the old label as a text snapshot, by design) or renamed, and would
   reintroduce exactly the rigidity the free-text column was chosen to avoid.
-- **`payments.deleted_at` (migration 009) is the ONLY soft-delete column in
-  this schema — deliberately scoped to `payments` alone, not a precedent to
-  generalize to courses/games/lessons/anything else.** It exists because
-  payments are real financial records where an admin wanting them out of the
-  active list and KPI totals still shouldn't risk an irreversible mistake —
-  courses and games already have their own, different removal stories
-  (archive-only for courses; real hard delete with an FK-count check for
-  games) that solve the same underlying "don't lose data by accident"
-  problem without a second pattern. A future table reaching for a
-  `deleted_at` column "because payments has one" needs its own version of
-  this exact reasoning, not a copy-paste of the column. The actual
+- **`payments.deleted_at` (migration 009) is its own mechanism, separate
+  from the migration-013 trash-first columns (no `deleted_by`, no parent
+  hiding), and a table outside those two sets does not get a `deleted_at`
+  without its own reasoning.** It exists because payments are real financial
+  records where an admin wanting them out of the active list and KPI totals
+  still shouldn't risk an irreversible mistake. A future table reaching for a
+  `deleted_at` column "because those have one" needs its own version of this
+  reasoning, not a copy-paste of the column. The actual
   enforcement that a payment can't be hard-deleted while still active lives
   in RLS (`payments_admin_delete_from_trash`, `USING (fn_is_admin() AND
   deleted_at IS NOT NULL)`), at the database level — not in the UI only
@@ -211,6 +217,51 @@ belongs in `context.md` or `state.md`, not here.
   this restriction would be bypassable by any client calling the REST API
   directly; the RLS policy is what actually makes that impossible, verified
   live via a direct authenticated REST call against an active row.
+- **Trash-first: no admin action removes a course, module, lesson, game,
+  badge or user row directly — every "delete" is "move to trash", and a
+  permanent delete only applies to a row that is already trashed.** For the
+  five content tables that is enforced by RLS (`*_admin_delete` is `USING
+  (fn_is_admin() AND deleted_at IS NOT NULL)`), so a bare REST `DELETE` on a
+  live row affects zero rows; for users it is the Edge Function's `delete`
+  action refusing anything not trashed. (Payments keep their own older trash;
+  `xp_transactions`, `enrollments` and `quiz_questions` are out of scope and
+  keep their current behaviour.) Permanent delete never changes FK behaviour —
+  it is refused wherever a `NO ACTION` FK says so.
+- **Trashing a parent hides its children through the parent; it never marks
+  the child rows.** Every non-admin read path (policies, views, and the
+  gamification/counter functions) must treat a lesson as live only when the
+  lesson, its module and its course are all not trashed. A new read path over
+  `modules`/`lessons` that checks only `deleted_at` on the row itself leaks
+  content the admin trashed. The one exception is
+  `fn_delete_module_permanently`, which trashes a module's still-live lessons
+  before deleting the module so the unchanged `lessons.module_id ON DELETE SET
+  NULL` cannot resurrect them — never delete a trashed module by any other
+  route.
+- **Restoring anything whose parent is trashed is blocked, not cascaded** —
+  restore the parent first (`fn_restore_blockers` names the trashed ancestor).
+  Silently restoring a course would un-hide its entire subtree, including rows
+  that were trashed on their own.
+- **`profiles.deleted_at`/`deleted_by` are written only by the
+  `admin-user-management` Edge Function (service_role); a client can never
+  change them, and `deleted_by` on every trash-first table is stamped from the
+  verified caller, never taken from a client-supplied value.** Trashing a user
+  is three things together — flag the profile, ban the auth user, revoke
+  sessions — and a client-side write to the flag alone would skip the ban and
+  every guard. The enforcement is the `fn_guard_profile_trash_columns` and
+  `fn_stamp_deleted_by` triggers.
+- **Trashed content must not earn XP or badges, and a trashed user must not
+  count toward `courses.total_students`.** `fn_award_lesson_xp`,
+  `fn_update_lessons_completed` and `fn_evaluate_badges` skip trashed
+  lessons/modules/courses/badges, and the counters use the same "live"
+  definition. A new function that awards XP or counts learners must use
+  `fn_lesson_is_live` / `fn_user_is_trashed` (or the same predicates), not a
+  narrower one of its own.
+- **KNOWN LIMITATION — the database still accepts an admin-created order for
+  a trashed course.** `fn_create_manual_order` (payment logic, deliberately
+  untouched by migration 013) does not check `courses.deleted_at`; only the
+  client filters trashed courses out of the Add Order picker and the CSV
+  import's slug lookup. Anything else that inserts a payment or enrollment for
+  a course must check the course is live itself until this is closed.
 - **A singleton config table enforces "exactly one row" by omitting the
   INSERT policy entirely, not by a CHECK constraint or a fixed-value PK
   trick.** `app_settings` (migration 010) is the first and, so far, only

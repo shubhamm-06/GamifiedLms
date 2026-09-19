@@ -115,9 +115,21 @@ back to `/admin`.
 
 See `schema.md` for the full action contract. Access rule: **admin only,
 enforced server-side** — the function resolves the caller from the JWT, looks
-up `profiles.role` via the service-role client, and returns `403 Forbidden`
-before parsing the body if the caller isn't an admin. `verify_jwt: true` at
-the platform level is a floor, not the authorization check itself.
+up `profiles.role` and `deleted_at` via the service-role client, and returns
+`403 Forbidden` before parsing the body if the caller isn't an admin **or is a
+trashed admin**. `verify_jwt: true` at the platform level is a floor, not the
+authorization check itself (a request with no `Authorization` header is
+rejected `401` by the platform; a valid non-admin JWT, including the anon key,
+gets the function's `403`).
+
+Actions: `create`, `update_email`, `update_password`, and — since migration
+013 — `trash`, `restore` and `delete`. Removing a user is two-step: `trash`
+(flags the profile, bans the login, revokes sessions), then `delete` only for a
+user already in the trash with no activity history. `trash` and `delete` both
+refuse the calling admin, the primary admin and the last non-trashed admin
+server-side, returning a machine-readable `code` (`self_target`,
+`primary_admin`, `last_admin`; also `not_found`, `already_trashed`,
+`not_trashed`, `has_history`). No `/admin/trash` route exists yet.
 
 Client wrapper: `src/lib/adminUserApi.ts`, invoked from
 `src/hooks/admin/useUserMutations.ts`.

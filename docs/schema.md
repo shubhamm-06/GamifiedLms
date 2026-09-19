@@ -14,12 +14,12 @@ all three together.
 `now()` unless noted. Money is an `int` in **whole currency units** (whole
 rupees for INR — not paise/cents), never a float; see `rules.md` for the
 invariant and why. Every FK to `profiles.id` ultimately points at `auth.users.id` —
-`profiles.id` **is** the auth user id, not a separate one. **Exactly one
-soft-delete column exists anywhere in `public`: `payments.deleted_at`**
-(migration 009, deliberately scoped there only — see `rules.md`); every
-other delete in this schema is still a hard delete. (This line previously
-claimed no soft-delete column existed at all — stale as of migration 009,
-corrected here rather than left wrong.)
+`profiles.id` **is** the auth user id, not a separate one. **Two soft-delete
+mechanisms exist in `public`, deliberately different:** `deleted_at` +
+`deleted_by` on `courses`, `modules`, `lessons`, `games`, `badges` and
+`profiles` (migration 013 — section 7, "Trash-first deletion"), and the older,
+separate `payments.deleted_at` (migration 009 — section 4, no `deleted_by`).
+Every other delete in this schema is a hard delete.
 
 ---
 
@@ -34,10 +34,11 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | id | uuid | PK, FK → `auth.users.id` | Same id as the Supabase auth user |
 | display_name | text | not null | Shown on leaderboards |
 | avatar_url | text | nullable | |
-| email | text | unique, not null | **Not kept in sync by any trigger** after signup — see below |
+| email | text | unique, not null | **Not kept in sync by any trigger** after signup — see below. Stays a plain unique constraint even though profiles can be trashed (section 7) |
 | phone_number | text | nullable | |
 | role | text | not null, default `'student'` | `CHECK (role IN ('student','admin'))` — plain text, not an enum |
 | created_at | timestamptz | not null, default now() | |
+| deleted_at, deleted_by | timestamptz, uuid | nullable | Migration 013 trash columns — `service_role`-writable only; see section 7 |
 
 - `role` must never be client-writable except by an admin acting
   deliberately. `fn_prevent_role_change()` (`BEFORE UPDATE`) raises an
@@ -61,7 +62,7 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | id | uuid | PK | |
-| slug | text | unique, not null | |
+| slug | text | not null | Unique among **live** rows only — partial unique index `uq_courses_slug_live` (migration 013) |
 | title | text | not null | |
 | subtitle | text | nullable | |
 | description | text | nullable | Markdown or HTML |
@@ -77,13 +78,15 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | default_lesson_xp | int | default 10 | Fallback when a lesson has no `xp_reward` |
 | gamification_enabled | boolean | default true | Gates ONLY the lesson-completion XP award (`fn_award_lesson_xp`, migration 012). **Still not enforced** on the `lessons_completed` counter bump or its badge evaluation — see `state.md` |
 | total_students | int | default 0 | Trigger-maintained, see Triggers below |
-| total_lessons | int | default 0 | Trigger-maintained, counts draft+published — see `state.md` |
+| total_lessons | int | default 0 | Trigger-maintained; counts **live** lessons, draft + published (not trashed, not under a trashed module) — see Triggers and `state.md` |
 | created_by | uuid | FK → `profiles.id` | |
 | published_at | timestamptz | nullable | |
 | created_at, updated_at | timestamptz | default now() | `updated_at` trigger-maintained |
+| deleted_at, deleted_by | timestamptz, uuid | nullable | Migration 013 trash columns (section 7). `status = 'archived'` is independent of trash |
 
 **`modules`** — optional grouping layer. `id`, `course_id` (FK, **`ON DELETE
-CASCADE`**), `title`, `position`, `created_at`.
+CASCADE`**), `title`, `position`, `created_at`, `deleted_at`, `deleted_by`
+(migration 013).
 
 **`lessons`** — content unit. `id`, `course_id` (FK, **`ON DELETE CASCADE`**),
 `module_id` (FK, nullable, **`ON DELETE SET NULL`**), `title`, `summary`,
@@ -91,15 +94,17 @@ CASCADE`**), `title`, `position`, `created_at`.
 `game_id` (FK), `duration_seconds`, `xp_reward` (null inherits
 `courses.default_lesson_xp` — never let the client do this fallback; use the
 `lesson_effective_xp` view), `is_preview`, `status` (`'draft'|'published'`),
-`position`, `created_at`. `position` is scoped per `module_id`, not per
-course, and no constraint enforces that — see `rules.md` before writing it.
+`position`, `created_at`, `deleted_at`, `deleted_by` (migration 013).
+`position` is scoped per `module_id`, not per course, and no constraint
+enforces that — see `rules.md` before writing it.
 
 ⚠️ **Two different cascade behaviors, easy to conflate — verified directly
 against `information_schema.referential_constraints`, not assumed:**
 - `courses → modules.course_id` and `courses → lessons.course_id` are both
   **`CASCADE`**. Deleting a course destroys its modules and lessons outright
-  — there is no "orphaned lesson" state reachable this way. (Also why
-  `courses` itself is never hard-deleted from the admin UI — see `rules.md`.)
+  — there is no "orphaned lesson" state reachable this way. (Also why a
+  course is only permanently deleted from the Trash, and only when nothing
+  references it — see section 7 and `rules.md`.)
 - `modules → lessons.module_id` is **`SET NULL`**. Deleting a *topic* does
   **not** touch its lessons — they survive with `module_id = null` and the
   admin UI surfaces them under "Ungrouped" rather than losing them.
@@ -122,13 +127,15 @@ plain URL is ever extracted and persisted. Any future consumer (the
 student-facing player, when it exists) should import from `video.ts` rather
 than re-deriving these patterns.
 
-**`games`** — CDN-hosted HTML/CSS/JS bundle registry. `id`, `slug`, `title`,
+**`games`** — CDN-hosted HTML/CSS/JS bundle registry. `id`, `slug` (unique
+among live rows only — `uq_games_slug_live`), `title`,
 `description` (nullable, added migration 006), `thumbnail_url` (nullable,
 paste-only — same convention as `courses.thumbnail_url`, no Storage bucket),
 `bundle_url`, `bundle_version`, `bundle_size_bytes`, `checksum`, `max_xp`
 (**server-side ceiling** on a single play's award — must be clamped inside
 whatever Edge Function eventually grades game completion; none exists yet),
-`created_by`. `bundle_size_bytes` and `checksum` are `NOT NULL` at the column
+`created_by`, `deleted_at`, `deleted_by` (migration 013). `bundle_size_bytes`
+and `checksum` are `NOT NULL` at the column
 level but optional in the admin form — nothing reads or verifies either yet
 (the game-loading/playing side doesn't exist), so a blank input writes `0` /
 `''` rather than blocking submit on metadata nobody can usefully supply
@@ -202,9 +209,10 @@ was still no admin delete policy at all — see `rules.md`. **Both since
 superseded by migration 009, directly below** — the guard now also permits
 `deleted_at`, and a scoped delete policy exists.
 
-**Trash / permanent delete (migration 009).** `deleted_at` is the only
-soft-delete column anywhere in this schema, deliberately scoped to
-`payments` alone — see `rules.md` before treating it as a precedent.
+**Trash / permanent delete (migration 009).** `payments.deleted_at` is the
+older, separate soft-delete mechanism (no `deleted_by`, no parent hiding) —
+`rules.md` keeps it distinct from the migration-013 trash-first columns
+(section 7).
 Trashing/restoring is an ordinary admin `UPDATE` of `deleted_at`
 (`payments_admin_update`, unconditional beyond `fn_is_admin()` — it doesn't
 care whether the row is already trashed), and
@@ -301,10 +309,11 @@ does not change any stored level until that student's next XP event (migration
 **`badges`** — `id`, `slug`, `name`, `description`, `icon_url`,
 `condition_type`
 (`'lessons_completed'|'streak_days'|'total_xp'|'course_complete'`),
-`condition_value`, `is_active` (enforced — see Triggers), `created_by`. No
-`created_at` column. Admin CRUD via `/admin/gamification` (RLS:
-`badges_admin_insert/update/delete`, `fn_is_admin()`). `slug` is unique
-(`badges_slug_key`).
+`condition_value`, `is_active` (enforced — see Triggers), `created_by`,
+`deleted_at`, `deleted_by` (migration 013). No `created_at` column. Admin CRUD
+via `/admin/gamification` (RLS: `badges_admin_insert/update/delete`,
+`fn_is_admin()`; delete only when trashed). `slug` is unique among live rows
+only (`uq_badges_slug_live`).
 
 **`user_badges`** — `id`, `user_id`, `badge_id` (unique together),
 `unlocked_at`. **`badge_id → badges.id` is `NO ACTION`** (confirmed via
@@ -340,34 +349,128 @@ not built, since that's a separate small change on its own).
 
 `site_name` replaces `AdminLayout.tsx`'s previously-hardcoded sidebar text.
 
+### 7. Trash-first deletion (migration 013)
+
+`deleted_at timestamptz null` and `deleted_by uuid null` on `courses`,
+`modules`, `lessons`, `games`, `badges` and `profiles`; `NULL` means live.
+`deleted_by` is a FK → `profiles.id` **`ON DELETE SET NULL`**, so a trashed row
+never blocks deleting the admin who trashed it. Each table has a partial index
+`where deleted_at is not null`. (`payments.deleted_at` is the older, separate
+mechanism in section 4.) The invariants live in `rules.md`; this section is the
+mechanism.
+
+- **Parents hide children; children are never mass-marked.** A lesson is
+  *live* only if it, its course and its module (if any) are all not trashed
+  (`fn_lesson_is_live`); a module is visible only under a live course.
+  Restoring a parent restores the view of its children exactly as they were —
+  a lesson trashed on its own stays trashed.
+- **`deleted_by` is stamped, not trusted** (`fn_stamp_deleted_by`, `BEFORE
+  INSERT OR UPDATE` on all six tables). Trashing sets it to `auth.uid()`,
+  overwriting anything a client sent; restoring sets it null; while trashed a
+  client cannot rewrite it; a client `INSERT` can never create an
+  already-trashed row. Only a non-client caller (`service_role`, a migration,
+  plain SQL) may supply a non-null `deleted_by` — the Edge Function does, for
+  profiles. "Client" means request role `authenticated` or `anon`.
+- **`profiles.deleted_at`/`deleted_by` are writable by `service_role` only**
+  (`fn_guard_profile_trash_columns`, SQLSTATE `42501` for clients). Both
+  profile UPDATE policies (self, admin) would otherwise let a client skip the
+  Edge Function's guards and the auth ban. Migrations, `execute_sql` and the
+  SQL test-account cleanup are unaffected. There is deliberately **no delete
+  trigger on `profiles`**: a user's permanent delete is guarded in the Edge
+  Function only.
+- **Slug uniqueness is among live rows only.** `uq_courses_slug_live`,
+  `uq_games_slug_live` and `uq_badges_slug_live` (`unique (slug) where
+  deleted_at is null`) replaced `courses_slug_key`, `games_slug_key` and
+  `badges_slug_key`. A trashed row's slug can be reused; restoring it while
+  the slug is taken fails with `23505`. `profiles.email` stays a plain unique
+  constraint — a trashed user is only banned, so `auth.users` still holds the
+  email.
+- **Permanent delete is trash-first at the database.** `courses_admin_delete`,
+  `modules_admin_delete`, `lessons_admin_delete`, `games_admin_delete` and
+  `badges_admin_delete` are now `USING (fn_is_admin() AND deleted_at IS NOT
+  NULL)`; a bare `DELETE` on a live row affects zero rows. No FK behavior
+  changed (table below).
+- **A trashed admin loses admin immediately:** `fn_is_admin()` requires
+  `profiles.deleted_at is null`, even for a token that has not expired.
+  Trashed users also lose read/update on their own `profiles` row, and
+  `user_stats`/`user_badges` rows of trashed users are hidden from non-admins.
+  Self-only policies on other tables (`enrollments`, `lesson_progress`, …) are
+  **not** gated on trashed status — see `state.md`.
+- **Helpers** (`SECURITY DEFINER`, `STABLE`, executable by `anon` and
+  `authenticated` because RLS policies evaluate them as the caller):
+  `fn_user_is_trashed(uuid)`, `fn_course_is_live(uuid)`,
+  `fn_lesson_is_live(uuid)`. They are definer functions because a student
+  cannot `SELECT` a trashed parent — a plain subquery in a policy would see
+  nothing and wrongly report "live".
+- **Admin RPCs** (`SECURITY INVOKER`, so they run under the caller's RLS; each
+  begins with an explicit `fn_is_admin()` check and raises `42501` otherwise):
+  - `fn_delete_module_permanently(module_id) → int` — the module must already
+    be trashed (`55000` otherwise). It first sets `deleted_at` on the module's
+    still-live lessons (`deleted_by` stamped from the caller), then deletes the
+    module; the unchanged `lessons.module_id ON DELETE SET NULL` leaves those
+    lessons Ungrouped **in Trash**, restorable. Lessons already trashed on
+    their own are untouched. Returns how many lessons it moved.
+  - `fn_course_delete_blockers(course_id)` — one row of counts: enrollments,
+    payments, lesson progress, quiz attempts and lesson-sourced
+    `xp_transactions` referencing the course. The first four are `NO ACTION`
+    FKs the database would refuse anyway; the XP count has no FK and is an
+    app-level rule.
+  - `fn_restore_blockers(type, id)` — rows of `(blocking_type, blocking_id,
+    blocking_title)` naming the trashed ancestors of a trashed `'module'`
+    (its course) or `'lesson'` (its course first, then its module). Empty for
+    everything else.
+- **`fn_revoke_user_sessions(user_id)`** — `SECURITY DEFINER`, `search_path =
+  ''`, `EXECUTE` granted to `service_role` only. Deletes the user's
+  `auth.refresh_tokens` and `auth.sessions` (the `postgres` role has `DELETE`
+  on both and `BYPASSRLS` — verified). Called by the Edge Function's `trash`.
+  `fn_recompute_course_lesson_count(course_id)` is an internal helper with
+  `EXECUTE` revoked from `public`, `anon` and `authenticated`.
+
+**What a permanent delete does, per entity** (FK behavior unchanged from
+before this migration):
+
+| Entity | Permanent delete |
+|---|---|
+| course | Allowed only when `fn_course_delete_blockers` is all zero. Then `CASCADE` removes all its modules, lessons (trashed ones included) and their quiz questions. |
+| module | `lessons.module_id` → `SET NULL`; via `fn_delete_module_permanently` its live lessons are trashed first and end Ungrouped in Trash. |
+| lesson | Its quiz questions `CASCADE`. Refused (`23503`) if any lesson progress or quiz attempt references it. |
+| game | Refused (`23503`) if any lesson — trashed ones included — references it. |
+| badge | Refused (`23503`) if any student has unlocked it. |
+| user | Edge Function `delete`, only for a trashed user, and only if nothing references them. Refused with a readable message (`has_history`) otherwise; in practice any user who ever earned XP has a `user_stats` row and stays in Trash. |
+
 ---
 
 ## Views
 
 - **`lesson_effective_xp`** — `coalesce(lessons.xp_reward,
   courses.default_lesson_xp)`, so the client never does this fallback
-  itself.
+  itself. Live lessons only (`fn_lesson_is_live`, migration 013).
 - **`profiles_public`** — `id`, `display_name`, `avatar_url` only, granted
-  to `authenticated`/`anon`.
+  to `authenticated`/`anon`. Excludes trashed profiles (migration 013).
 - **`quiz_questions_public`** — strips `correct_option`; row-gated (in the
-  view definition itself, not a table policy) to admins, `is_preview`
-  lessons, or users with an active enrollment in the lesson's course.
+  view definition itself, not a table policy) to admins, or — for live lessons
+  only — `is_preview` lessons and users with an active enrollment in the
+  lesson's course.
 
 ---
 
 ## Trigger functions
 
-Live as of migration 012 (introduced across migrations 002–012).
+Live as of migration 013 (introduced across migrations 002–013).
 
 | Trigger | Fires on | Function | Does |
 |---|---|---|---|
 | `trg_auth_user_created` | `AFTER INSERT auth.users` | `fn_handle_new_user` (`SECURITY DEFINER`) | Creates the matching `profiles` row; `display_name`/`phone_number` from `raw_user_meta_data` (email-local-part fallback for `display_name`); `role` hardcoded `'student'`; `ON CONFLICT (id) DO NOTHING` |
 | `trg_xp_transactions_process` | `AFTER INSERT xp_transactions` | `fn_process_xp_transaction` (`SECURITY DEFINER`) | Upserts `user_stats.total_xp`, recomputes `level` via `fn_compute_level()`, updates streak, calls `fn_evaluate_badges()` |
-| `trg_lesson_progress_completed` | `AFTER INSERT OR UPDATE lesson_progress` (acts on the transition into `'completed'`) | `fn_update_lessons_completed` (`SECURITY DEFINER`) | Bumps `user_stats.lessons_completed`, re-runs badge evaluation. **Not gated on `courses.gamification_enabled`, and not deduped** — see `state.md` (this row previously said `AFTER UPDATE` only; corrected against `pg_get_triggerdef`) |
+| `trg_lesson_progress_completed` | `AFTER INSERT OR UPDATE lesson_progress` (acts on the transition into `'completed'`) | `fn_update_lessons_completed` (`SECURITY DEFINER`) | Bumps `user_stats.lessons_completed` (skipped when the lesson is not live — migration 013), re-runs badge evaluation. **Not gated on `courses.gamification_enabled`, and not deduped** — see `state.md` (this row previously said `AFTER UPDATE` only; corrected against `pg_get_triggerdef`) |
 | `trg_lesson_progress_award_xp` | `AFTER INSERT OR UPDATE lesson_progress` (same transition) | `fn_award_lesson_xp` (`SECURITY DEFINER`, migration 012) | Inserts the lesson's `xp_transactions` row — see below |
 | `trg_level_thresholds_validate` | `BEFORE INSERT OR UPDATE level_thresholds` | `fn_validate_level_threshold` (migration 012) | Rejects a row whose `xp_required` isn't strictly greater than the level below it and strictly less than the level above it (`check_violation`, `23514`, with a human-readable message) |
-| `trg_enrollments_student_count` | `AFTER I/U/D enrollments` | `fn_update_course_student_count` (`SECURITY DEFINER`) | Maintains `courses.total_students` off transitions to/from `'active'` — decrements on **any** move away from active, including to `'expired'` (see `state.md` re: the stale inline comment) |
-| `trg_lessons_lesson_count` | `AFTER I/D lessons` | `fn_update_course_lesson_count` (`SECURITY DEFINER`) | Maintains `courses.total_lessons` — counts all statuses |
+| `trg_enrollments_student_count` | `AFTER I/U/D enrollments` | `fn_update_course_student_count` (`SECURITY DEFINER`) | Maintains `courses.total_students` off transitions of "counted" = `status = 'active'` **and the user is not trashed** (migration 013) — decrements on **any** move away from active, including to `'expired'` (see `state.md` re: the stale inline comment) |
+| `trg_profiles_student_count` | `AFTER UPDATE OF deleted_at profiles` | `fn_profile_trash_student_count` (`SECURITY DEFINER`, migration 013) | Trashing a user decrements `total_students` on every course they are actively enrolled in; restoring increments it |
+| `trg_lessons_lesson_count` | `AFTER INSERT OR DELETE OR UPDATE OF deleted_at, module_id, course_id lessons` | `fn_update_course_lesson_count` (`SECURITY DEFINER`) | Recomputes `courses.total_lessons` (migration 013; was incremental) — live lessons, all statuses. Only writes when the value changes, so a reorder does not bump `courses.updated_at` |
+| `trg_modules_lesson_count` | `AFTER UPDATE OF deleted_at modules` | `fn_module_trash_lesson_count` (`SECURITY DEFINER`, migration 013) | Trashing/restoring a module changes which lessons are live — recomputes the course's `total_lessons` |
+| `trg_courses_stamp_deleted_by`, `trg_modules_…`, `trg_lessons_…`, `trg_games_…`, `trg_badges_…`, `trg_profiles_stamp_deleted_by` | `BEFORE INSERT OR UPDATE` on each table | `fn_stamp_deleted_by` (migration 013) | Stamps `deleted_by` from `auth.uid()` and clears it on restore — see section 7 |
+| `trg_profiles_guard_trash_columns` | `BEFORE UPDATE profiles` | `fn_guard_profile_trash_columns` (migration 013) | Clients (`authenticated`/`anon`) cannot change `deleted_at`/`deleted_by` (`42501`); named to sort before the other profiles triggers |
 | `trg_courses_updated_at` | `BEFORE UPDATE courses` | `fn_set_updated_at` (generic `updated_at` setter) | Sets `updated_at = now()` |
 | `trg_profiles_prevent_role_change` | `BEFORE UPDATE profiles` | `fn_prevent_role_change` | Blocks `role` changes unless `service_role` or `fn_is_admin()` |
 | `trg_payments_guard_admin_update` | `BEFORE UPDATE payments` | `fn_guard_payment_admin_update` | Blocks any column but `reconciliation_status`/`reconciliation_note`/`deleted_at` (migration 009) from changing outside `service_role` |
@@ -387,8 +490,9 @@ stays at that level until an admin adds more (the old formula was unbounded).
 
 **`fn_award_lesson_xp()`** (migration 012) — `SECURITY DEFINER` trigger
 function, independent of `fn_update_lessons_completed` (the two never call
-each other). On the transition into `'completed'`: no-op if the lesson's
-course has `gamification_enabled = false`; amount is `lessons.xp_reward` when
+each other). On the transition into `'completed'`: no-op if the lesson is not live (it, its
+module or its course is trashed — migration 013) or the lesson's course has
+`gamification_enabled = false`; amount is `lessons.xp_reward` when
 NOT NULL (an explicit `0` is a real "no XP" decision — only `NULL` falls back
 to `courses.default_lesson_xp`); **no transaction at all when the amount is
 `<= 0`** (a 0-amount row would still run the rollup — bumping the streak and
@@ -401,14 +505,15 @@ a partial index, and a bare column list fails with `42P10` (verified live). The
 `xp_transactions` (bare, no target) also works; the targeted form just needs
 the predicate.
 
-**`fn_evaluate_badges(user_id)`** — loops every `is_active` badge, checks
-`condition_type` against current `user_stats`, or for `course_complete`
-computes whether every published lesson is complete in ≥ `condition_value`
-enrolled-and-active courses. Inserts newly-qualifying badges
-(`ON CONFLICT DO NOTHING`) — never revokes.
+**`fn_evaluate_badges(user_id)`** — loops every `is_active`, non-trashed
+badge, checks `condition_type` against current `user_stats`, or for
+`course_complete` computes whether every live published lesson is complete in
+≥ `condition_value` enrolled-and-active, non-trashed courses. Inserts
+newly-qualifying badges (`ON CONFLICT DO NOTHING`) — never revokes.
 
 **`fn_is_admin()`** (`SECURITY DEFINER`, `stable`) — the single check every
-admin-gated policy calls into: `profiles.role = 'admin'` for `auth.uid()`.
+admin-gated policy calls into: `profiles.role = 'admin'` **and `deleted_at is
+null`** (migration 013) for `auth.uid()`.
 
 **`fn_create_manual_order(p_user_id, p_course_id, p_provider, p_amount,
 p_currency, p_note)`** (migration 007) — records a payment that happened
@@ -462,27 +567,29 @@ explicitly; don't lean on this.
 
 | Table | SELECT | INSERT | UPDATE | DELETE |
 |---|---|---|---|---|
-| `profiles` | self or admin | — (via signup trigger, not a policy) | self (own row) or admin (any row, `role` guarded by trigger) | — |
-| `courses` | `status='published'` or admin | admin | admin | admin |
-| `modules` | actively-enrolled or admin | admin | admin | admin |
-| `lessons` | `is_preview`, actively-enrolled, or admin | admin | admin | admin |
-| `games` | any authenticated or admin | admin | admin | admin |
+| `profiles` | self (not trashed) or admin | — (via signup trigger, not a policy) | self (own row, not trashed) or admin (any row; `role` guarded by trigger, `deleted_at`/`deleted_by` by the trash-column guard) | — |
+| `courses` | `status='published'` and not trashed, or admin | admin | admin | admin, only when trashed |
+| `modules` | actively-enrolled in a live course and module not trashed, or admin | admin | admin | admin, only when trashed |
+| `lessons` | live lessons only (`fn_lesson_is_live`) that are `is_preview` or actively-enrolled, or admin | admin | admin | admin, only when trashed |
+| `games` | any authenticated and not trashed, or admin | admin | admin | admin, only when trashed |
 | `quiz_questions` | admin only (base table) | admin | admin | admin |
 | `quiz_attempts` | self or admin | `service_role` only | — | — |
 | `enrollments` | self or admin | `service_role` or admin | `service_role` or admin | `service_role` or admin |
 | `lesson_progress` | self or admin | self | self | — |
 | `payments` | self or admin | `service_role`, or admin via `fn_create_manual_order` only (never a bare insert — migration 007) | `service_role` (any column) or admin (scoped, see trigger table) | admin, only when `deleted_at IS NOT NULL` (migration 009) |
 | `xp_transactions` | self or admin | `service_role`, or admin when `source_type='manual'` | — | — |
-| `user_stats` | public (`true`) | — | — | — |
-| `badges` | any authenticated or admin | admin | admin | admin |
-| `user_badges` | public (`true`) | `service_role` only | — | — |
+| `user_stats` | public, except trashed users' rows (admins see all) | — | — | — |
+| `badges` | any authenticated and not trashed, or admin | admin | admin | admin, only when trashed |
+| `user_badges` | public, except trashed users' rows (admins see all) | `service_role` only | — | — |
 | `manual_order_providers` | admin only | admin only | admin only | admin only |
 | `app_settings` | public (`true`), including `anon` | — | admin only | — |
 | `currencies` | admin only | admin only | admin only | admin only |
 | `level_thresholds` | any authenticated (not `anon`) | admin | admin | admin |
 
 Blank cells mean no policy exists — RLS defaults to deny, so that operation
-is impossible for `anon`/`authenticated`. `user_stats` and `user_badges` have
+is impossible for `anon`/`authenticated`. The `user_stats_select_public` and
+`user_badges_select_public` policies kept their names but are no longer plain
+`true`. `user_stats` and `user_badges` have
 **no client write policy for any role** — only the trigger functions above
 write them. `app_settings` has no INSERT or DELETE policy for any role
 either, but for a different reason than `user_stats`/`user_badges` — it's a
@@ -499,26 +606,42 @@ instead, which strips `correct_option`.
 
 ### `admin-user-management` — **deployed, ACTIVE**
 
-Deno runtime, `jsr:@supabase/supabase-js@2`, `verify_jwt: true`. Version 1,
-created 2026-09-02 07:38:49 UTC (deployed outside any session with a direct
-record of it completing — the prior deploy attempt was blocked by the MCP
-connector being disconnected; confirmed live via `list_edge_functions` on
-2026-09-05 and again on 2026-09-19 — still version 1, ACTIVE, `verify_jwt`
-true). **The four actions below have not been end-to-end tested against
-the deployed function yet** — see `state.md`.
+Deno runtime, `jsr:@supabase/supabase-js@2`, `verify_jwt: true`. **Version
+2** (deployed 2026-09-19 with migration 013: added `trash` and `restore`,
+tightened `delete`). Version 1 was created 2026-09-02 07:38:49 UTC (deployed
+outside any session with a direct record of it completing — the prior deploy
+attempt was blocked by the MCP connector being disconnected). Confirmed via
+`list_edge_functions` after the v2 deploy: ACTIVE, `verify_jwt` true.
+**`trash`, `restore` and `delete` were exercised end to end against the
+deployed function on 2026-09-19** (see `changelog.md`); **`create`,
+`update_email` and `update_password` still have not been** — see `state.md`.
 
 Uses `SUPABASE_SERVICE_ROLE_KEY` (Deno default secret, never hardcoded).
 Every request resolves the caller from the `Authorization` bearer token, then
 checks `profiles.role` via the **service-role** client (never the
-caller-scoped one) before parsing any payload — non-admins get `403` first.
-Client-side guards are UX only; this is the real enforcement point.
+caller-scoped one) before parsing any payload — non-admins get `403` first,
+and so does a **trashed** admin (their access token stays valid until it
+expires, so being an admin is not enough). Client-side guards are UX only;
+this is the real enforcement point.
+
+Failures of the removal actions carry a machine-readable `code` next to the
+readable `error`: `not_found` (404), `self_target`, `primary_admin`,
+`last_admin` (400), `already_trashed`, `not_trashed`, `has_history` (409, with a
+`blockers` count map). The three guards below apply to **both** `trash` and
+`delete`, in this order: the target is the calling admin → the target is
+`PRIMARY_ADMIN_ID` (`91392b37-91f1-4975-afda-e4c238c4d821`) → the target is
+an admin and no other non-trashed admin exists. (The last-admin guard is
+defense in depth: a valid caller is itself a non-trashed admin, so it can only
+fire on a race between two admins trashing each other.)
 
 | Action | Payload | Behavior |
 |---|---|---|
 | `create` | `email`, `password`, `display_name`, `role` | `createUser({ email_confirm: true })`; `display_name` → `user_metadata` for the signup trigger. Trigger always writes `role='student'`; an `admin` request is a follow-up `UPDATE` — if that fails, reports the account was created as a student rather than a false success. Duplicate email → "Email already registered". |
 | `update_email` | `userId`, `newEmail` | `updateUserById({ email, email_confirm: true })`, then explicitly syncs `profiles.email` (nothing else does). |
 | `update_password` | `userId`, `newPassword` | Direct admin-set password, min 8 chars, no reset email/link, never echoed back. |
-| `delete` | `userId` | Refuses `PRIMARY_ADMIN_ID` (`91392b37-91f1-4975-afda-e4c238c4d821`) with 400 before touching Auth; otherwise `deleteUser`, cascades to `profiles`. **In practice only a user with no child rows can be deleted:** every FK into `profiles(id)` (`enrollments`, `payments`, `lesson_progress`, `quiz_attempts`, `xp_transactions`, `user_stats`, `user_badges`, and `created_by` on `courses`/`games`/`badges`) is `NO ACTION`, so the cascade aborts and the call returns a 400. Inferred from `pg_constraint`; never exercised through the deployed function. |
+| `trash` | `userId` | Guards, then: sets `profiles.deleted_at` and `deleted_by` = the **verified caller id** (never client-supplied), bans the auth user for `876000h` (~100 years; `banned_until` ≈ 2126), and revokes sessions via `fn_revoke_user_sessions`. If the ban fails the profile flag is rolled back; if the revoke fails the trash stands and the response says `sessionsRevoked: false` (a banned user cannot refresh and RLS already cuts a trashed user off). Refuses an already-trashed user (`already_trashed`). |
+| `restore` | `userId` | Only for a trashed user (`not_trashed` otherwise). Unbans first, then clears `deleted_at`/`deleted_by`; if clearing fails it re-bans so the user is never half-restored. No guards apply. |
+| `delete` | `userId` | Guards, then requires the target to **already be trashed** (`not_trashed`), then counts blocking rows — `enrollments`, `payments`, `lesson_progress`, `quiz_attempts`, `xp_transactions`, `user_stats`, `user_badges` (by `user_id`) and `courses`/`games`/`badges` (by `created_by`); any non-zero count returns `has_history` with a readable summary and the counts, and the user stays in Trash. Otherwise `deleteUser`, cascading to `profiles`. `deleted_by` is `ON DELETE SET NULL` and does not block. |
 
 Raw Auth/Postgres errors never reach the client — mapped to a short message,
 detail logged server-side via `console.error`.
@@ -546,9 +669,11 @@ table.
 | 010 | `20260919090000_010_app_settings.sql` | 2026-09-18 10:47:27 | `app_settings` — a deliberate singleton table (one seeded row, no INSERT/DELETE policy for any role), public SELECT, admin-only UPDATE. Closes the `default_currency` and `quiz_pass_threshold_percent` gaps; `site_name` replaces `AdminLayout`'s hardcoded sidebar text |
 | 011 | `20260919120000_011_currencies.sql` | 2026-09-18 11:27:21 | `currencies` table, admin-only RLS, seeded with the full ISO 4217 active-codes list (178 rows); `app_settings.default_currency` becomes a FK to `currencies(code)` (`NO ACTION`) — an admin can no longer delete the platform's current default currency without changing it first |
 | 012 | `20260919150000_012_gamification.sql` | 2026-09-18 18:01:09 | `level_thresholds` (seeded 1–30 from the old formula's own math, strict-monotonic validation trigger, admin-write / authenticated-read RLS); `fn_compute_level` rewritten to read it (`IMMUTABLE` → `STABLE`); one-time `user_stats.level` backfill; `fn_award_lesson_xp` + `trg_lesson_progress_award_xp` (the actual lesson-completion XP award, gated on `gamification_enabled`) |
+| 013 | `20260919170620_013_trash_first.sql` | 2026-09-19 17:06:20 | Trash-first deletion (section 7): `deleted_at`/`deleted_by` on `courses`, `modules`, `lessons`, `games`, `badges`, `profiles`; live-only partial unique slug indexes on courses/games/badges; trashed rows and rows under trashed parents hidden from non-admins (policies, `profiles_public`, `quiz_questions_public`, `lesson_effective_xp`); the five `*_admin_delete` policies require a trashed row; `fn_is_admin()` requires a non-trashed profile; counters and XP/badge functions skip trashed content; `deleted_by` stamping + `profiles` trash-column guard; helpers and admin RPCs; `fn_revoke_user_sessions` |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
-001–005 match `list_migrations` exactly. For 006–012 the MCP `apply_migration`
+001–005 match `list_migrations` exactly, and so does 013 (its file was named
+after the live version). For 006–012 the MCP `apply_migration`
 call stamped its own version at apply time, and the hand-named files never
 matched it: 006 differs by 9 seconds; 007's file (`20260918184559`) is a day
 *after* its live version (`20260917184638`) and so sorts **after** 008's file

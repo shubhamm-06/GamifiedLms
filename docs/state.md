@@ -21,13 +21,12 @@ nav entry is a real route):
   create dialog) and the `/admin/users/$userId` detail page (account actions,
   stats, enrollments with manual enroll/revoke, per-course progress, badges,
   manual XP award). There is no separate Students page.
-- Courses: the `/admin/courses` list (archive only — courses are never
-  hard-deleted) and the Course Builder (`/admin/courses/new`,
-  `/admin/courses/$courseId/edit`; Basics and Curriculum tabs) with topics,
-  lessons and quiz questions, drag-and-drop reordering including cross-topic
-  lesson moves, and YouTube/Vimeo embed links.
-- Games: the `/admin/games` list plus `GameDialog`; delete is real and refused
-  with a "used by N lesson(s)" message while a lesson still references the game.
+- Courses: the `/admin/courses` list (archive only in the UI today) and the
+  Course Builder (`/admin/courses/new`, `/admin/courses/$courseId/edit`; Basics
+  and Curriculum tabs) with topics, lessons and quiz questions, drag-and-drop
+  reordering including cross-topic lesson moves, and YouTube/Vimeo embed links.
+- Games: the `/admin/games` list plus `GameDialog` (its Delete action is
+  currently a no-op — see In flight).
 - Orders and payments: `/admin/orders` — KPI cards, filters, Add order (a
   manual payment plus its enrollment, via `fn_create_manual_order`), CSV export
   and import, bulk selection, Active/Trash views, permanent delete of trashed
@@ -38,13 +37,20 @@ nav entry is a real route):
   (`level_thresholds`).
 
 **Backend:**
-- Schema through migration 012 (`schema.md`), RLS on every table, the
+- Schema through migration 013 (`schema.md`), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
   false`), and an admin-editable level curve.
-- Edge Function `admin-user-management` — deployed, version 1, ACTIVE,
-  `verify_jwt: true`. Its source matches the documented action contract; its
-  four actions have never been exercised end-to-end (next step 1).
+- Trash-first deletion, database and Edge Function layer (migration 013): soft
+  delete on courses, modules, lessons, games, badges and profiles, hidden
+  through parents, RLS-enforced permanent delete, counters and XP/badge
+  functions that skip trashed content, and the module / course-blocker /
+  restore-blocker RPCs. Verified with role-switched queries and against the
+  deployed function (`changelog.md`). No UI uses any of it yet.
+- Edge Function `admin-user-management` — deployed, version 2, ACTIVE,
+  `verify_jwt: true`, with `trash` and `restore` and a stricter `delete`.
+  `trash`, `restore` and `delete` have been exercised end to end; `create`,
+  `update_email` and `update_password` have not (next step 1).
 
 ## Designed but not built
 
@@ -76,11 +82,28 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Rich-text editing** for a lesson's `content_html` (a raw HTML textarea
   today) — a separate dependency decision.
 - **Analytics.** `analytics.md` deliberately doesn't exist until this starts.
+- **The trash-first UI** — `/admin/trash` (per-entity tabs, restore, permanent
+  delete with a typed-`DELETE` confirm, empty trash), "Move to trash" with an
+  Undo toast on every list, a shared multi-select and bulk-action bar on every
+  admin table (only `/admin/orders` has selection today), and a Users CSV
+  export/import (with a `bulk_create` Edge Function action). Phases 3–5 of the
+  trash-first task.
 
 ## In flight
 
-Nothing is half-built. The working tree carries only the documentation sync
-recorded in `changelog.md`.
+**Trash-first deletion, Phase 2 of 5 done (database + Edge Function); the UI
+phases are outstanding.** Until Phase 3 replaces them, these admin actions
+still issue a plain `DELETE`, which migration 013's RLS only allows on a
+trashed row:
+- **Delete topic, Delete lesson (Course Builder), Delete game, Delete badge:**
+  the `DELETE` matches zero rows and returns no error, so the UI shows its
+  success toast while **nothing is removed**. (`useCurriculum.ts`,
+  `useGames.ts`, `useBadges.ts` check only `error`.)
+- **Delete user (list and detail):** the Edge Function now refuses a user who
+  isn't trashed (`not_trashed`), so the dialog shows an error instead of
+  deleting; there is no UI yet to trash a user.
+Quiz-question delete, provider/currency delete and payment trash/delete are
+unaffected. Courses were never deletable from the UI.
 
 ## Live data reality
 
@@ -90,7 +113,8 @@ authoring. Row counts on 2026-09-19 — `profiles` 3 (1 admin, 2 students),
 `payments` 2 (none trashed), `xp_transactions` 1, `user_stats` 1; config tables
 `app_settings` 1, `manual_order_providers` 3, `currencies` 178,
 `level_thresholds` 30; zero rows in `games`, `quiz_questions`, `quiz_attempts`,
-`lesson_progress`, `badges` and `user_badges`. Verification passes use
+`lesson_progress`, `badges` and `user_badges`; nothing is trashed and no auth
+user is banned. Verification passes use
 SQL-created throwaway accounts and separately-titled test rows — never the real
 "Wisdom Hatch Kids" content — and remove them afterwards (account rule:
 `rules.md`).
@@ -101,22 +125,48 @@ None.
 
 ## Next steps, roughly in order
 
-1. Smoke-test all four `admin-user-management` actions (create, change email,
-   reset password, delete) against the live deployment. Never done end-to-end —
-   it was blocked when written, and the deployment was discovered after the
-   fact. From the FK graph, `delete` should fail for any user who has child rows
-   (`schema.md`); that is inferred, not observed.
+1. Smoke-test the three `admin-user-management` actions that still haven't been
+   exercised end to end against the live deployment: `create`, `update_email`
+   and `update_password`. (`trash`, `restore` and `delete` were exercised on
+   2026-09-19, including the has-history refusal.)
 2. Add the DB-level guard against deleting the primary admin
    (`91392b37-91f1-4975-afda-e4c238c4d821`). The UI and the Edge Function both
    refuse it; a direct `service_role`/dashboard delete or an `auth.users`
    cascade still isn't stopped.
-3. Quiz grading is the next real gamification gap (see Designed but not built).
+3. Trash-first deletion Phase 3 (shared multi-select and bulk-action bar, the
+   Trash page, Undo toasts, and replacing the broken Delete actions listed
+   under In flight), then Phase 4 (Users CSV export/import), then Phase 5 (full
+   verification and docs).
+4. Quiz grading is the next real gamification gap (see Designed but not built).
 
 ## Open decisions & on the horizon
 
 Each of these needs a product call or a deliberate follow-on; none is being
 worked on.
 
+- **A trashed user's still-valid access token keeps working on self-only
+  tables.** Trashing bans the login, revokes sessions and cuts off the user's
+  `profiles` row, admin powers, and all content visibility — but the access
+  token already issued stays valid until it expires (default one hour, not
+  verified for this project), and policies that are only "own rows"
+  (`enrollments`, `lesson_progress`, `payments`, `xp_transactions`,
+  `quiz_attempts` selects; `lesson_progress` insert/update) are not gated on
+  trashed status. Observed 2026-09-19: an old token could still read its own
+  enrollments and update its own `lesson_progress` row. Closing it means adding
+  `not fn_user_is_trashed(auth.uid())` to those policies; not done, since it
+  goes beyond the approved migration 013.
+- **The last-admin guard is unreachable in normal use.** The caller must be a
+  non-trashed admin different from the target, so at least two non-trashed
+  admins always exist; the guard only fires on a race between two admins
+  trashing each other. It is implemented and defense-in-depth, but has not
+  been exercised.
+- **The Supabase security advisor now flags five more `SECURITY DEFINER`
+  functions as executable by `anon`/`authenticated`** — the three RLS helpers
+  (`fn_user_is_trashed`, `fn_course_is_live`, `fn_lesson_is_live`, which must
+  stay executable because policies run them as the caller) and the two new
+  trigger functions (`fn_module_trash_lesson_count`,
+  `fn_profile_trash_student_count`, which could have `EXECUTE` revoked). Ten
+  older functions are flagged the same way.
 - **What `courses.gamification_enabled = false` should mean.** It gates lesson
   XP only. `fn_update_lessons_completed` — the `lessons_completed` counter bump
   and the badge evaluation it runs — ignores it, so a gamification-off course

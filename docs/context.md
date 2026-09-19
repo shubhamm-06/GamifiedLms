@@ -93,7 +93,7 @@ src/
   styles.css   brand tokens + Baloo 2 (auth/kid-facing; see ui.md)
   main.tsx, router.tsx   entry, route tree
 supabase/
-  migrations/  001-012, source of truth for schema — write here first, apply via
+  migrations/  001-013, source of truth for schema — write here first, apply via
                Supabase MCP second, regenerate database.types.ts third, every time
                (006-012 filenames drifted from live versions — see schema.md)
   functions/   admin-user-management (Deno) — the only Edge Function so far
@@ -121,8 +121,9 @@ supabase/
   else guarded by `fn_guard_payment_admin_update`), and hard-delete a row
   already in Trash (migration 009). Full rule: `rules.md`.
 - Privileged user-account admin (create auth user, change someone else's
-  email/password, delete account) goes through the `admin-user-management`
-  Edge Function, since those need the `service_role` key. Ordinary column
+  email/password, trash/restore/delete account) goes through the
+  `admin-user-management` Edge Function, since those need the `service_role`
+  key (trashing also bans the auth user and revokes sessions). Ordinary column
   writes (`display_name`, `role`) go straight through supabase-js on the
   existing `profiles_admin_update` RLS policy — no function hop needed.
 - Admin section (`/admin/*`) has its own visual language: neutral shadcn
@@ -195,6 +196,11 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
   you happen to open.
 - `sonner` pulled in `next-themes` as a transitive dep; unused (no
   ThemeProvider), harmless, not worth fighting the generated file to remove.
+- **Role-switched SQL tests** (`set_config('role', 'authenticated', true)` plus
+  `request.jwt.claims`; `execute_sql` alone runs as `postgres` and bypasses RLS)
+  must also clear `request.jwt.claims` after `reset role`. `auth.role()` reads
+  the claims, so leftover `authenticated` claims make the `postgres` session
+  look like a client to the trash-column guard and `deleted_by` stamping.
 - **`npx tsc --noEmit` checks nothing here** — the root `tsconfig.json` only
   holds project references, so a bare `--noEmit` compiles zero files and
   passes vacuously. The real typecheck is `npx tsc -b` (what `npm run build`
@@ -204,12 +210,14 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
   close), not a `useEffect` that calls `setState`.
 - `supabase/functions` is in `eslint.config.js`'s `globalIgnores` — Deno
   runtime with `jsr:` specifiers, the browser/Vite lint config doesn't apply.
-- **Exactly one soft-delete column exists in `public`: `payments.deleted_at`**
-  (migration 009, nullable, no default — null means active). Every other
-  delete in this schema is still a hard delete, cascading from
-  `auth.users` → `profiles`. This is a deliberate, narrowly-scoped exception,
-  not a reversal of that default — see `rules.md` before generalizing the
-  pattern to another table.
+- **Deletion is trash-first for six tables** (`courses`, `modules`, `lessons`,
+  `games`, `badges`, `profiles`; migration 013): `deleted_at`/`deleted_by`, a
+  parent hides its children through the parent, and a real `DELETE` is only
+  possible on an already-trashed row. `payments.deleted_at` (migration 009) is
+  a separate, older mechanism. Every other delete is still a hard delete. Any
+  new read path over these tables must treat a lesson as live only when it,
+  its module and its course are not trashed — mechanism in `schema.md`
+  section 7, invariants in `rules.md`.
 - `profiles.email` is not kept in sync by any trigger after signup — the
   `admin-user-management` `update_email` action updates it explicitly
   alongside the Auth email change, or the two drift.
