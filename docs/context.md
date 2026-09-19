@@ -76,24 +76,27 @@ src/
     auth/      AuthCard, AuthField (login/signup shared UI)
     admin/     AdminGuard, AdminLayout (shell); one subfolder per domain, each
                holding that domain's table/dialogs/sections: users/, courses/,
-               games/, orders/, settings/, gamification/
+               games/, orders/, settings/, gamification/; plus selection/
+               (the shared multi-select kit) and trash/ (Trash page table + dialogs)
   pages/       route-level components: HomePage, LoginPage, SignupPage;
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
-               CourseEdit, Games, Orders, Settings, Gamification)
+               CourseEdit, Games, Orders, Settings, Gamification, Trash)
   hooks/       TanStack Query hooks: useAppSettings, useCourseCount; admin/ has
                one file per domain (useUsers, useUserMutations, useUserDetail,
                useCourses, useCurriculum, useGames, usePayments,
                useManualOrderProviders, useCurrencies, useBadges,
-               useLevelThresholds, useDashboard)
+               useLevelThresholds, useDashboard, useTrash, useTrashActions);
+               useStableCallbacks.ts (stable handler identities for memoised columns)
   lib/         supabase.ts (client), database.types.ts (generated), queryClient.ts,
                adminSession.ts (route guard logic), adminUserApi.ts,
-               adminConstants.ts, currency.ts, csv.ts, slug.ts, video.ts, utils.ts
+               adminConstants.ts, currency.ts, csv.ts, slug.ts, video.ts, utils.ts,
+               trash.ts (soft delete/restore), permanentDelete.ts (Trash page only)
   index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,
                shadcn tokens, Geist font
   styles.css   brand tokens + Baloo 2 (auth/kid-facing; see ui.md)
   main.tsx, router.tsx   entry, route tree
 supabase/
-  migrations/  001-013, source of truth for schema — write here first, apply via
+  migrations/  001-014, source of truth for schema — write here first, apply via
                Supabase MCP second, regenerate database.types.ts third, every time
                (006-012 filenames drifted from live versions — see schema.md)
   functions/   admin-user-management (Deno) — the only Edge Function so far

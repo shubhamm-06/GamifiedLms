@@ -394,8 +394,27 @@ mechanism.
   `profiles.deleted_at is null`, even for a token that has not expired.
   Trashed users also lose read/update on their own `profiles` row, and
   `user_stats`/`user_badges` rows of trashed users are hidden from non-admins.
-  Self-only policies on other tables (`enrollments`, `lesson_progress`, …) are
-  **not** gated on trashed status — see `state.md`.
+  Migration 014 then gated every `auth.uid()`-scoped policy the same way (below),
+  so an access token issued before a trash stops working on own-row tables too.
+- **Migration 014 — the trashed-token gap.** A trashed user's access token stays
+  valid until it expires, and every "own rows" policy kept working for it
+  (observed: reading own enrollments, updating own `lesson_progress`). 014 adds
+  `not fn_user_is_trashed(auth.uid())` to: `enrollments_select_self`,
+  `lesson_progress_select_self` / `_insert_self` / `_update_self`,
+  `quiz_attempts_select_self`, `xp_transactions_select_self`,
+  `payments_select_self` (an own-row read; no payment logic or write path
+  touched), `user_stats_select_public` and `user_badges_select_public` (now also
+  hidden from a trashed *caller*), the enrolled legs of
+  `modules_select_enrolled_or_admin`, `lessons_select_enrolled_or_preview_or_admin`
+  and `quiz_questions_public`, and `games_select_authenticated` /
+  `badges_select_authenticated`. Verified with role-switched queries: a trashed
+  student holding an old token reads nothing and every write fails; a live
+  student is unaffected. Left alone on purpose: the profiles policies (gated in
+  013), admin policies, world-readable config, `profiles_public`,
+  `lesson_effective_xp` and the `*_service_role_*` policies. It also revoked
+  `EXECUTE` from `public`, `anon` and `authenticated` on
+  `fn_module_trash_lesson_count` and `fn_profile_trash_student_count` (trigger
+  functions are only checked for `EXECUTE` when the trigger is created).
 - **Helpers** (`SECURITY DEFINER`, `STABLE`, executable by `anon` and
   `authenticated` because RLS policies evaluate them as the caller):
   `fn_user_is_trashed(uuid)`, `fn_course_is_live(uuid)`,
@@ -456,7 +475,7 @@ before this migration):
 
 ## Trigger functions
 
-Live as of migration 013 (introduced across migrations 002–013).
+Live as of migration 014 (introduced across migrations 002–014).
 
 | Trigger | Fires on | Function | Does |
 |---|---|---|---|
@@ -573,14 +592,14 @@ explicitly; don't lean on this.
 | `lessons` | live lessons only (`fn_lesson_is_live`) that are `is_preview` or actively-enrolled, or admin | admin | admin | admin, only when trashed |
 | `games` | any authenticated and not trashed, or admin | admin | admin | admin, only when trashed |
 | `quiz_questions` | admin only (base table) | admin | admin | admin |
-| `quiz_attempts` | self or admin | `service_role` only | — | — |
-| `enrollments` | self or admin | `service_role` or admin | `service_role` or admin | `service_role` or admin |
-| `lesson_progress` | self or admin | self | self | — |
-| `payments` | self or admin | `service_role`, or admin via `fn_create_manual_order` only (never a bare insert — migration 007) | `service_role` (any column) or admin (scoped, see trigger table) | admin, only when `deleted_at IS NOT NULL` (migration 009) |
-| `xp_transactions` | self or admin | `service_role`, or admin when `source_type='manual'` | — | — |
-| `user_stats` | public, except trashed users' rows (admins see all) | — | — | — |
+| `quiz_attempts` | self (not trashed) or admin | `service_role` only | — | — |
+| `enrollments` | self (not trashed) or admin | `service_role` or admin | `service_role` or admin | `service_role` or admin |
+| `lesson_progress` | self (not trashed) or admin | self (not trashed) | self (not trashed) | — |
+| `payments` | self (not trashed) or admin | `service_role`, or admin via `fn_create_manual_order` only (never a bare insert — migration 007) | `service_role` (any column) or admin (scoped, see trigger table) | admin, only when `deleted_at IS NOT NULL` (migration 009) |
+| `xp_transactions` | self (not trashed) or admin | `service_role`, or admin when `source_type='manual'` | — | — |
+| `user_stats` | public, except trashed users' rows and for a trashed caller (admins see all) | — | — | — |
 | `badges` | any authenticated and not trashed, or admin | admin | admin | admin, only when trashed |
-| `user_badges` | public, except trashed users' rows (admins see all) | `service_role` only | — | — |
+| `user_badges` | public, except trashed users' rows and for a trashed caller (admins see all) | `service_role` only | — | — |
 | `manual_order_providers` | admin only | admin only | admin only | admin only |
 | `app_settings` | public (`true`), including `anon` | — | admin only | — |
 | `currencies` | admin only | admin only | admin only | admin only |
@@ -670,9 +689,10 @@ table.
 | 011 | `20260919120000_011_currencies.sql` | 2026-09-18 11:27:21 | `currencies` table, admin-only RLS, seeded with the full ISO 4217 active-codes list (178 rows); `app_settings.default_currency` becomes a FK to `currencies(code)` (`NO ACTION`) — an admin can no longer delete the platform's current default currency without changing it first |
 | 012 | `20260919150000_012_gamification.sql` | 2026-09-18 18:01:09 | `level_thresholds` (seeded 1–30 from the old formula's own math, strict-monotonic validation trigger, admin-write / authenticated-read RLS); `fn_compute_level` rewritten to read it (`IMMUTABLE` → `STABLE`); one-time `user_stats.level` backfill; `fn_award_lesson_xp` + `trg_lesson_progress_award_xp` (the actual lesson-completion XP award, gated on `gamification_enabled`) |
 | 013 | `20260919170620_013_trash_first.sql` | 2026-09-19 17:06:20 | Trash-first deletion (section 7): `deleted_at`/`deleted_by` on `courses`, `modules`, `lessons`, `games`, `badges`, `profiles`; live-only partial unique slug indexes on courses/games/badges; trashed rows and rows under trashed parents hidden from non-admins (policies, `profiles_public`, `quiz_questions_public`, `lesson_effective_xp`); the five `*_admin_delete` policies require a trashed row; `fn_is_admin()` requires a non-trashed profile; counters and XP/badge functions skip trashed content; `deleted_by` stamping + `profiles` trash-column guard; helpers and admin RPCs; `fn_revoke_user_sessions` |
+| 014 | `20260919175812_014_trashed_token_gap.sql` | 2026-09-19 17:58:12 | Gates every `auth.uid()`-scoped policy on `not fn_user_is_trashed(auth.uid())` (own-row tables, leaderboards, enrollment-derived content, games/badges reads, `quiz_questions_public`) so a trashed user's already-issued token stops working; `EXECUTE` revoked from `public`/`anon`/`authenticated` on `fn_module_trash_lesson_count` and `fn_profile_trash_student_count`. No type-level change |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
-001–005 match `list_migrations` exactly, and so does 013 (its file was named
+001–005 match `list_migrations` exactly, and so do 013 and 014 (their files were named
 after the live version). For 006–012 the MCP `apply_migration`
 call stamped its own version at apply time, and the hand-named files never
 matched it: 006 differs by 9 seconds; 007's file (`20260918184559`) is a day

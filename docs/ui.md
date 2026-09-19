@@ -97,9 +97,10 @@ Established by Courses; follow these for the next admin domain.
 - **Row actions live in a kebab menu and are contextual to status** — the
   menu only offers transitions that are legal from the current state.
   Clicking the row itself does nothing, since several actions compete.
-- **Archive, never delete.** No hard-delete affordance exists anywhere in the
-  admin UI for courses — see `rules.md` for why. Archive needs no
-  confirmation dialog because Restore reverses it.
+- **Archive and Move to trash are both reversible; neither deletes.** A course's
+  row menu offers its legal status transitions (archive is a status, undone by
+  Restore) and Move to trash (see the trash-first bullet below). Neither needs a
+  confirmation dialog because both can be undone; only `/admin/trash` deletes.
 - **Lifecycle actions are explicit buttons, separate from "Save changes"** —
   not a status dropdown inside the form. They apply immediately; the form
   save is its own action.
@@ -245,7 +246,9 @@ not implemented.**
   `components/admin/` (shell only: `AdminGuard.tsx`, `AdminLayout.tsx`),
   `components/admin/users/`, `components/admin/courses/`,
   `components/admin/games/`, `components/admin/orders/`,
-  `components/admin/settings/`, `components/admin/gamification/`.
+  `components/admin/settings/`, `components/admin/gamification/`,
+  `components/admin/selection/` (the shared multi-select kit) and
+  `components/admin/trash/` (the Trash page's table and dialogs).
 - **Flat single-entity CRUD (no nested child content) uses a Dialog, not a
   dedicated route or wizard.** Games (`GameDialog.tsx`) follow Admin Users
   (`EditUserDialog.tsx`), not the Courses create/edit flow — a course has
@@ -279,13 +282,12 @@ not implemented.**
   adapter, not a functional difference. This is what keeps the primary-admin
   delete guard (disabled button + tooltip) identical at both entry points
   without a second implementation to drift out of sync.
-- **A hard delete (no archive/status column) that can be FK-blocked needs a
-  friendly count, not a raw error.** Games can be deleted outright — unlike
-  courses, which are archived because deleting cascades silently — but a
-  game still referenced by a lesson must fail with "used by N lesson(s)",
-  not a Postgres constraint message. The count is a second query run only on
-  the FK-violation path (`useDeleteGame` in `useGames.ts`), not fetched
-  up front, since the common case never needs it.
+- **A permanent delete that can be blocked needs a readable reason, not a raw
+  error.** A game still referenced by a lesson, a badge a student unlocked, a
+  lesson with student progress, a course with enrollments — each reports what
+  blocks it ("Used by 2 lessons (trashed lessons count too)"). Those checks live
+  in `lib/permanentDelete.ts`, which only the Trash page imports; the count is
+  looked up before the delete rather than parsed out of a constraint message.
 - **A read-only record with a narrow, specific edit is still the Dialog
   convention, not a routed page.** `OrderDetailDialog.tsx` (payments) shows
   the full record read-only — including a pretty-printed `raw_payload` — and
@@ -346,37 +348,52 @@ not implemented.**
   looks completely fine and the bug only surfaces once the data grows. Every
   admin list table memoises its filter array and `state` object; copy that,
   and don't pass an inline literal.
-- **Bulk row selection: `rowSelectionFeature`, a checkbox column, and
-  controlled `state.rowSelection` lifted to the page** — `OrderTable.tsx` is
-  the first table with this. `rowSelectionFeature` needs no row-model factory
-  of its own; its "select all"/"is all selected" getters read straight off
-  whichever row model is already registered (`getFilteredRowModel()` here,
-  since this table has no grouping/expansion) — this is what makes
-  `table.toggleAllRowsSelected()` naturally scope to the *currently filtered*
-  rows, not the full unfiltered list, with zero extra wiring. Selection
-  state is a plain `{[id]: true}` map, so `getRowId: (payment) => payment.id`
-  is required — the default index-into-`data` id would make a selected set
-  point at the wrong rows the moment a filter or refetch reorders `data`.
-  Because ids are real payment ids, the page can turn `rowSelection` back
-  into actual rows (`payments.filter(p => rowSelection[p.id])`) without
-  reaching into the table instance at all — only the checkbox cells
-  themselves (header + per-row) need `table`/`row`, and both live inside
-  `OrderTable`. Two things worth copying, one easy to get backwards:
-  - **Indeterminate must be scoped to the filtered set, not
-    `table.getIsSomeRowsSelected()`** — that getter counts selected ids
-    table-wide regardless of the active filter, so it reads "some selected"
-    even when every selected row is currently filtered out of view. Use
-    `table.getFilteredSelectedRowModel().rows.length > 0` instead.
-  - **Clicking an indeterminate checkbox selects everything, it does not
-    clear the selection** — same as a native indeterminate `<input>`; the
-    visual "indeterminate" is a rendering hint only, and the underlying
-    value it resolves to on click is `true`. Design around this rather than
-    assuming a single click round-trips indeterminate back to empty.
-  Selection state itself must stay out of the memoised `state` object's
-  other fields' dependency arrays (see the stable-identity rule above) —
-  toggling a checkbox must not regenerate `columnFilters`'s array reference,
-  or it fires the same page-reset bug this file already warns about, just
-  via a different field.
+- **Multi-select is one shared kit, used by every admin table**
+  (`components/admin/selection/`): `useTableSelection`, `SelectPageCheckbox` /
+  `SelectRowCheckbox`, and `BulkActionBar` (with `TableSelectionBar`, the
+  one-line table wiring). It sits on TanStack Table v9's `rowSelectionFeature`,
+  which needs no row-model factory of its own — its getters read straight off
+  whichever row model is registered. Every list table (Users, Courses, Games,
+  Badges, Orders, and the six Trash tabs) registers the feature, and the course
+  editor's topic/lesson lists use the same hook and bar without a table. No
+  table ships without it. What the kit guarantees:
+  - **The page owns the state.** `useTableSelection(resetKeys)` returns a
+    controlled `{ [rowId]: true }` map; the page passes it to the table as
+    `selection` and reads `selection.selectedIds` for its bulk actions. The map
+    persists across pagination by itself.
+  - **Stable row ids.** Every table sets `getRowId` to the real id, never the
+    index, so a selection survives a filter change or a refetch reordering rows
+    instead of silently pointing at whatever now sits at that index.
+  - **It clears when the scope changes.** `resetKeys` are the page's search and
+    filter values (plus the Active/Trash view on Orders); changing any of them
+    empties the selection, because a selection made under one filter says
+    nothing about the rows shown under another. The reset is state adjusted
+    during render, not an effect (`react-hooks/set-state-in-effect` rejects the
+    effect version).
+  - **The header checkbox is scoped to the current PAGE** (checked when the
+    whole page is selected, indeterminate when only some of it is; clicking an
+    indeterminate box selects the page, like a native indeterminate input).
+    "Select all N matching" — the whole *filtered* set, across pages — is a
+    button in the bar, shown when the filtered set is larger than the selection
+    (`toggleAllRowsSelected(true)` reads the filtered row model).
+  - **Selection state stays out of the other state slices' identity.** `state`
+    composes `columnFilters`/`globalFilter` and `rowSelection` as separate
+    memoised pieces, so ticking a checkbox can't regenerate the filter array and
+    fire the page-reset bug above.
+  - **Keyboard and screen readers.** Every checkbox has an `aria-label` ("Select
+    ZZ Bulk 01", "Select all users on this page"); Space toggles. The row
+    checkbox swallows click *and* key events so a table whose rows are links
+    (`UserTable` navigates on row click and on Enter) doesn't navigate when a box
+    is toggled — Enter must not bubble.
+  - **A row can be selected even if its action would be refused** (the primary
+    admin in a user selection): the bulk run reports it as a failure with the
+    server's reason rather than the UI guessing ahead. Selection is dropped for
+    the ids that were acted on (`removeIds`), never blanket-cleared, so a
+    single-row action can't wipe an unrelated in-progress selection.
+  - **Drag handles stay separate from checkboxes** in the course editor: dnd-kit's
+    listeners live on the handle alone, the checkbox is its sibling, so ticking a
+    box can't start a drag and a drag doesn't toggle one (selection also
+    survives a drop). Reorder stays zero-animation (`rules.md`).
 - **A view toggle over two disjoint row sets is a real search param
   (`?view=`), a `Tabs` control, and a cleared selection on switch** —
   `/admin/orders`'s Active/Trash toggle (migration 009) follows Course
@@ -528,6 +545,62 @@ not implemented.**
   field and no delete affordance** rather than special-casing it in SQL —
   and record that the DB does NOT enforce it (see `rules.md`) so nobody
   assumes it does.
+- **Every "delete" is "Move to trash" — immediate, with an Undo toast; only the
+  Trash page deletes.** Courses, topics (modules), lessons, games and badges move
+  to trash with no confirm dialog: `useTrashActions().trash([...])` runs the
+  update per item, refreshes every admin query (lists, counts, the sidebar
+  badge) and shows "Moved X to trash" (or "Moved N items to trash") with an
+  **Undo** that restores exactly the items that moved, parents before children.
+  Trashing is reversible, so the toast is the safety net, not a dialog.
+  - **Users get the one exception**: a lightweight `TrashUsersDialog`, because
+    trashing bans the login and signs them out. Title "Move Rahul to trash?",
+    body "They will be signed out and lose access immediately. You can restore
+    them any time from Trash.", buttons Cancel and **Move to trash in the default
+    (not red) style**. Red is reserved for permanent deletion on the Trash page.
+  - **Guards are disabled up front with a tooltip** (the primary admin, and the
+    calling admin's own row) — the server still enforces them; this only saves a
+    refused click. In a bulk selection those rows stay selectable and are
+    reported as failures with the server's message.
+  - **Partial failure is a first-class result:** "8 moved, 2 failed" with the
+    first few "name — reason" lines, and Undo for the ones that did move.
+  - **A write that RLS filters to zero rows returns no error**, so every trash and
+    restore update asks for `.select('id')` and treats a row count other than the
+    number requested as a failure — the exact bug class that made the old Delete
+    buttons report success while removing nothing (`rules.md`).
+  - Row-action menus say "Move to trash" (never "Delete"); no screen outside
+    `/admin/trash` offers permanent deletion of a course, module, lesson, game,
+    badge or user, and none calls the Edge Function `delete` action. (Payments
+    keep their own older Trash view on `/admin/orders`; config-list rows —
+    providers, currencies, level thresholds, quiz questions — are outside the
+    trash-first set and still hard-delete with their own confirm.)
+- **Column definitions must have a stable identity** (`useMemo`, with page-level
+  handlers routed through `useStableCallbacks`). TanStack's `FlexRender` treats a
+  column's `cell`/`header` function as a component type, so a column array
+  rebuilt every render remounts every cell: an open row menu snaps shut on any
+  background refetch, and a checkbox loses keyboard focus the moment its own
+  toggle re-renders the table. `TrashTable` passes its row handlers through
+  context instead; the other tables use the hook.
+- **`/admin/trash` is the only place anything is permanently deleted.** One tab
+  per entity (`?tab=courses|modules|lessons|games|badges|users`, the same
+  search-param convention as Course Builder), each a full `TrashTable`
+  (search, sort, pagination, the shared multi-select) showing name, "Was in"
+  (parent course for a module, course › topic for a lesson, status/role
+  elsewhere), Deleted at, and Deleted by (resolved to a display name — the
+  Users tab looks the names up by id because a `profiles` → `profiles` embed
+  resolves in the wrong direction). Rows are normalised to one `TrashRow`.
+  - **Restore** is disabled with a tooltip naming the trashed parent ("Its
+    course “X” is in the trash. Restore that first.") — blocked, never cascaded.
+    Restoring a course or module asks first ("their modules and lessons reappear
+    exactly as they were; anything trashed on its own stays trashed"); a slug
+    collision (`23505`) says to rename or trash the live item using the slug.
+  - **Delete permanently** is an AlertDialog with the exact count and a typed
+    `DELETE`; after the run the same dialog shows the outcome (deleted / blocked
+    with each item's readable reason / failed). A module's dialog quotes "N
+    lessons will move to trash"; a blocked course lists what still uses it and
+    offers "Archive it instead". Nothing shows a raw database error.
+  - **Empty trash** (per tab) runs the same dialog over every trashed item in
+    the tab and skips blocked ones, with a summary.
+  - The sidebar's Trash entry carries the total count badge.
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
   sonner, switch, checkbox, tabs (used since Course Builder, missing from

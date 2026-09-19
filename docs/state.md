@@ -18,35 +18,45 @@ nav entry is a real route):
   `app_settings.site_name`), KPI cards, a needs-attention list, a recent-activity
   table.
 - Users: the `/admin/users` list (client-side search/filter/sort/paginate,
-  create dialog) and the `/admin/users/$userId` detail page (account actions,
+  create dialog, multi-select with bulk Move to trash) and the
+  `/admin/users/$userId` detail page (account actions incl. Move to trash,
   stats, enrollments with manual enroll/revoke, per-course progress, badges,
   manual XP award). There is no separate Students page.
-- Courses: the `/admin/courses` list (archive only in the UI today) and the
-  Course Builder (`/admin/courses/new`, `/admin/courses/$courseId/edit`; Basics
-  and Curriculum tabs) with topics, lessons and quiz questions, drag-and-drop
-  reordering including cross-topic lesson moves, and YouTube/Vimeo embed links.
-- Games: the `/admin/games` list plus `GameDialog` (its Delete action is
-  currently a no-op — see In flight).
+- Courses: the `/admin/courses` list (archive and Move to trash, multi-select)
+  and the Course Builder (`/admin/courses/new`, `/admin/courses/$courseId/edit`;
+  Basics and Curriculum tabs) with topics, lessons and quiz questions,
+  drag-and-drop reordering including cross-topic lesson moves, checkboxes and
+  bulk Move to trash on topics and lessons, and YouTube/Vimeo embed links.
+- Games: the `/admin/games` list (Move to trash, multi-select) plus
+  `GameDialog`.
 - Orders and payments: `/admin/orders` — KPI cards, filters, Add order (a
   manual payment plus its enrollment, via `fn_create_manual_order`), CSV export
-  and import, bulk selection, Active/Trash views, permanent delete of trashed
-  rows.
+  and import, bulk selection (the shared kit), Active/Trash views, permanent
+  delete of trashed rows (payments' own older Trash, unchanged).
 - Settings: `/admin/settings` — Commerce (manual-order providers, currencies,
   default-currency picker), Gamification (quiz pass threshold), Site Identity.
-- Gamification: `/admin/gamification` — badge CRUD and the editable level curve
-  (`level_thresholds`).
+- Gamification: `/admin/gamification` — badge CRUD (Move to trash,
+  multi-select) and the editable level curve (`level_thresholds`).
+- Trash: `/admin/trash` — six tabs (courses, modules, lessons, games, badges,
+  users), each a full table with Restore, Delete permanently and Empty trash, per
+  item and in bulk; restore blocked under a trashed parent; permanent delete
+  typed-`DELETE` with a readable reason for anything that can't be deleted. The
+  sidebar shows the total count. Every "delete" elsewhere is "Move to trash"
+  with an Undo toast (users get one lightweight confirm), and every list table
+  uses the shared multi-select kit.
 
 **Backend:**
 - Schema through migration 013 (`schema.md`), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
   false`), and an admin-editable level curve.
-- Trash-first deletion, database and Edge Function layer (migration 013): soft
-  delete on courses, modules, lessons, games, badges and profiles, hidden
-  through parents, RLS-enforced permanent delete, counters and XP/badge
-  functions that skip trashed content, and the module / course-blocker /
-  restore-blocker RPCs. Verified with role-switched queries and against the
-  deployed function (`changelog.md`). No UI uses any of it yet.
+- Trash-first deletion (migrations 013 and 014, the Edge Function's `trash` /
+  `restore` / `delete`, and the UI above): soft delete on courses, modules,
+  lessons, games, badges and profiles, hidden through parents, RLS-enforced
+  permanent delete, counters and XP/badge functions that skip trashed content,
+  and every own-row policy gated so a trashed user's old token stops working.
+  Verified with role-switched queries, against the deployed function and by
+  driving the real UI (`changelog.md`).
 - Edge Function `admin-user-management` — deployed, version 2, ACTIVE,
   `verify_jwt: true`, with `trash` and `restore` and a stricter `delete`.
   `trash`, `restore` and `delete` have been exercised end to end; `create`,
@@ -82,28 +92,14 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Rich-text editing** for a lesson's `content_html` (a raw HTML textarea
   today) — a separate dependency decision.
 - **Analytics.** `analytics.md` deliberately doesn't exist until this starts.
-- **The trash-first UI** — `/admin/trash` (per-entity tabs, restore, permanent
-  delete with a typed-`DELETE` confirm, empty trash), "Move to trash" with an
-  Undo toast on every list, a shared multi-select and bulk-action bar on every
-  admin table (only `/admin/orders` has selection today), and a Users CSV
-  export/import (with a `bulk_create` Edge Function action). Phases 3–5 of the
-  trash-first task.
+- **Users CSV export and import** (with a `bulk_create` Edge Function action) —
+  Phase 4 of the trash-first task.
 
 ## In flight
 
-**Trash-first deletion, Phase 2 of 5 done (database + Edge Function); the UI
-phases are outstanding.** Until Phase 3 replaces them, these admin actions
-still issue a plain `DELETE`, which migration 013's RLS only allows on a
-trashed row:
-- **Delete topic, Delete lesson (Course Builder), Delete game, Delete badge:**
-  the `DELETE` matches zero rows and returns no error, so the UI shows its
-  success toast while **nothing is removed**. (`useCurriculum.ts`,
-  `useGames.ts`, `useBadges.ts` check only `error`.)
-- **Delete user (list and detail):** the Edge Function now refuses a user who
-  isn't trashed (`not_trashed`), so the dialog shows an error instead of
-  deleting; there is no UI yet to trash a user.
-Quiz-question delete, provider/currency delete and payment trash/delete are
-unaffected. Courses were never deletable from the UI.
+Trash-first deletion is done through Phase 3 (database, Edge Function, shared
+multi-select, trash actions on every list, the Trash page). Phase 4 (Users CSV
+export/import) and Phase 5 (full verification pass and docs) are not started.
 
 ## Live data reality
 
@@ -133,10 +129,8 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). The UI and the Edge Function both
    refuse it; a direct `service_role`/dashboard delete or an `auth.users`
    cascade still isn't stopped.
-3. Trash-first deletion Phase 3 (shared multi-select and bulk-action bar, the
-   Trash page, Undo toasts, and replacing the broken Delete actions listed
-   under In flight), then Phase 4 (Users CSV export/import), then Phase 5 (full
-   verification and docs).
+3. Trash-first deletion Phase 4 (Users CSV export/import), then Phase 5 (full
+   verification pass and docs).
 4. Quiz grading is the next real gamification gap (see Designed but not built).
 
 ## Open decisions & on the horizon
@@ -144,29 +138,35 @@ None.
 Each of these needs a product call or a deliberate follow-on; none is being
 worked on.
 
-- **A trashed user's still-valid access token keeps working on self-only
-  tables.** Trashing bans the login, revokes sessions and cuts off the user's
-  `profiles` row, admin powers, and all content visibility — but the access
-  token already issued stays valid until it expires (default one hour, not
-  verified for this project), and policies that are only "own rows"
-  (`enrollments`, `lesson_progress`, `payments`, `xp_transactions`,
-  `quiz_attempts` selects; `lesson_progress` insert/update) are not gated on
-  trashed status. Observed 2026-09-19: an old token could still read its own
-  enrollments and update its own `lesson_progress` row. Closing it means adding
-  `not fn_user_is_trashed(auth.uid())` to those policies; not done, since it
-  goes beyond the approved migration 013.
 - **The last-admin guard is unreachable in normal use.** The caller must be a
   non-trashed admin different from the target, so at least two non-trashed
   admins always exist; the guard only fires on a race between two admins
   trashing each other. It is implemented and defense-in-depth, but has not
   been exercised.
-- **The Supabase security advisor now flags five more `SECURITY DEFINER`
-  functions as executable by `anon`/`authenticated`** — the three RLS helpers
-  (`fn_user_is_trashed`, `fn_course_is_live`, `fn_lesson_is_live`, which must
-  stay executable because policies run them as the caller) and the two new
-  trigger functions (`fn_module_trash_lesson_count`,
-  `fn_profile_trash_student_count`, which could have `EXECUTE` revoked). Ten
-  older functions are flagged the same way.
+- **Security-advisor follow-up (not done).** The advisor flags 13
+  `SECURITY DEFINER` functions as executable by `anon` and `authenticated`.
+  Three are the RLS helpers (`fn_user_is_trashed`, `fn_course_is_live`,
+  `fn_lesson_is_live`) and must stay executable, because policies run them as
+  the caller. The other ten predate the trash work and were left alone on
+  purpose: `fn_award_lesson_xp`, `fn_evaluate_badges`, `fn_handle_new_user`,
+  `fn_is_admin`, `fn_prevent_role_change`, `fn_process_xp_transaction`,
+  `fn_update_course_lesson_count`, `fn_update_course_student_count`,
+  `fn_update_lessons_completed` and `rls_auto_enable`. Most are trigger
+  functions that could have `EXECUTE` revoked; `fn_evaluate_badges(uuid)` is a
+  directly callable function any signed-in user can invoke for any user id.
+  Also flagged: three functions with a mutable `search_path` (`fn_set_updated_at`,
+  `fn_compute_level`, `fn_create_manual_order`) and leaked-password protection
+  being off.
+- **Payments' Trash view still says "permanently" / "can't be undone" outside
+  `/admin/trash`.** `/admin/orders` keeps its own older Active/Trash split with
+  a "Delete Permanently" action (migration 009, built before trash-first). The
+  rule for the six trash-first entities is that only `/admin/trash` deletes;
+  payments are outside that set and were left untouched, but they contradict a
+  strict reading of it. Options: leave, or add a Payments tab to `/admin/trash`.
+- **Config-list rows still have a "Delete" action** — currencies, manual-order
+  providers, level thresholds and quiz questions hard-delete from their own
+  screens with their own confirm. They are not trash-first entities (no
+  `deleted_at`), so they were not converted; say so if they should be.
 - **What `courses.gamification_enabled = false` should mean.** It gates lesson
   XP only. `fn_update_lessons_completed` — the `lessons_completed` counter bump
   and the badge evaluation it runs — ignores it, so a gamification-off course

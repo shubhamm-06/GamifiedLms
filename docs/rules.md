@@ -38,7 +38,7 @@ belongs in `context.md` or `state.md`, not here.
   (`Deno.env.get(...)` in Edge Functions) only.
 - **Manual enrollment and manual XP-award writes go straight through admin
   RLS from the client — no Edge Function, unlike account actions
-  (create/update-email/update-password/delete), which require
+  (create/update-email/update-password/trash/restore/delete), which require
   `service_role` and therefore must go through `admin-user-management`.**
   The distinction is what the write needs: creating an `auth.users` row or
   changing someone's login credentials needs privileges only `service_role`
@@ -256,6 +256,31 @@ belongs in `context.md` or `state.md`, not here.
   definition. A new function that awards XP or counts learners must use
   `fn_lesson_is_live` / `fn_user_is_trashed` (or the same predicates), not a
   narrower one of its own.
+- **Every admin list table uses the shared multi-select kit
+  (`components/admin/selection/`) — no table ships without it.** That is the
+  leading checkbox column, a header checkbox scoped to the current page (with
+  an indeterminate state), "Select all N matching" for the whole filtered set,
+  selection that persists across pagination and clears when the search or a
+  filter changes, and a sticky `BulkActionBar` ("N selected", Clear, the
+  page's context actions). Selection is keyed by the real row id (`getRowId`),
+  never the index. Payments/orders get selection with their existing actions
+  and no new delete. Bulk actions run per item and report partial failures
+  ("8 moved, 2 failed" with reasons); one failure must never abort the rest.
+  In the course editor the drag handle stays a separate element from the
+  checkbox, and reorder stays zero-animation.
+- **A soft-delete, restore or other RLS-filterable write must confirm its
+  affected row count — request `.select('id')` and treat a count other than the
+  number requested as a failure, never as success.** RLS filters a write the
+  caller may not make (or a row already in the target state) to zero rows and
+  returns NO error, so a hook that only checks `error` reports success for
+  something that never happened — which is exactly how the old Delete buttons
+  behaved once migration 013 made deletes trash-only. `lib/trash.ts` and
+  `lib/permanentDelete.ts` do this per item.
+- **Only `lib/permanentDelete.ts`, imported only by the Trash page, may call
+  `.delete()` on a trash-first table or invoke the Edge Function's `delete`
+  action.** Every other delete path in the admin UI is `lib/trash.ts`
+  (a soft delete). A new "Delete" button on a course, module, lesson, game,
+  badge or user is a bug — it must be "Move to trash".
 - **KNOWN LIMITATION — the database still accepts an admin-created order for
   a trashed course.** `fn_create_manual_order` (payment logic, deliberately
   untouched by migration 013) does not check `courses.deleted_at`; only the
