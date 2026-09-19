@@ -13,6 +13,23 @@ interface EdgeSuccess {
 interface EdgeFailure {
   success: false
   error: string
+  /** Machine-readable reason for the removal actions (trash/restore/delete). */
+  code?: string
+  /** For `has_history`: the blocking row counts, keyed `table.column`. */
+  blockers?: Record<string, number>
+}
+
+/** An admin action the server refused, with the reason it gave. */
+export class AdminActionError extends Error {
+  code?: string
+  blockers?: Record<string, number>
+
+  constructor(message: string, code?: string, blockers?: Record<string, number>) {
+    super(message)
+    this.name = 'AdminActionError'
+    this.code = code
+    this.blockers = blockers
+  }
 }
 
 type EdgeResponse = EdgeSuccess | EdgeFailure
@@ -36,7 +53,7 @@ interface CreateUserInput {
  * user as that same meaningless string.
  */
 async function invokeAdminAction(
-  action: 'create' | 'update_email' | 'update_password' | 'delete',
+  action: 'create' | 'update_email' | 'update_password' | 'trash' | 'restore' | 'delete',
   payload: Record<string, unknown>,
 ): Promise<EdgeSuccess> {
   const { data, error } = await supabase.functions.invoke<EdgeResponse>(FUNCTION_NAME, {
@@ -47,7 +64,7 @@ async function invokeAdminAction(
     if (error instanceof FunctionsHttpError) {
       try {
         const body = (await error.context.json()) as EdgeFailure
-        if (body?.error) throw new Error(body.error)
+        if (body?.error) throw new AdminActionError(body.error, body.code, body.blockers)
       } catch (parseError) {
         // A thrown Error here is the one above, and should propagate.
         if (parseError instanceof Error && parseError.message) throw parseError
@@ -57,7 +74,12 @@ async function invokeAdminAction(
   }
 
   if (!data || data.success === false) {
-    throw new Error((data as EdgeFailure)?.error ?? 'The request failed.')
+    const failure = data as EdgeFailure | null
+    throw new AdminActionError(
+      failure?.error ?? 'The request failed.',
+      failure?.code,
+      failure?.blockers,
+    )
   }
 
   return data
@@ -75,6 +97,20 @@ export function updateUserPassword(userId: string, newPassword: string) {
   return invokeAdminAction('update_password', { userId, newPassword })
 }
 
+/** Move a user to the trash: flags the profile, bans the login, revokes sessions. */
+export function trashUser(userId: string) {
+  return invokeAdminAction('trash', { userId })
+}
+
+/** Undo a trash: lifts the ban and clears the flags. */
+export function restoreUser(userId: string) {
+  return invokeAdminAction('restore', { userId })
+}
+
+/**
+ * Permanent delete. The server only allows it for a user already in the
+ * trash who has no activity history.
+ */
 export function deleteUser(userId: string) {
   return invokeAdminAction('delete', { userId })
 }

@@ -2,21 +2,28 @@
 // admin-user-management — privileged user administration
 //
 // Every action here needs the service_role key (creating auth users,
-// changing someone else's email/password, deleting accounts), so it
-// cannot live in the browser. The caller's admin role is re-checked
+// changing someone else's email/password, banning/deleting accounts), so
+// it cannot live in the browser. The caller's admin role is re-checked
 // server-side on every request before any payload is touched — the
 // client-side guard and disabled buttons are UX, this is enforcement.
+//
+// Removing a user is two-step (migration 013): `trash` (flag the profile,
+// ban the auth user, revoke sessions) then, only for a user already in the
+// trash, `delete`. `restore` undoes a trash.
 // =====================================================================
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-// The bootstrap admin. Deleting it would lock everyone out of the admin
-// section with no way back in, so it is refused here as well as hidden
-// in the UI. See PROJECT_CONTEXT.md — there is still no DB-level guard,
-// so a direct service_role/dashboard delete can bypass this.
+// The bootstrap admin. Trashing or deleting it would lock everyone out of
+// the admin section with no way back in, so it is refused here as well as
+// hidden in the UI. There is still no DB-level guard (see docs/state.md),
+// so a direct service_role/dashboard change can bypass this.
 const PRIMARY_ADMIN_ID = '91392b37-91f1-4975-afda-e4c238c4d821'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MIN_PASSWORD_LENGTH = 8
+
+// ~100 years. GoTrue takes a Go duration string; 'none' lifts a ban.
+const BAN_DURATION = '876000h'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -24,7 +31,20 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type Action = 'create' | 'update_email' | 'update_password' | 'delete'
+type Action = 'create' | 'update_email' | 'update_password' | 'trash' | 'restore' | 'delete'
+
+/**
+ * Machine-readable failure codes the client can branch on (the human
+ * message is in `error`). Only the removal actions use them.
+ */
+type ErrorCode =
+  | 'not_found'
+  | 'self_target'
+  | 'primary_admin'
+  | 'last_admin'
+  | 'already_trashed'
+  | 'not_trashed'
+  | 'has_history'
 
 function json(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -33,8 +53,13 @@ function json(body: Record<string, unknown>, status = 200): Response {
   })
 }
 
-function fail(error: string, status: number): Response {
-  return json({ success: false, error }, status)
+function fail(
+  error: string,
+  status: number,
+  code?: ErrorCode,
+  extra?: Record<string, unknown>,
+): Response {
+  return json({ success: false, error, ...(code ? { code } : {}), ...(extra ?? {}) }, status)
 }
 
 /**
@@ -62,6 +87,37 @@ function safeError(context: string, err: unknown): string {
   }
   return 'Something went wrong. Please try again.'
 }
+
+// Every table with a row that references a profile and would make the
+// auth.users -> profiles cascade fail (all NO ACTION). deleted_by is
+// ON DELETE SET NULL and deliberately not here.
+const HISTORY_CHECKS: {
+  table: string
+  column: string
+  singular: string
+  plural: string
+}[] = [
+  { table: 'enrollments', column: 'user_id', singular: 'enrollment', plural: 'enrollments' },
+  { table: 'payments', column: 'user_id', singular: 'payment', plural: 'payments' },
+  {
+    table: 'lesson_progress',
+    column: 'user_id',
+    singular: 'lesson progress record',
+    plural: 'lesson progress records',
+  },
+  { table: 'quiz_attempts', column: 'user_id', singular: 'quiz attempt', plural: 'quiz attempts' },
+  {
+    table: 'xp_transactions',
+    column: 'user_id',
+    singular: 'XP transaction',
+    plural: 'XP transactions',
+  },
+  { table: 'user_stats', column: 'user_id', singular: 'stats record', plural: 'stats records' },
+  { table: 'user_badges', column: 'user_id', singular: 'earned badge', plural: 'earned badges' },
+  { table: 'courses', column: 'created_by', singular: 'course created', plural: 'courses created' },
+  { table: 'games', column: 'created_by', singular: 'game created', plural: 'games created' },
+  { table: 'badges', column: 'created_by', singular: 'badge created', plural: 'badges created' },
+]
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -101,17 +157,20 @@ Deno.serve(async (req: Request) => {
     console.error('[admin-user-management] caller token rejected:', callerError)
     return fail('Forbidden', 403)
   }
+  const callerId = callerData.user.id
 
+  // A trashed admin keeps a valid access token until it expires, so being
+  // an admin is not enough: the caller must also not be trashed.
   const { data: callerProfile, error: profileError } = await admin
     .from('profiles')
-    .select('role')
-    .eq('id', callerData.user.id)
+    .select('role, deleted_at')
+    .eq('id', callerId)
     .single()
 
-  if (profileError || callerProfile?.role !== 'admin') {
+  if (profileError || callerProfile?.role !== 'admin' || callerProfile?.deleted_at) {
     console.error(
-      `[admin-user-management] non-admin caller ${callerData.user.id}:`,
-      profileError ?? callerProfile?.role,
+      `[admin-user-management] non-admin or trashed caller ${callerId}:`,
+      profileError ?? callerProfile,
     )
     return fail('Forbidden', 403)
   }
@@ -127,6 +186,44 @@ Deno.serve(async (req: Request) => {
     payload = body?.payload ?? {}
   } catch {
     return fail('Invalid request body', 400)
+  }
+
+  // Shared by trash / restore / delete: load the target profile.
+  type Target = { id: string; role: string; deleted_at: string | null }
+  async function loadTarget(userId: string): Promise<Target | Response> {
+    const { data, error } = await admin
+      .from('profiles')
+      .select('id, role, deleted_at')
+      .eq('id', userId)
+      .maybeSingle()
+    if (error) return fail(safeError('load target profile', error), 500)
+    if (!data) return fail('User not found', 404, 'not_found')
+    return data as Target
+  }
+
+  // Guards for taking a user out of circulation (trash AND delete). Order
+  // matters only for which message wins: self, then primary, then last.
+  async function removalGuards(target: Target): Promise<Response | null> {
+    if (target.id === callerId) {
+      return fail('You cannot do this to your own account', 400, 'self_target')
+    }
+    if (target.id === PRIMARY_ADMIN_ID) {
+      return fail('The primary admin account cannot be trashed or deleted', 400, 'primary_admin')
+    }
+    if (target.role === 'admin') {
+      // Would this leave no other non-trashed admin?
+      const { count, error } = await admin
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'admin')
+        .is('deleted_at', null)
+        .neq('id', target.id)
+      if (error) return fail(safeError('count remaining admins', error), 500)
+      if ((count ?? 0) === 0) {
+        return fail('The last remaining admin cannot be trashed or deleted', 400, 'last_admin')
+      }
+    }
+    return null
   }
 
   try {
@@ -230,12 +327,132 @@ Deno.serve(async (req: Request) => {
       }
 
       // -----------------------------------------------------------
+      // Move a user to the trash: flag the profile, ban the auth user so
+      // they cannot sign in or refresh a token, and revoke live sessions.
+      case 'trash': {
+        const userId = String(payload.userId ?? '')
+        if (!userId) return fail('User id is required', 400)
+
+        const target = await loadTarget(userId)
+        if (target instanceof Response) return target
+        if (target.deleted_at) return fail('This user is already in the trash', 409, 'already_trashed')
+
+        const blocked = await removalGuards(target)
+        if (blocked) return blocked
+
+        // 1. Flag the profile. deleted_by is the VERIFIED caller from the
+        //    JWT, never a client-supplied value; the DB guard trigger only
+        //    lets service_role write these two columns.
+        const { data: flagged, error: flagError } = await admin
+          .from('profiles')
+          .update({ deleted_at: new Date().toISOString(), deleted_by: callerId })
+          .eq('id', userId)
+          .is('deleted_at', null)
+          .select('id')
+        if (flagError) return fail(safeError('flag profile trashed', flagError), 500)
+        if (!flagged || flagged.length === 0) {
+          return fail('This user is already in the trash', 409, 'already_trashed')
+        }
+
+        // 2. Ban. If it fails, roll the flag back so the two never disagree.
+        const { error: banError } = await admin.auth.admin.updateUserById(userId, {
+          ban_duration: BAN_DURATION,
+        })
+        if (banError) {
+          const { error: rollbackError } = await admin
+            .from('profiles')
+            .update({ deleted_at: null, deleted_by: null })
+            .eq('id', userId)
+          if (rollbackError) console.error('[admin-user-management] trash rollback failed:', rollbackError)
+          return fail(`${safeError('ban user', banError)} The user was not moved to the trash.`, 500)
+        }
+
+        // 3. Revoke sessions. A banned user cannot refresh, and RLS already
+        //    cuts a trashed user off, so a failure here is reported but does
+        //    not undo the trash.
+        const { error: revokeError } = await admin.rpc('fn_revoke_user_sessions', {
+          p_user_id: userId,
+        })
+        if (revokeError) console.error('[admin-user-management] revoke sessions failed:', revokeError)
+
+        return json({ success: true, user: { id: userId }, sessionsRevoked: !revokeError })
+      }
+
+      // -----------------------------------------------------------
+      case 'restore': {
+        const userId = String(payload.userId ?? '')
+        if (!userId) return fail('User id is required', 400)
+
+        const target = await loadTarget(userId)
+        if (target instanceof Response) return target
+        if (!target.deleted_at) return fail('This user is not in the trash', 409, 'not_trashed')
+
+        // Unban first: if it fails nothing has changed. If clearing the
+        // flags then fails, re-ban so the user is not half-restored.
+        const { error: unbanError } = await admin.auth.admin.updateUserById(userId, {
+          ban_duration: 'none',
+        })
+        if (unbanError) return fail(safeError('unban user', unbanError), 500)
+
+        const { error: clearError } = await admin
+          .from('profiles')
+          .update({ deleted_at: null, deleted_by: null })
+          .eq('id', userId)
+        if (clearError) {
+          await admin.auth.admin.updateUserById(userId, { ban_duration: BAN_DURATION })
+          return fail(`${safeError('clear trash flags', clearError)} The user is still in the trash.`, 500)
+        }
+
+        return json({ success: true, user: { id: userId } })
+      }
+
+      // -----------------------------------------------------------
+      // Permanent delete: only for a user already in the trash, and only
+      // if nothing references them (the FKs are NO ACTION, so the cascade
+      // from auth.users would fail on the first child row).
       case 'delete': {
         const userId = String(payload.userId ?? '')
-
         if (!userId) return fail('User id is required', 400)
-        if (userId === PRIMARY_ADMIN_ID) {
-          return fail('Cannot delete the primary admin account', 400)
+
+        const target = await loadTarget(userId)
+        if (target instanceof Response) return target
+
+        const blocked = await removalGuards(target)
+        if (blocked) return blocked
+
+        if (!target.deleted_at) {
+          return fail(
+            'Move this user to the trash before deleting them permanently',
+            409,
+            'not_trashed',
+          )
+        }
+
+        const counts = await Promise.all(
+          HISTORY_CHECKS.map(async (check) => {
+            const { count, error } = await admin
+              .from(check.table)
+              .select('*', { count: 'exact', head: true })
+              .eq(check.column, userId)
+            if (error) throw error
+            return { check, count: count ?? 0 }
+          }),
+        )
+        const blockers = counts.filter((c) => c.count > 0)
+        if (blockers.length > 0) {
+          const summary = blockers
+            .map((b) => `${b.count} ${b.count === 1 ? b.check.singular : b.check.plural}`)
+            .join(', ')
+          return fail(
+            `This user can't be permanently deleted because they have activity history (${summary}). Keep them in the trash.`,
+            409,
+            'has_history',
+            {
+              blockers: Object.fromEntries(
+                blockers.map((b) => [`${b.check.table}.${b.check.column}`, b.count]),
+              ),
+            },
+          )
         }
 
         // Cascades to public.profiles via profiles_id_fkey ON DELETE CASCADE.
