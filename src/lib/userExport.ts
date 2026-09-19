@@ -1,4 +1,4 @@
-import { download, toCsv, type CsvColumn } from '@/lib/csv'
+import { download, localDateStamp, toCsv, type CsvColumn } from '@/lib/csv'
 import { fetchUsers, matchesUserFilter, type AdminUserRow, type RoleFilter } from '@/hooks/admin/useUsers'
 
 /**
@@ -32,8 +32,7 @@ export interface UserExportSource {
 
 /** `wisdom-hatch-users-YYYY-MM-DD.csv`, dated in the admin's own timezone. */
 export function userExportFilename(now = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `wisdom-hatch-users-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.csv`
+  return `wisdom-hatch-users-${localDateStamp(now)}.csv`
 }
 
 /**

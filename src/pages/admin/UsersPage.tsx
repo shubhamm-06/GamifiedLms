@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Download, Plus, Search } from 'lucide-react'
+import { Download, Plus, Search, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -19,6 +19,7 @@ import { UpdateEmailDialog } from '@/components/admin/users/UpdateEmailDialog'
 import { UpdatePasswordDialog } from '@/components/admin/users/UpdatePasswordDialog'
 import { UserTable } from '@/components/admin/users/UserTable'
 import { ExportUsersMenu } from '@/components/admin/users/ExportUsersMenu'
+import { ImportUsersDialog } from '@/components/admin/users/import/ImportUsersDialog'
 import { useUsers, type AdminUserRow, type RoleFilter } from '@/hooks/admin/useUsers'
 import { useUsersExport } from '@/hooks/admin/useUsersExport'
 import { adminSessionQueryOptions } from '@/lib/adminSession'
@@ -33,6 +34,7 @@ export function UsersPage() {
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
 
   const [createOpen, setCreateOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [activeDialog, setActiveDialog] = useState<DialogKind | null>(null)
   const [activeUser, setActiveUser] = useState<AdminUserRow | null>(null)
   // Who the move-to-trash confirm is about: one row, or the whole selection.
@@ -81,6 +83,10 @@ export function UsersPage() {
             isExporting={usersExport.isExporting}
             onExport={(scope, includeTrashed) => void usersExport.run(scope, includeTrashed)}
           />
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload />
+            Import
+          </Button>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus />
             Add user
@@ -146,6 +152,7 @@ export function UsersPage() {
       />
 
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <ImportUsersDialog open={importOpen} onOpenChange={setImportOpen} />
       <EditUserDialog user={activeUser} open={activeDialog === 'edit'} onOpenChange={closeDialog} />
       <UpdateEmailDialog
         user={activeUser}

@@ -60,6 +60,28 @@ export async function fetchUsers(scope: UserScope): Promise<AdminUserRow[]> {
 }
 
 /**
+ * Every account's email and whether it is trashed, keyed by lowercased email.
+ * The import preview uses it to spot rows whose email is already taken. It scans
+ * all profiles (paged) rather than querying `in (emails)`: an `in` list of a
+ * thousand addresses overflows the URL, and it would miss an account whose
+ * stored email differs in case.
+ */
+export async function fetchAccountStates(): Promise<Map<string, 'active' | 'trashed'>> {
+  const states = new Map<string, 'active' | 'trashed'>()
+  for (let from = 0; ; from += BATCH_SIZE) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('email, deleted_at')
+      .order('id')
+      .range(from, from + BATCH_SIZE - 1)
+    if (error) throw error
+    const page = data ?? []
+    for (const p of page) states.set(p.email.toLowerCase(), p.deleted_at ? 'trashed' : 'active')
+    if (page.length < BATCH_SIZE) return states
+  }
+}
+
+/**
  * The list table's own search + role filter as a plain function, for callers
  * that need the same result outside the table (the export adds trashed users,
  * which the table never holds). Mirrors the table: a case-insensitive substring

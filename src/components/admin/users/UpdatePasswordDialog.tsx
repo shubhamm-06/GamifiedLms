@@ -12,8 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUpdatePassword } from '@/hooks/admin/useUserMutations'
 import type { AdminUserRow } from '@/hooks/admin/useUsers'
-
-const MIN_PASSWORD_LENGTH = 8
+import { MIN_PASSWORD_LENGTH } from '@/lib/adminConstants'
 
 interface FieldErrors {
   newPassword?: string

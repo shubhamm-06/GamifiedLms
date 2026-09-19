@@ -10,6 +10,34 @@ interface EdgeSuccess {
   user?: { id: string; email: string | null }
 }
 
+export type BulkRowStatus = 'created' | 'skipped_exists' | 'skipped_trashed' | 'failed'
+
+/** One row's outcome from `bulk_create`. `index` is the row's position in the request. */
+export interface BulkRowResult {
+  index: number
+  email: string
+  status: BulkRowStatus
+  /** Machine-readable reason for a `failed` row. */
+  code?: string
+  reason?: string
+  /** Present only when the server generated the password. Never log or persist it. */
+  generated_password?: string
+  /** The account exists but its phone number could not be saved. */
+  warning?: 'phone_not_saved'
+}
+
+export interface BulkCreateInputRow {
+  display_name: string
+  email: string
+  phone_number: string
+  /** Blank = the server generates one. */
+  password: string
+}
+
+interface BulkCreateSuccess extends EdgeSuccess {
+  results: BulkRowResult[]
+}
+
 interface EdgeFailure {
   success: false
   error: string
@@ -23,12 +51,23 @@ interface EdgeFailure {
 export class AdminActionError extends Error {
   code?: string
   blockers?: Record<string, number>
+  /** HTTP status when the refusal came from a non-2xx response. */
+  status?: number
 
-  constructor(message: string, code?: string, blockers?: Record<string, number>) {
+  constructor(message: string, code?: string, blockers?: Record<string, number>, status?: number) {
     super(message)
     this.name = 'AdminActionError'
     this.code = code
     this.blockers = blockers
+    this.status = status
+  }
+}
+
+/** The request never got a usable answer (offline, dropped connection, relay failure). */
+export class AdminNetworkError extends Error {
+  constructor() {
+    super('Could not reach the server. Please try again.')
+    this.name = 'AdminNetworkError'
   }
 }
 
@@ -53,24 +92,31 @@ interface CreateUserInput {
  * user as that same meaningless string.
  */
 async function invokeAdminAction(
-  action: 'create' | 'update_email' | 'update_password' | 'trash' | 'restore' | 'delete',
+  action: 'create' | 'bulk_create' | 'update_email' | 'update_password' | 'trash' | 'restore' | 'delete',
   payload: Record<string, unknown>,
+  options?: { timeoutMs?: number },
 ): Promise<EdgeSuccess> {
   const { data, error } = await supabase.functions.invoke<EdgeResponse>(FUNCTION_NAME, {
     body: { action, payload },
+    // An aborted request surfaces below as a network error, not a hang.
+    timeout: options?.timeoutMs,
   })
 
   if (error) {
     if (error instanceof FunctionsHttpError) {
+      const status = error.context.status
       try {
         const body = (await error.context.json()) as EdgeFailure
-        if (body?.error) throw new AdminActionError(body.error, body.code, body.blockers)
+        if (body?.error) throw new AdminActionError(body.error, body.code, body.blockers, status)
       } catch (parseError) {
-        // A thrown Error here is the one above, and should propagate.
-        if (parseError instanceof Error && parseError.message) throw parseError
+        // Only the AdminActionError thrown above should propagate; an unreadable
+        // body (a gateway HTML page, say) falls through to the status-only error.
+        if (parseError instanceof AdminActionError) throw parseError
       }
+      // A non-2xx with no readable body (a gateway 429/502/504, say): keep the status.
+      throw new AdminActionError('The request failed.', undefined, undefined, status)
     }
-    throw new Error('Could not reach the server. Please try again.')
+    throw new AdminNetworkError()
   }
 
   if (!data || data.success === false) {
@@ -87,6 +133,18 @@ async function invokeAdminAction(
 
 export function createUser(input: CreateUserInput) {
   return invokeAdminAction('create', { ...input })
+}
+
+/**
+ * Creates up to 25 student accounts and returns one result per row. The result
+ * can carry generated passwords, so callers must keep it in memory only — never
+ * log it, put it in a toast or an error message, or write it to a cache.
+ */
+export async function bulkCreateUsers(rows: BulkCreateInputRow[]): Promise<BulkRowResult[]> {
+  // 25 accounts take roughly 5–15 s; a minute without an answer means the
+  // response is lost, and the import runner then retries the chunk.
+  const data = (await invokeAdminAction('bulk_create', { rows }, { timeoutMs: 60_000 })) as BulkCreateSuccess
+  return data.results
 }
 
 export function updateUserEmail(userId: string, newEmail: string) {

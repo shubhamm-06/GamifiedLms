@@ -74,6 +74,12 @@ export function download(filename: string, csv: string): void {
   URL.revokeObjectURL(url)
 }
 
+/** `YYYY-MM-DD` in the user's own timezone, for file names. */
+export function localDateStamp(now = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
+
 export interface ParsedCsvTable {
   /** First non-empty row, raw (untrimmed, original case). */
   header: string[]

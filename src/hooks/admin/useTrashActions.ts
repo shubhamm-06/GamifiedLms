@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { invalidateAdminData } from '@/lib/queryClient'
 import {
   RESTORE_RANK,
   restoreItems,
@@ -43,10 +44,7 @@ export function useTrashActions() {
   const [pendingCount, setPendingCount] = useState(0)
 
   function refresh() {
-    // Everything under ['admin'] except the session, which a trash never changes.
-    return queryClient.invalidateQueries({
-      predicate: (q) => q.queryKey[0] === 'admin' && q.queryKey[1] !== 'session',
-    })
+    return invalidateAdminData(queryClient)
   }
 
   async function track<T>(work: () => Promise<T>): Promise<T> {
