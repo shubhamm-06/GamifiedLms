@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Download, Plus, Upload } from 'lucide-react'
-import type { RowSelectionState } from '@tanstack/table-core'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -12,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useTableSelection } from '@/components/admin/selection/useTableSelection'
 import { AddOrderDialog } from '@/components/admin/orders/AddOrderDialog'
 import { BulkReconciliationDialog } from '@/components/admin/orders/BulkReconciliationDialog'
 import { BulkTrashDialog } from '@/components/admin/orders/BulkTrashDialog'
@@ -93,7 +93,6 @@ export function OrdersPage() {
   const [viewTarget, setViewTarget] = useState<PaymentRow | null>(null)
   const [addOrderOpen, setAddOrderOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [bulkAction, setBulkAction] = useState<'resolved' | 'unresolved' | null>(null)
   const [trashDialog, setTrashDialog] = useState<{ action: 'trash' | 'delete'; ids: string[] } | null>(
     null,
@@ -107,13 +106,17 @@ export function OrdersPage() {
   const activePayments = payments.filter((p) => p.deleted_at === null)
   const trashedPayments = payments.filter((p) => p.deleted_at !== null)
   const viewPayments = view === 'trash' ? trashedPayments : activePayments
+  // Shared selection kit. Active and Trash are disjoint row sets, so a
+  // selection made in one means nothing in the other — `view` is a reset key
+  // alongside the two filters.
+  const selection = useTableSelection([view, statusFilter, reconciliationFilter])
   const filteredForExport = filterPaymentsForExport(viewPayments, statusFilter, reconciliationFilter)
 
   // `rowSelection`'s keys are payment ids directly — `OrderTable` is wired
   // with `getRowId: (payment) => payment.id`, so no need to reach into the
   // table instance to turn a selection back into real rows here.
-  const selectedIds = Object.keys(rowSelection)
-  const selectedPayments = viewPayments.filter((p) => rowSelection[p.id])
+  const selectedIds = selection.selectedIds
+  const selectedPayments = viewPayments.filter((p) => selection.rowSelection[p.id])
 
   // Selection is independent state that doesn't clean itself up when the
   // rows it points at disappear from view (trashed, restored, or actually
@@ -121,13 +124,7 @@ export function OrdersPage() {
   // blanket clear, since this same handler backs both a bulk action
   // (ids === the whole selection) and a single row's dropdown action (ids
   // is just that one row, which may not even be selected).
-  function removeFromSelection(ids: string[]) {
-    setRowSelection((prev) => {
-      const next = { ...prev }
-      for (const id of ids) delete next[id]
-      return next
-    })
-  }
+  const removeFromSelection = selection.removeIds
 
   const setTrashed = useSetPaymentsTrashed()
   function handleRestore(ids: string[]) {
@@ -139,7 +136,6 @@ export function OrdersPage() {
   // left to silently reference rows that are no longer even in the visible
   // list.
   function changeView(next: 'active' | 'trash') {
-    setRowSelection({})
     navigate({ to: '/admin/orders', search: { view: next }, replace: true })
   }
 
@@ -229,12 +225,20 @@ export function OrdersPage() {
         </Select>
       </div>
 
-      {selectedIds.length > 0 ? (
-        <div className="bg-muted/40 flex items-center gap-3 rounded-lg border px-3 py-2">
-          <span className="text-sm font-medium">
-            {selectedIds.length} selected
-          </span>
-          <div className="ml-auto flex gap-2">
+      <OrderTable
+        payments={viewPayments}
+        isPending={isPending}
+        isError={isError}
+        statusFilter={statusFilter}
+        reconciliationFilter={reconciliationFilter}
+        view={view}
+        onView={setViewTarget}
+        onTrash={(payment) => setTrashDialog({ action: 'trash', ids: [payment.id] })}
+        onRestore={(payment) => handleRestore([payment.id])}
+        onDeletePermanently={(payment) => setTrashDialog({ action: 'delete', ids: [payment.id] })}
+        selection={selection}
+        bulkActions={
+          <>
             {view === 'active' ? (
               <>
                 <Button size="sm" variant="outline" onClick={() => setBulkAction('unresolved')}>
@@ -273,23 +277,8 @@ export function OrdersPage() {
                 </Button>
               </>
             )}
-          </div>
-        </div>
-      ) : null}
-
-      <OrderTable
-        payments={viewPayments}
-        isPending={isPending}
-        isError={isError}
-        statusFilter={statusFilter}
-        reconciliationFilter={reconciliationFilter}
-        view={view}
-        onView={setViewTarget}
-        onTrash={(payment) => setTrashDialog({ action: 'trash', ids: [payment.id] })}
-        onRestore={(payment) => handleRestore([payment.id])}
-        onDeletePermanently={(payment) => setTrashDialog({ action: 'delete', ids: [payment.id] })}
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
+          </>
+        }
       />
 
       <OrderDetailDialog
@@ -303,7 +292,7 @@ export function OrdersPage() {
         ids={selectedIds}
         open={bulkAction !== null}
         onOpenChange={(open) => !open && setBulkAction(null)}
-        onSuccess={() => setRowSelection({})}
+        onSuccess={() => selection.clear()}
       />
 
       <BulkTrashDialog

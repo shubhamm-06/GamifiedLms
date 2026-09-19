@@ -1,30 +1,21 @@
 import { useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useTableSelection } from '@/components/admin/selection/useTableSelection'
 import { BadgeDialog } from '@/components/admin/gamification/BadgeDialog'
 import { BadgeTable } from '@/components/admin/gamification/BadgeTable'
 import {
   SLUG_TAKEN,
   useBadges,
   useCreateBadge,
-  useDeleteBadge,
   useSetBadgeActive,
   useUpdateBadge,
   type Badge,
   type BadgeFormValues,
 } from '@/hooks/admin/useBadges'
+import { useTrashActions } from '@/hooks/admin/useTrashActions'
 
 /**
  * A flat record, so a Dialog rather than a route — same convention as
@@ -38,13 +29,22 @@ export function BadgesSection() {
   // Distinguishes "create dialog open, no badge" from "dialog closed" — the
   // dialog's `badge` prop being null means create mode.
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [badgeToDelete, setBadgeToDelete] = useState<Badge | null>(null)
   const [slugError, setSlugError] = useState<string | null>(null)
 
   const createBadge = useCreateBadge()
   const updateBadge = useUpdateBadge()
   const setActive = useSetBadgeActive()
-  const deleteBadge = useDeleteBadge()
+  const { trash, isPending: trashPending } = useTrashActions()
+  const selection = useTableSelection([search])
+  const selectedBadges = (data ?? []).filter((b) => selection.rowSelection[b.id])
+
+  const toItem = (badge: Badge) => ({ id: badge.id, name: badge.name, slug: badge.slug })
+
+  // No confirm dialog: trashing is reversible, so the Undo toast is the safety net.
+  async function handleTrash(badges: Badge[]) {
+    const result = await trash([{ entity: 'badges', items: badges.map(toItem) }])
+    selection.removeIds(result.succeeded.map((item) => item.id))
+  }
 
   function openCreate() {
     setDialogTarget(null)
@@ -116,7 +116,18 @@ export function BadgesSection() {
         search={search}
         onEdit={openEdit}
         onToggleActive={(badge) => setActive.mutate({ id: badge.id, isActive: !badge.is_active })}
-        onDelete={setBadgeToDelete}
+        onTrash={(badge) => void handleTrash([badge])}
+        selection={selection}
+        bulkActions={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={trashPending}
+            onClick={() => void handleTrash(selectedBadges)}
+          >
+            Move to trash
+          </Button>
+        }
       />
 
       <BadgeDialog
@@ -127,37 +138,6 @@ export function BadgesSection() {
         slugError={slugError}
         onSubmit={handleSubmit}
       />
-
-      <AlertDialog open={!!badgeToDelete} onOpenChange={(open) => !open && setBadgeToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{badgeToDelete?.name}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This can&rsquo;t be undone. If any student has already unlocked this badge, the delete
-              will be refused instead — deactivate it to stop awarding it without touching anyone
-              who already has it.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleteBadge.isPending}
-              onClick={(e) => {
-                e.preventDefault()
-                if (badgeToDelete) {
-                  deleteBadge.mutate(badgeToDelete, {
-                    onSuccess: () => setBadgeToDelete(null),
-                    onError: () => setBadgeToDelete(null),
-                  })
-                }
-              }}
-            >
-              {deleteBadge.isPending ? 'Deleting…' : 'Delete badge'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </section>
   )
 }

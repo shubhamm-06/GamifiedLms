@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useTableSelection } from '@/components/admin/selection/useTableSelection'
 import { CourseTable } from '@/components/admin/courses/CourseTable'
 import {
   useCourseLifecycle,
@@ -17,6 +18,7 @@ import {
   type Course,
   type LifecycleAction,
 } from '@/hooks/admin/useCourses'
+import { useTrashActions } from '@/hooks/admin/useTrashActions'
 
 export function CoursesPage() {
   const navigate = useNavigate()
@@ -24,6 +26,21 @@ export function CoursesPage() {
   const [statusFilter, setStatusFilter] = useState('all')
   const { data, isPending, isError } = useCourses()
   const lifecycle = useCourseLifecycle()
+  const { trash, isPending: trashPending } = useTrashActions()
+  // A selection is only meaningful under the search/filter it was made in.
+  const selection = useTableSelection([search, statusFilter])
+  const selectedCourses = (data ?? []).filter((c) => selection.rowSelection[c.id])
+
+  // No confirm dialog: trashing is reversible, so the Undo toast is the safety net.
+  async function handleTrash(courses: Course[]) {
+    const result = await trash([
+      {
+        entity: 'courses',
+        items: courses.map((c) => ({ id: c.id, name: c.title, slug: c.slug })),
+      },
+    ])
+    selection.removeIds(result.succeeded.map((item) => item.id))
+  }
 
   function handleEdit(course: Course) {
     navigate({
@@ -85,6 +102,18 @@ export function CoursesPage() {
         statusFilter={statusFilter}
         onEdit={handleEdit}
         onLifecycle={handleLifecycle}
+        onTrash={(course) => void handleTrash([course])}
+        selection={selection}
+        bulkActions={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={trashPending}
+            onClick={() => void handleTrash(selectedCourses)}
+          >
+            Move to trash
+          </Button>
+        }
       />
     </div>
   )

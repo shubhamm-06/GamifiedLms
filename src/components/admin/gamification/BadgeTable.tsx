@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
@@ -8,6 +8,7 @@ import {
   createSortedRowModel,
   filterFn_includesString,
   rowPaginationFeature,
+  rowSelectionFeature,
   rowSortingFeature,
   sortFn_basic,
   sortFn_text,
@@ -31,6 +32,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import {
+  SelectPageCheckbox,
+  SelectRowCheckbox,
+} from '@/components/admin/selection/SelectionCheckboxes'
+import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
+import type { TableSelection } from '@/components/admin/selection/useTableSelection'
+import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import { CONDITION_TYPES, isConditionType, type Badge } from '@/hooks/admin/useBadges'
 
 /** Same TanStack Table v9 feature registration as `GameTable.tsx` — see `CourseTable.tsx`'s comment for why it looks this way. */
@@ -38,6 +46,7 @@ const badgesFeatures = tableFeatures({
   columnFilteringFeature,
   rowSortingFeature,
   rowPaginationFeature,
+  rowSelectionFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
   paginatedRowModel: createPaginatedRowModel(),
@@ -59,15 +68,24 @@ interface BadgeTableProps {
   search: string
   onEdit: (badge: Badge) => void
   onToggleActive: (badge: Badge) => void
-  onDelete: (badge: Badge) => void
+  /** Moves the badge to the trash straight away — Undo toast instead of a confirm. */
+  onTrash: (badge: Badge) => void
+  selection: TableSelection
+  bulkActions?: ReactNode
 }
 
 function buildColumns({
   onEdit,
   onToggleActive,
-  onDelete,
-}: Pick<BadgeTableProps, 'onEdit' | 'onToggleActive' | 'onDelete'>) {
+  onTrash,
+}: Pick<BadgeTableProps, 'onEdit' | 'onToggleActive' | 'onTrash'>) {
   return columnHelper.columns([
+    columnHelper.display({
+      id: 'select',
+      header: ({ table }) => <SelectPageCheckbox table={table} label="Select all badges on this page" />,
+      cell: ({ row }) => <SelectRowCheckbox row={row} label={`Select ${row.original.name}`} />,
+      enableSorting: false,
+    }),
     columnHelper.accessor('name', {
       id: 'name',
       header: 'Badge',
@@ -130,9 +148,7 @@ function buildColumns({
                 <DropdownMenuItem onSelect={() => onToggleActive(badge)}>
                   {badge.is_active ? 'Deactivate' : 'Activate'}
                 </DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onSelect={() => onDelete(badge)}>
-                  Delete
-                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onTrash(badge)}>Move to trash</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -142,7 +158,7 @@ function buildColumns({
   ])
 }
 
-const COLUMN_COUNT = 4
+const COLUMN_COUNT = 5
 
 export function BadgeTable({
   badges,
@@ -151,19 +167,27 @@ export function BadgeTable({
   search,
   onEdit,
   onToggleActive,
-  onDelete,
+  onTrash,
+  selection,
+  bulkActions,
 }: BadgeTableProps) {
   // Memoised — the filtered row model compares `state` by reference; see
   // ui.md's stable-identity rule.
+  const columnFilters = useMemo(() => [...(search ? [{ id: 'name', value: search }] : [])], [search])
   const state = useMemo(
-    () => ({ columnFilters: [...(search ? [{ id: 'name', value: search }] : [])] }),
-    [search],
+    () => ({ columnFilters, rowSelection: selection.rowSelection }),
+    [columnFilters, selection.rowSelection],
   )
+
+  const handlers = useStableCallbacks({ onEdit, onToggleActive, onTrash })
+  const columns = useMemo(() => buildColumns(handlers), [handlers])
 
   const table = useTable({
     features: badgesFeatures,
-    columns: buildColumns({ onEdit, onToggleActive, onDelete }),
+    columns,
     data: badges,
+    getRowId: (badge) => badge.id,
+    onRowSelectionChange: selection.onRowSelectionChange,
     state,
   })
 
@@ -254,6 +278,10 @@ export function BadgeTable({
           </TableBody>
         </Table>
       </div>
+
+      <TableSelectionBar table={table} selection={selection}>
+        {bulkActions}
+      </TableSelectionBar>
 
       {pageCount > 1 ? (
         <div className="flex items-center justify-end gap-2">

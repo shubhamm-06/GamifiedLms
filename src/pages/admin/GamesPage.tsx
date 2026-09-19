@@ -1,29 +1,20 @@
 import { useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { useTableSelection } from '@/components/admin/selection/useTableSelection'
 import { GameDialog } from '@/components/admin/games/GameDialog'
 import { GameTable } from '@/components/admin/games/GameTable'
 import {
   SLUG_TAKEN,
   useCreateGame,
-  useDeleteGame,
   useGames,
   useUpdateGame,
   type Game,
   type GameFormValues,
 } from '@/hooks/admin/useGames'
+import { useTrashActions } from '@/hooks/admin/useTrashActions'
 
 export function GamesPage() {
   const [search, setSearch] = useState('')
@@ -34,12 +25,21 @@ export function GamesPage() {
   // GameDialog's `game` prop being null means create mode, so the open flag
   // has to live separately.
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [gameToDelete, setGameToDelete] = useState<Game | null>(null)
   const [slugError, setSlugError] = useState<string | null>(null)
 
   const createGame = useCreateGame()
   const updateGame = useUpdateGame()
-  const deleteGame = useDeleteGame()
+  const { trash, isPending: trashPending } = useTrashActions()
+  const selection = useTableSelection([search])
+  const selectedGames = (data ?? []).filter((g) => selection.rowSelection[g.id])
+
+  const toItem = (game: Game) => ({ id: game.id, name: game.title, slug: game.slug })
+
+  // No confirm dialog: trashing is reversible, so the Undo toast is the safety net.
+  async function handleTrash(games: Game[]) {
+    const result = await trash([{ entity: 'games', items: games.map(toItem) }])
+    selection.removeIds(result.succeeded.map((item) => item.id))
+  }
 
   function openCreate() {
     setDialogTarget(null)
@@ -110,7 +110,18 @@ export function GamesPage() {
         isError={isError}
         search={search}
         onEdit={openEdit}
-        onDelete={setGameToDelete}
+        onTrash={(game) => void handleTrash([game])}
+        selection={selection}
+        bulkActions={
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={trashPending}
+            onClick={() => void handleTrash(selectedGames)}
+          >
+            Move to trash
+          </Button>
+        }
       />
 
       <GameDialog
@@ -121,36 +132,6 @@ export function GamesPage() {
         slugError={slugError}
         onSubmit={handleSubmit}
       />
-
-      <AlertDialog open={!!gameToDelete} onOpenChange={(open) => !open && setGameToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{gameToDelete?.title}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This can&rsquo;t be undone. If any lesson still uses this game, the delete will be
-              refused instead.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleteGame.isPending}
-              onClick={(e) => {
-                e.preventDefault()
-                if (gameToDelete) {
-                  deleteGame.mutate(gameToDelete, {
-                    onSuccess: () => setGameToDelete(null),
-                    onError: () => setGameToDelete(null),
-                  })
-                }
-              }}
-            >
-              {deleteGame.isPending ? 'Deleting…' : 'Delete game'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

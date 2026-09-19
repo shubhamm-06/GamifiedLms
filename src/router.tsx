@@ -21,6 +21,7 @@ import { GamesPage } from '@/pages/admin/GamesPage'
 import { GamificationPage } from '@/pages/admin/GamificationPage'
 import { OrdersPage } from '@/pages/admin/OrdersPage'
 import { SettingsPage } from '@/pages/admin/SettingsPage'
+import { TrashPage } from '@/pages/admin/TrashPage'
 import { UserDetailPage } from '@/pages/admin/UserDetailPage'
 import { UsersPage } from '@/pages/admin/UsersPage'
 
@@ -127,6 +128,27 @@ const adminOrdersRoute = createRoute({
   validateSearch: validateOrdersView,
 })
 
+/**
+ * Same `?tab=`-as-real-search-param convention as Course Builder, Orders and
+ * Settings. Defaults to `courses`, the first tab.
+ */
+const TRASH_TABS = ['courses', 'modules', 'lessons', 'games', 'badges', 'users'] as const
+type TrashTab = (typeof TRASH_TABS)[number]
+
+function validateTrashTab(search: Record<string, unknown>): { tab: TrashTab } {
+  const tab = TRASH_TABS.find((t) => t === search.tab)
+  return { tab: tab ?? 'courses' }
+}
+
+// Admin-only like everything else here: it hangs off adminRoute, so the same
+// requireAdmin beforeLoad guard covers it.
+const adminTrashRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'trash',
+  component: TrashPage,
+  validateSearch: validateTrashTab,
+})
+
 const adminGamificationRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'gamification',
@@ -189,6 +211,7 @@ const routeTree = rootRoute.addChildren([
     adminGamificationRoute,
     adminOrdersRoute,
     adminSettingsRoute,
+    adminTrashRoute,
     adminCourseCreateRoute,
     adminCourseEditRoute,
   ]),

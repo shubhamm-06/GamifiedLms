@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
@@ -14,13 +14,10 @@ import {
   sortFn_datetime,
   sortFn_text,
   tableFeatures,
-  type OnChangeFn,
-  type RowSelectionState,
 } from '@tanstack/table-core'
 import { useTable } from '@tanstack/react-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +33,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  SelectPageCheckbox,
+  SelectRowCheckbox,
+} from '@/components/admin/selection/SelectionCheckboxes'
+import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
+import type { TableSelection } from '@/components/admin/selection/useTableSelection'
+import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import { formatAmount } from '@/lib/currency'
 import type { PaymentRow } from '@/hooks/admin/usePayments'
 import { PaymentStatusPill } from './PaymentStatusPill'
@@ -102,8 +106,9 @@ interface OrderTableProps {
   onRestore: (payment: PaymentRow) => void
   /** Trash view only — opens the strong permanent-delete confirmation for this one row. */
   onDeletePermanently: (payment: PaymentRow) => void
-  rowSelection: RowSelectionState
-  onRowSelectionChange: OnChangeFn<RowSelectionState>
+  selection: TableSelection
+  /** Context actions for the shared bulk bar, supplied by the page. */
+  bulkActions?: ReactNode
 }
 
 type RowActionHandlers = Pick<
@@ -115,32 +120,16 @@ function buildColumns({ view, onView, onTrash, onRestore, onDeletePermanently }:
   return columnHelper.columns([
     columnHelper.display({
       id: 'select',
-      // Header/row checkboxes read and drive `rowSelectionFeature`'s own
-      // getters/setters directly off `table`/`row` — no separate wiring
-      // needed beyond registering the feature and passing controlled
-      // `rowSelection` state into `useTable`, below.
-      header: ({ table }) => {
-        const isAllSelected = table.getIsAllRowsSelected()
-        // Deliberately NOT `table.getIsSomeRowsSelected()` — that getter
-        // counts selected ids table-wide, regardless of the active filter,
-        // so it would show indeterminate even when every row selected
-        // happens to be filtered out of view right now. Scoping "some" to
-        // `getFilteredSelectedRowModel()` keeps the header checkbox honest
-        // about only what's currently on screen.
-        const hasFilteredSelection = table.getFilteredSelectedRowModel().rows.length > 0
-        return (
-          <Checkbox
-            checked={isAllSelected ? true : hasFilteredSelection ? 'indeterminate' : false}
-            onCheckedChange={(value) => table.toggleAllRowsSelected(value === true)}
-            aria-label="Select all filtered orders"
-          />
-        )
-      },
+      // The shared selection kit (`components/admin/selection`): the header
+      // box is scoped to the CURRENT PAGE, and "Select all N matching" for the
+      // whole filtered set lives in the bulk bar.
+      header: ({ table }) => (
+        <SelectPageCheckbox table={table} label="Select all orders on this page" />
+      ),
       cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(value === true)}
-          aria-label={`Select payment ${row.original.provider_payment_id}`}
+        <SelectRowCheckbox
+          row={row}
+          label={`Select payment ${row.original.provider_payment_id}`}
         />
       ),
       enableSorting: false,
@@ -296,8 +285,8 @@ export function OrderTable({
   onTrash,
   onRestore,
   onDeletePermanently,
-  rowSelection,
-  onRowSelectionChange,
+  selection,
+  bulkActions,
 }: OrderTableProps) {
   const columnCount = view === 'trash' ? BASE_COLUMN_COUNT + 1 : BASE_COLUMN_COUNT
   // Memoised separately from `rowSelection` below, on purpose: toggling a
@@ -317,13 +306,16 @@ export function OrderTable({
     [statusFilter, reconciliationFilter],
   )
   const state = useMemo(
-    () => ({ columnFilters, rowSelection }),
-    [columnFilters, rowSelection],
+    () => ({ columnFilters, rowSelection: selection.rowSelection }),
+    [columnFilters, selection.rowSelection],
   )
+
+  const handlers = useStableCallbacks({ onView, onTrash, onRestore, onDeletePermanently })
+  const columns = useMemo(() => buildColumns({ view, ...handlers }), [view, handlers])
 
   const table = useTable({
     features: ordersFeatures,
-    columns: buildColumns({ view, onView, onTrash, onRestore, onDeletePermanently }),
+    columns,
     data: payments,
     state,
     // Payment ids are stable and unique — selection must key off these, not
@@ -331,7 +323,7 @@ export function OrderTable({
     // change or a refetch reordering rows rather than silently pointing at
     // whatever row now happens to sit at that index.
     getRowId: (payment) => payment.id,
-    onRowSelectionChange,
+    onRowSelectionChange: selection.onRowSelectionChange,
   })
 
   const rows = table.getRowModel().rows
@@ -427,6 +419,10 @@ export function OrderTable({
           </TableBody>
         </Table>
       </div>
+
+      <TableSelectionBar table={table} selection={selection}>
+        {bulkActions}
+      </TableSelectionBar>
 
       {pageCount > 1 ? (
         <div className="flex items-center justify-end gap-2">

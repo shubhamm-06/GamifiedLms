@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   createUser,
-  deleteUser,
   updateUserEmail,
   updateUserPassword,
   type UserRole,
@@ -80,18 +79,6 @@ export function useUpdatePassword() {
       updateUserPassword(userId, newPassword),
     // No list invalidation — passwords aren't part of the table data.
     onSuccess: () => toast.success('Password changed. Tell the user directly.'),
-    onError: (error: Error) => toast.error(error.message),
-  })
-}
-
-export function useDeleteUser() {
-  const invalidate = useUsersInvalidator()
-  return useMutation({
-    mutationFn: ({ userId }: { userId: string; displayName: string }) => deleteUser(userId),
-    onSuccess: (_result, variables) => {
-      invalidate()
-      toast.success(`${variables.displayName} was deleted.`)
-    },
     onError: (error: Error) => toast.error(error.message),
   })
 }

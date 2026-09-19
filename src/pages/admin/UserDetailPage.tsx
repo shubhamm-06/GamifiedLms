@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { Award, Plus } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { AwardXpForm } from '@/components/admin/users/AwardXpForm'
-import { DeleteUserAlertDialog } from '@/components/admin/users/DeleteUserAlertDialog'
+import { TrashUsersDialog } from '@/components/admin/users/TrashUsersDialog'
 import { EditUserDialog } from '@/components/admin/users/EditUserDialog'
 import { EnrollCourseDialog } from '@/components/admin/users/EnrollCourseDialog'
 import { EnrollmentStatusPill } from '@/components/admin/users/EnrollmentStatusPill'
@@ -24,6 +25,7 @@ import {
 } from '@/hooks/admin/useUserDetail'
 import type { AdminUserRow } from '@/hooks/admin/useUsers'
 import { PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
+import { adminSessionQueryOptions } from '@/lib/adminSession'
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -58,7 +60,7 @@ function toAdminUserRow(profile: UserProfileDetail): AdminUserRow {
   }
 }
 
-type AccountDialogKind = 'edit' | 'email' | 'password' | 'delete'
+type AccountDialogKind = 'edit' | 'email' | 'password' | 'trash'
 
 function Section({
   title,
@@ -93,6 +95,7 @@ export function UserDetailPage() {
   const { userId } = useParams({ from: '/admin/users/$userId' })
   const navigate = useNavigate()
 
+  const { data: session } = useQuery(adminSessionQueryOptions)
   const { data: profile, isPending, isError } = useUserProfile(userId)
   const { data: enrollments, isPending: enrollmentsPending } = useUserEnrollments(userId)
   const { data: badges, isPending: badgesPending } = useUserBadges(userId)
@@ -123,7 +126,7 @@ export function UserDetailPage() {
       <div className="rounded-lg border p-8 text-center">
         <p className="font-medium">User not found</p>
         <p className="text-muted-foreground mt-1 text-sm">
-          They may have been deleted, or the link is wrong.
+          They may be in the trash, or the link is wrong.
         </p>
         <Link to="/admin/users" className="text-teal-d mt-3 inline-block text-sm hover:underline">
           Back to users
@@ -133,6 +136,13 @@ export function UserDetailPage() {
   }
 
   const isPrimaryAdmin = profile.id === PRIMARY_ADMIN_ID
+  // The server refuses both (and the last admin); disabling up front saves a refused click.
+  const isTrashed = !!profile.deleted_at
+  const trashBlockedReason = isPrimaryAdmin
+    ? "The primary admin account can't be moved to trash."
+    : profile.id === session?.userId
+      ? "You can't move your own account to trash."
+      : null
   const adminUserRow = toAdminUserRow(profile)
   const stats = profile.user_stats
 
@@ -183,23 +193,28 @@ export function UserDetailPage() {
           <Button variant="outline" size="sm" onClick={() => setAccountDialog('password')}>
             Reset password
           </Button>
-          {isPrimaryAdmin ? (
+          {isTrashed ? (
+            <Link to="/admin/trash" search={{ tab: 'users' }} className="text-teal-d text-sm hover:underline">
+              In the trash — restore from Trash
+            </Link>
+          ) : trashBlockedReason ? (
             <Tooltip>
               {/* A disabled trigger swallows pointer events, so the tooltip
                   needs its own wrapper to be hoverable — same treatment as
-                  the list page's disabled Delete item. */}
+                  the list page's disabled Move to trash item. */}
               <TooltipTrigger asChild>
                 <span>
-                  <Button variant="destructive" size="sm" disabled>
-                    Delete account
+                  <Button variant="outline" size="sm" disabled>
+                    Move to trash
                   </Button>
                 </span>
               </TooltipTrigger>
-              <TooltipContent>This account can&rsquo;t be deleted.</TooltipContent>
+              <TooltipContent>{trashBlockedReason}</TooltipContent>
             </Tooltip>
           ) : (
-            <Button variant="destructive" size="sm" onClick={() => setAccountDialog('delete')}>
-              Delete account
+            // Reversible, so not the red destructive style (red is for the Trash page's permanent delete).
+            <Button variant="outline" size="sm" onClick={() => setAccountDialog('trash')}>
+              Move to trash
             </Button>
           )}
         </div>
@@ -337,11 +352,15 @@ export function UserDetailPage() {
         open={accountDialog === 'password'}
         onOpenChange={(open) => !open && setAccountDialog(null)}
       />
-      <DeleteUserAlertDialog
-        user={adminUserRow}
-        open={accountDialog === 'delete'}
+      <TrashUsersDialog
+        users={adminUserRow ? [adminUserRow] : []}
+        open={accountDialog === 'trash'}
         onOpenChange={(open) => !open && setAccountDialog(null)}
-        onDeleted={() => navigate({ to: '/admin/users' })}
+        // The user is gone from every list once trashed, so leave their page —
+        // but only if the trash actually happened.
+        onDone={(result) => {
+          if (result.succeeded.length > 0) navigate({ to: '/admin/users' })
+        }}
       />
       <EnrollCourseDialog
         userId={userId}

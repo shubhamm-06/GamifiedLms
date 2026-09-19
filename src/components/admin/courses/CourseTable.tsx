@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
@@ -9,6 +9,7 @@ import {
   filterFn_equalsString,
   filterFn_includesString,
   rowPaginationFeature,
+  rowSelectionFeature,
   rowSortingFeature,
   sortFn_alphanumeric,
   sortFn_basic,
@@ -43,6 +44,13 @@ import {
   type Course,
   type LifecycleAction,
 } from '@/hooks/admin/useCourses'
+import {
+  SelectPageCheckbox,
+  SelectRowCheckbox,
+} from '@/components/admin/selection/SelectionCheckboxes'
+import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
+import type { TableSelection } from '@/components/admin/selection/useTableSelection'
+import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import { CourseStatusPill } from './CourseStatusPill'
 
 /**
@@ -58,6 +66,7 @@ const coursesFeatures = tableFeatures({
   columnFilteringFeature,
   rowSortingFeature,
   rowPaginationFeature,
+  rowSelectionFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
   paginatedRowModel: createPaginatedRowModel(),
@@ -89,13 +98,24 @@ interface CourseTableProps {
   statusFilter: string
   onEdit: (course: Course) => void
   onLifecycle: (course: Course, action: LifecycleAction) => void
+  /** Moves the course to the trash straight away — Undo toast instead of a confirm. */
+  onTrash: (course: Course) => void
+  selection: TableSelection
+  bulkActions?: ReactNode
 }
 
 function buildColumns(
   onEdit: CourseTableProps['onEdit'],
   onLifecycle: CourseTableProps['onLifecycle'],
+  onTrash: CourseTableProps['onTrash'],
 ) {
   return columnHelper.columns([
+    columnHelper.display({
+      id: 'select',
+      header: ({ table }) => <SelectPageCheckbox table={table} label="Select all courses on this page" />,
+      cell: ({ row }) => <SelectRowCheckbox row={row} label={`Select ${row.original.title}`} />,
+      enableSorting: false,
+    }),
     columnHelper.accessor('title', {
       id: 'title',
       header: 'Title',
@@ -169,9 +189,9 @@ function buildColumns(
                   <MoreHorizontal />
                 </Button>
               </DropdownMenuTrigger>
-              {/* No delete item, by design: modules/lessons cascade silently
-                  while payments/enrollments/lesson_progress block with a raw
-                  FK error. Archive is the only removal path. */}
+              {/* Archive is a status (reversible); Move to trash hides the
+                  course from everything and is undone from the Trash page or
+                  the toast. Neither deletes: only the Trash page can. */}
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => onEdit(course)}>Edit</DropdownMenuItem>
                 {actions.length > 0 ? <DropdownMenuSeparator /> : null}
@@ -180,6 +200,8 @@ function buildColumns(
                     {LIFECYCLE_LABEL[action]}
                   </DropdownMenuItem>
                 ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => onTrash(course)}>Move to trash</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -189,7 +211,7 @@ function buildColumns(
   ])
 }
 
-const COLUMN_COUNT = 7
+const COLUMN_COUNT = 8
 
 export function CourseTable({
   courses,
@@ -199,25 +221,38 @@ export function CourseTable({
   statusFilter,
   onEdit,
   onLifecycle,
+  onTrash,
+  selection,
+  bulkActions,
 }: CourseTableProps) {
   // Memoised because the filtered row model compares these by *reference*: a
   // fresh array/object each render reads as "the filters changed" and fires
   // the model's autoResetPageIndex, pinning the table to page 1. See
   // `ui.md` — this was caught live on the users list.
-  const state = useMemo(
-    () => ({
-      columnFilters: [
-        ...(search ? [{ id: 'title', value: search }] : []),
-        ...(statusFilter !== 'all' ? [{ id: 'status', value: statusFilter }] : []),
-      ],
-    }),
+  const columnFilters = useMemo(
+    () => [
+      ...(search ? [{ id: 'title', value: search }] : []),
+      ...(statusFilter !== 'all' ? [{ id: 'status', value: statusFilter }] : []),
+    ],
     [search, statusFilter],
+  )
+  const state = useMemo(
+    () => ({ columnFilters, rowSelection: selection.rowSelection }),
+    [columnFilters, selection.rowSelection],
+  )
+
+  const handlers = useStableCallbacks({ onEdit, onLifecycle, onTrash })
+  const columns = useMemo(
+    () => buildColumns(handlers.onEdit, handlers.onLifecycle, handlers.onTrash),
+    [handlers],
   )
 
   const table = useTable({
     features: coursesFeatures,
-    columns: buildColumns(onEdit, onLifecycle),
+    columns,
     data: courses,
+    getRowId: (course) => course.id,
+    onRowSelectionChange: selection.onRowSelectionChange,
     // Filters are driven from the page's toolbar rather than per-column UI,
     // so they're passed straight in as controlled state.
     state,
@@ -310,6 +345,10 @@ export function CourseTable({
           </TableBody>
         </Table>
       </div>
+
+      <TableSelectionBar table={table} selection={selection}>
+        {bulkActions}
+      </TableSelectionBar>
 
       {pageCount > 1 ? (
         <div className="flex items-center justify-end gap-2">

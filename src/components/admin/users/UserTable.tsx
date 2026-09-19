@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
@@ -10,6 +10,7 @@ import {
   filterFn_includesString,
   globalFilteringFeature,
   rowPaginationFeature,
+  rowSelectionFeature,
   rowSortingFeature,
   sortFn_basic,
   sortFn_datetime,
@@ -44,6 +45,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  SelectPageCheckbox,
+  SelectRowCheckbox,
+} from '@/components/admin/selection/SelectionCheckboxes'
+import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
+import type { TableSelection } from '@/components/admin/selection/useTableSelection'
+import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import type { AdminUserRow, RoleFilter } from '@/hooks/admin/useUsers'
 import { PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
 
@@ -61,6 +69,7 @@ const usersFeatures = tableFeatures({
   globalFilteringFeature,
   rowSortingFeature,
   rowPaginationFeature,
+  rowSelectionFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
   paginatedRowModel: createPaginatedRowModel(),
@@ -120,16 +129,36 @@ interface UserTableProps {
   onEdit: (user: AdminUserRow) => void
   onChangeEmail: (user: AdminUserRow) => void
   onResetPassword: (user: AdminUserRow) => void
-  onDelete: (user: AdminUserRow) => void
+  /** Opens the (lightweight) move-to-trash confirm — trashing bans the user and signs them out. */
+  onTrash: (user: AdminUserRow) => void
+  /** The signed-in admin: their own row can't be trashed. */
+  currentUserId: string | undefined
+  selection: TableSelection
+  /** Context actions for the bulk bar, supplied by the page. */
+  bulkActions?: ReactNode
 }
 
 function buildColumns({
   onEdit,
   onChangeEmail,
   onResetPassword,
-  onDelete,
-}: Pick<UserTableProps, 'onEdit' | 'onChangeEmail' | 'onResetPassword' | 'onDelete'>) {
+  onTrash,
+  currentUserId,
+}: Pick<
+  UserTableProps,
+  'onEdit' | 'onChangeEmail' | 'onResetPassword' | 'onTrash' | 'currentUserId'
+>) {
   return columnHelper.columns([
+    columnHelper.display({
+      id: 'select',
+      header: ({ table }) => (
+        <SelectPageCheckbox table={table} label="Select all users on this page" />
+      ),
+      cell: ({ row }) => (
+        <SelectRowCheckbox row={row} label={`Select ${row.original.display_name}`} />
+      ),
+      enableSorting: false,
+    }),
     columnHelper.display({
       id: 'avatar',
       header: '',
@@ -198,7 +227,14 @@ function buildColumns({
       header: '',
       cell: ({ row }) => {
         const user = row.original
-        const isPrimaryAdmin = user.id === PRIMARY_ADMIN_ID
+        // Server-side guards (self / primary admin / last admin) are the real
+        // enforcement; disabling up front just saves the admin a refused click.
+        const trashBlockedReason =
+          user.id === PRIMARY_ADMIN_ID
+            ? "The primary admin account can't be moved to trash."
+            : user.id === currentUserId
+              ? "You can't move your own account to trash."
+              : null
         return (
           // Isolates every action (including opening the dropdown) from the
           // row's own onClick, which navigates to the detail page.
@@ -222,27 +258,23 @@ function buildColumns({
                   Reset password
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                {isPrimaryAdmin ? (
+                {trashBlockedReason ? (
                   <Tooltip>
                     {/* A disabled menu item swallows pointer events, so
                         the tooltip needs its own wrapper to hover. */}
                     <TooltipTrigger asChild>
                       <span className="block">
-                        <DropdownMenuItem
-                          disabled
-                          variant="destructive"
-                          onSelect={(e) => e.preventDefault()}
-                        >
-                          Delete
+                        <DropdownMenuItem disabled onSelect={(e) => e.preventDefault()}>
+                          Move to trash
                         </DropdownMenuItem>
                       </span>
                     </TooltipTrigger>
-                    <TooltipContent>This account can&rsquo;t be deleted.</TooltipContent>
+                    <TooltipContent>{trashBlockedReason}</TooltipContent>
                   </Tooltip>
                 ) : (
-                  <DropdownMenuItem variant="destructive" onSelect={() => onDelete(user)}>
-                    Delete
-                  </DropdownMenuItem>
+                  // Not the red destructive style: this is reversible. Red is
+                  // reserved for permanent deletion on the Trash page.
+                  <DropdownMenuItem onSelect={() => onTrash(user)}>Move to trash</DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -263,7 +295,10 @@ export function UserTable({
   onEdit,
   onChangeEmail,
   onResetPassword,
-  onDelete,
+  onTrash,
+  currentUserId,
+  selection,
+  bulkActions,
 }: UserTableProps) {
   // Memoised because the filtered row model compares these by *reference*:
   // a fresh array/object each render reads as "the filters changed", which
@@ -273,15 +308,28 @@ export function UserTable({
     () => (roleFilter === 'all' ? [] : [{ id: 'role', value: roleFilter }]),
     [roleFilter],
   )
+  // `rowSelection` joins the state object but never touches `columnFilters`'s
+  // identity, so ticking a checkbox can't trigger the page-reset bug above.
   const state = useMemo(
-    () => ({ globalFilter: search, columnFilters }),
-    [search, columnFilters],
+    () => ({ globalFilter: search, columnFilters, rowSelection: selection.rowSelection }),
+    [search, columnFilters, selection.rowSelection],
+  )
+
+  // Stable columns: a rebuilt column array remounts every cell on each render,
+  // which drops keyboard focus from a checkbox the moment it toggles.
+  const handlers = useStableCallbacks({ onEdit, onChangeEmail, onResetPassword, onTrash })
+  const columns = useMemo(
+    () => buildColumns({ ...handlers, currentUserId }),
+    [handlers, currentUserId],
   )
 
   const table = useTable({
     features: usersFeatures,
-    columns: buildColumns({ onEdit, onChangeEmail, onResetPassword, onDelete }),
+    columns,
     data: rows,
+    // Selection is keyed by the real user id, never the row index.
+    getRowId: (user) => user.id,
+    onRowSelectionChange: selection.onRowSelectionChange,
     // Without this the global filter silently no-ops: the feature resolves
     // its filter function from this registry key and applies nothing when
     // it's unset.
@@ -395,6 +443,10 @@ export function UserTable({
           </TableBody>
         </Table>
       </div>
+
+      <TableSelectionBar table={table} selection={selection}>
+        {bulkActions}
+      </TableSelectionBar>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">

@@ -30,7 +30,11 @@ export function useStudentCount() {
   return useQuery({
     queryKey: key('students'),
     queryFn: () =>
-      runCount(supabase.from('profiles').select('*', HEAD_COUNT).eq('role', 'student')),
+      // Trashed users are out of every total (migration 013) — an admin's RLS can
+      // still read them, so each count below filters deleted_at itself.
+      runCount(
+        supabase.from('profiles').select('*', HEAD_COUNT).eq('role', 'student').is('deleted_at', null),
+      ),
   })
 }
 
@@ -39,8 +43,12 @@ export function useCourseCounts() {
     queryKey: key('courses'),
     queryFn: async () => {
       const [published, draft] = await Promise.all([
-        runCount(supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'published')),
-        runCount(supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'draft')),
+        runCount(
+          supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'published').is('deleted_at', null),
+        ),
+        runCount(
+          supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'draft').is('deleted_at', null),
+        ),
       ])
       return { published, draft }
     },
@@ -51,7 +59,19 @@ export function useActiveEnrollmentCount() {
   return useQuery({
     queryKey: key('enrollments'),
     queryFn: () =>
-      runCount(supabase.from('enrollments').select('*', HEAD_COUNT).eq('status', 'active')),
+      // Enrollments of a trashed user or in a trashed course don't count (inner
+      // joins + embedded filters), matching how total_students is maintained.
+      runCount(
+        supabase
+          .from('enrollments')
+          .select(
+            '*, profiles!enrollments_user_id_fkey!inner(deleted_at), courses!enrollments_course_id_fkey!inner(deleted_at)',
+            HEAD_COUNT,
+          )
+          .eq('status', 'active')
+          .filter('profiles.deleted_at', 'is', null)
+          .filter('courses.deleted_at', 'is', null),
+      ),
   })
 }
 
@@ -74,9 +94,15 @@ export function useNeedsAttention() {
             .select('*', HEAD_COUNT)
             .eq('reconciliation_status', 'unresolved'),
         ),
-        runCount(supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'draft')),
         runCount(
-          supabase.from('courses').select('*', HEAD_COUNT).eq('gamification_enabled', false),
+          supabase.from('courses').select('*', HEAD_COUNT).eq('status', 'draft').is('deleted_at', null),
+        ),
+        runCount(
+          supabase
+            .from('courses')
+            .select('*', HEAD_COUNT)
+            .eq('gamification_enabled', false)
+            .is('deleted_at', null),
         ),
       ])
 

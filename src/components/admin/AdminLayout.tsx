@@ -10,12 +10,14 @@ import {
   Receipt,
   Settings,
   ShieldUser,
+  Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { adminSessionQueryOptions, clearAdminSession } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { useAppSettings } from '@/hooks/useAppSettings'
+import { useTrashCounts } from '@/hooks/admin/useTrash'
 
 interface NavItem {
   label: string
@@ -68,6 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Admin Users', to: '/admin/users', icon: ShieldUser },
       { label: 'Settings', to: '/admin/settings', icon: Settings },
+      { label: 'Trash', to: '/admin/trash', icon: Trash2 },
     ],
   },
 ]
@@ -116,6 +119,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const title = useCurrentPageTitle()
   const { data: session } = useQuery(adminSessionQueryOptions)
   const { data: appSettings } = useAppSettings()
+  // Total items in the trash, for the sidebar badge (refreshed by every trash/restore).
+  const { data: trashCounts } = useTrashCounts()
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -150,6 +155,14 @@ export function AdminLayout({ children }: { children: ReactNode }) {
                 <NavLink key={item.to} to={item.to}>
                   <item.icon className="size-4" />
                   {item.label}
+                  {item.to === '/admin/trash' && trashCounts && trashCounts.total > 0 ? (
+                    <span
+                      className="bg-muted text-muted-foreground ml-auto rounded-full px-1.5 text-xs tabular-nums"
+                      aria-label={`${trashCounts.total} items in the trash`}
+                    >
+                      {trashCounts.total}
+                    </span>
+                  ) : null}
                 </NavLink>
               ))}
             </div>

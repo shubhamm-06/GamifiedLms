@@ -32,19 +32,13 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { BulkActionBar } from '@/components/admin/selection/BulkActionBar'
+import { useTableSelection } from '@/components/admin/selection/useTableSelection'
+import { useTrashActions } from '@/hooks/admin/useTrashActions'
 import { cn } from '@/lib/utils'
 import {
   useLessonMutations,
@@ -356,14 +350,35 @@ function DragHandle({
   )
 }
 
+/**
+ * The selection checkbox is a sibling of the drag handle, never inside it:
+ * dnd-kit's listeners live on the handle alone, so ticking a box can't start a
+ * drag and dragging can't toggle a box.
+ */
+function RowCheckbox({
+  checked,
+  onToggle,
+  label,
+}: {
+  checked: boolean
+  onToggle: () => void
+  label: string
+}) {
+  return <Checkbox checked={checked} onCheckedChange={onToggle} aria-label={label} />
+}
+
 function LessonRow({
   lesson,
+  selected,
+  onToggleSelect,
   onEdit,
-  onDelete,
+  onTrash,
 }: {
   lesson: Lesson
+  selected: boolean
+  onToggleSelect: (id: string) => void
   onEdit: (lesson: Lesson) => void
-  onDelete: (lesson: Lesson) => void
+  onTrash: (lesson: Lesson) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lesson.id,
@@ -399,6 +414,11 @@ function LessonRow({
       )}
     >
       <DragHandle attributes={attributes} listeners={listeners} label={`Reorder ${lesson.title}`} />
+      <RowCheckbox
+        checked={selected}
+        onToggle={() => onToggleSelect(lesson.id)}
+        label={`Select ${lesson.title}`}
+      />
       <span className="min-w-0 flex-1 truncate text-sm">{lesson.title}</span>
       <ContentTypeBadge contentType={lesson.content_type} />
       <LessonStatusBadge status={lesson.status} />
@@ -413,8 +433,8 @@ function LessonRow({
       <Button
         variant="ghost"
         size="icon-sm"
-        aria-label={`Delete ${lesson.title}`}
-        onClick={() => onDelete(lesson)}
+        aria-label={`Move ${lesson.title} to trash`}
+        onClick={() => onTrash(lesson)}
       >
         <Trash2 />
       </Button>
@@ -455,14 +475,18 @@ function LessonList({
   lessons,
   container,
   emptyLabel,
+  selectedIds,
+  onToggleSelect,
   onEdit,
-  onDelete,
+  onTrash,
 }: {
   lessons: Lesson[]
   container: string
   emptyLabel: string
+  selectedIds: Record<string, boolean>
+  onToggleSelect: (id: string) => void
   onEdit: (lesson: Lesson) => void
-  onDelete: (lesson: Lesson) => void
+  onTrash: (lesson: Lesson) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: dropZoneId(container),
@@ -485,7 +509,14 @@ function LessonList({
         <SortableContext items={lessons.map((l) => l.id)} strategy={verticalListSortingStrategy}>
           <ul className="space-y-2">
             {lessons.map((lesson) => (
-              <LessonRow key={lesson.id} lesson={lesson} onEdit={onEdit} onDelete={onDelete} />
+              <LessonRow
+                key={lesson.id}
+                lesson={lesson}
+                selected={!!selectedIds[lesson.id]}
+                onToggleSelect={onToggleSelect}
+                onEdit={onEdit}
+                onTrash={onTrash}
+              />
             ))}
           </ul>
         </SortableContext>
@@ -505,10 +536,13 @@ function ModuleCard({
   onCommitRename,
   onCancelRename,
   onToggleExpand,
-  onDelete,
+  selected,
+  selectedIds,
+  onToggleSelect,
+  onTrash,
   onAddLesson,
   onEditLesson,
-  onDeleteLesson,
+  onTrashLesson,
 }: {
   module: Module
   moduleLessons: Lesson[]
@@ -520,10 +554,13 @@ function ModuleCard({
   onCommitRename: () => void
   onCancelRename: () => void
   onToggleExpand: () => void
-  onDelete: () => void
+  selected: boolean
+  selectedIds: Record<string, boolean>
+  onToggleSelect: (id: string) => void
+  onTrash: () => void
   onAddLesson: () => void
   onEditLesson: (lesson: Lesson) => void
-  onDeleteLesson: (lesson: Lesson) => void
+  onTrashLesson: (lesson: Lesson) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: module.id,
@@ -546,6 +583,12 @@ function ModuleCard({
     >
       <div className="flex items-center gap-2 px-3 py-2.5">
         <DragHandle attributes={attributes} listeners={listeners} label={`Reorder ${module.title}`} />
+
+        <RowCheckbox
+          checked={selected}
+          onToggle={() => onToggleSelect(module.id)}
+          label={`Select ${module.title}`}
+        />
 
         <Button
           variant="ghost"
@@ -584,8 +627,8 @@ function ModuleCard({
         <Button
           variant="ghost"
           size="icon-sm"
-          aria-label={`Delete ${module.title}`}
-          onClick={onDelete}
+          aria-label={`Move ${module.title} to trash`}
+          onClick={onTrash}
         >
           <Trash2 />
         </Button>
@@ -597,8 +640,10 @@ function ModuleCard({
             lessons={moduleLessons}
             container={module.id}
             emptyLabel="No lessons in this topic yet."
+            selectedIds={selectedIds}
+            onToggleSelect={onToggleSelect}
             onEdit={onEditLesson}
-            onDelete={onDeleteLesson}
+            onTrash={onTrashLesson}
           />
           <Button variant="outline" size="sm" onClick={onAddLesson}>
             <Plus />
@@ -634,12 +679,14 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
   const moduleMutations = useModuleMutations(courseId)
   const lessonMutations = useLessonMutations(courseId)
   const sensors = useReorderSensors()
+  const { trash, isPending: trashPending } = useTrashActions()
+  // Modules and lessons share one selection map — their ids are both UUIDs, so
+  // they can't collide.
+  const selection = useTableSelection([courseId])
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
-  const [moduleToDelete, setModuleToDelete] = useState<Module | null>(null)
-  const [lessonToDelete, setLessonToDelete] = useState<Lesson | null>(null)
   const [lessonTarget, setLessonTarget] = useState<LessonTarget | null>(null)
   const [activeModuleId, setActiveModuleId] = useState<string | null>(null)
   const [activeLessonId, setActiveLessonId] = useState<string | null>(null)
@@ -683,6 +730,23 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
       moduleMutations.rename.mutate({ id: module.id, title })
     }
   }
+
+  /**
+   * Move to trash, no confirm — the Undo toast is the safety net. Topics and
+   * lessons can be trashed together (a bulk selection often holds both); Undo
+   * restores topics before lessons. A trashed topic hides its lessons through
+   * the parent, so they are not marked themselves.
+   */
+  async function trashSelected(moduleItems: Module[], lessonItems: Lesson[]) {
+    const result = await trash([
+      { entity: 'modules', items: moduleItems.map((m) => ({ id: m.id, name: m.title })) },
+      { entity: 'lessons', items: lessonItems.map((l) => ({ id: l.id, name: l.title })) },
+    ])
+    selection.removeIds(result.succeeded.map((item) => item.id))
+  }
+
+  const selectedModules = modules.filter((m) => selection.rowSelection[m.id])
+  const selectedLessons = lessons.filter((l) => selection.rowSelection[l.id])
 
   function handleLessonSubmit(values: LessonFormValues) {
     if (!lessonTarget) return
@@ -858,7 +922,10 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
                   onToggleExpand={() =>
                     setExpanded((prev) => ({ ...prev, [module.id]: !isExpanded(module.id) }))
                   }
-                  onDelete={() => setModuleToDelete(module)}
+                  selected={!!selection.rowSelection[module.id]}
+                  selectedIds={selection.rowSelection}
+                  onToggleSelect={(id) => selection.toggle(id)}
+                  onTrash={() => void trashSelected([module], [])}
                   onAddLesson={() =>
                     setLessonTarget({
                       moduleId: module.id,
@@ -869,7 +936,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
                   onEditLesson={(l) =>
                     setLessonTarget({ moduleId: module.id, lesson: l, position: 0 })
                   }
-                  onDeleteLesson={setLessonToDelete}
+                  onTrashLesson={(l) => void trashSelected([], [l])}
                 />
               )
             })}
@@ -898,7 +965,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
             <header className="border-b px-3 py-2.5">
               <h3 className="text-sm font-medium">Ungrouped</h3>
               <p className="text-muted-foreground text-xs">
-                Lessons not in any topic — including any left behind by a deleted topic.
+                Lessons that aren&rsquo;t in any topic.
               </p>
             </header>
             <div className="p-3">
@@ -906,8 +973,10 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
                 lessons={ungrouped}
                 container={UNGROUPED}
                 emptyLabel="Drop a lesson here to take it out of its topic."
+                selectedIds={selection.rowSelection}
+                onToggleSelect={(id) => selection.toggle(id)}
                 onEdit={(l) => setLessonTarget({ moduleId: null, lesson: l, position: 0 })}
-                onDelete={setLessonToDelete}
+                onTrash={(l) => void trashSelected([], [l])}
               />
             </div>
           </section>
@@ -942,73 +1011,16 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
         onSubmit={handleLessonSubmit}
       />
 
-      <AlertDialog
-        open={!!moduleToDelete}
-        onOpenChange={(open) => !open && setModuleToDelete(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{moduleToDelete?.title}”?</AlertDialogTitle>
-            {/* Spelled out because the FK is SET NULL, not CASCADE — the
-                lessons genuinely survive, and "are you sure" would imply
-                otherwise. */}
-            <AlertDialogDescription>
-              Its{' '}
-              {moduleToDelete ? (lessonsByModule.get(moduleToDelete.id)?.length ?? 0) : 0}{' '}
-              lesson(s) will not be deleted — they&rsquo;ll move to Ungrouped.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={(e) => {
-                e.preventDefault()
-                if (moduleToDelete) {
-                  moduleMutations.remove.mutate(moduleToDelete.id, {
-                    onSuccess: () => setModuleToDelete(null),
-                  })
-                }
-              }}
-            >
-              Delete topic
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={!!lessonToDelete}
-        onOpenChange={(open) => !open && setLessonToDelete(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{lessonToDelete?.title}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This also deletes its quiz questions. If any student has already started this
-              lesson, it can&rsquo;t be deleted — unpublish it instead.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={lessonMutations.remove.isPending}
-              onClick={(e) => {
-                e.preventDefault()
-                if (lessonToDelete) {
-                  lessonMutations.remove.mutate(lessonToDelete.id, {
-                    onSuccess: () => setLessonToDelete(null),
-                    onError: () => setLessonToDelete(null),
-                  })
-                }
-              }}
-            >
-              {lessonMutations.remove.isPending ? 'Deleting…' : 'Delete lesson'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <BulkActionBar count={selection.count} onClear={selection.clear}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={trashPending}
+          onClick={() => void trashSelected(selectedModules, selectedLessons)}
+        >
+          Move to trash
+        </Button>
+      </BulkActionBar>
     </div>
   )
 }

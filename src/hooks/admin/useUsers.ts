@@ -41,6 +41,9 @@ export function useUsers() {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, display_name, email, avatar_url, role, created_at, user_stats(total_xp, level)')
+        // Trashed users live on /admin/trash, not here (migration 013). An
+        // admin's RLS lets them read trashed rows, so this filter is what hides them.
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
 
       if (error) throw error

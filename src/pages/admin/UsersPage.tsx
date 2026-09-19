@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,15 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useTableSelection } from '@/components/admin/selection/useTableSelection'
 import { CreateUserDialog } from '@/components/admin/users/CreateUserDialog'
-import { DeleteUserAlertDialog } from '@/components/admin/users/DeleteUserAlertDialog'
+import { TrashUsersDialog } from '@/components/admin/users/TrashUsersDialog'
 import { EditUserDialog } from '@/components/admin/users/EditUserDialog'
 import { UpdateEmailDialog } from '@/components/admin/users/UpdateEmailDialog'
 import { UpdatePasswordDialog } from '@/components/admin/users/UpdatePasswordDialog'
 import { UserTable } from '@/components/admin/users/UserTable'
 import { useUsers, type AdminUserRow, type RoleFilter } from '@/hooks/admin/useUsers'
+import { adminSessionQueryOptions } from '@/lib/adminSession'
 
-type DialogKind = 'edit' | 'email' | 'password' | 'delete'
+type DialogKind = 'edit' | 'email' | 'password'
 
 export function UsersPage() {
   const navigate = useNavigate()
@@ -30,9 +33,16 @@ export function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [activeDialog, setActiveDialog] = useState<DialogKind | null>(null)
   const [activeUser, setActiveUser] = useState<AdminUserRow | null>(null)
+  // Who the move-to-trash confirm is about: one row, or the whole selection.
+  const [trashTargets, setTrashTargets] = useState<AdminUserRow[]>([])
 
   const { data, isPending, isError } = useUsers()
   const users = data ?? []
+  const { data: session } = useQuery(adminSessionQueryOptions)
+
+  // A selection is only meaningful under the search/filter it was made in.
+  const selection = useTableSelection([search, roleFilter])
+  const selectedUsers = users.filter((u) => selection.rowSelection[u.id])
 
   function openDialog(kind: DialogKind, user: AdminUserRow) {
     setActiveUser(user)
@@ -93,7 +103,14 @@ export function UsersPage() {
         onEdit={(user) => openDialog('edit', user)}
         onChangeEmail={(user) => openDialog('email', user)}
         onResetPassword={(user) => openDialog('password', user)}
-        onDelete={(user) => openDialog('delete', user)}
+        onTrash={(user) => setTrashTargets([user])}
+        currentUserId={session?.userId}
+        selection={selection}
+        bulkActions={
+          <Button variant="outline" size="sm" onClick={() => setTrashTargets(selectedUsers)}>
+            Move to trash
+          </Button>
+        }
       />
 
       <CreateUserDialog open={createOpen} onOpenChange={setCreateOpen} />
@@ -108,10 +125,11 @@ export function UsersPage() {
         open={activeDialog === 'password'}
         onOpenChange={closeDialog}
       />
-      <DeleteUserAlertDialog
-        user={activeUser}
-        open={activeDialog === 'delete'}
-        onOpenChange={closeDialog}
+      <TrashUsersDialog
+        users={trashTargets}
+        open={trashTargets.length > 0}
+        onOpenChange={(open) => !open && setTrashTargets([])}
+        onDone={(result) => selection.removeIds(result.succeeded.map((item) => item.id))}
       />
     </div>
   )

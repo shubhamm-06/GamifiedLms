@@ -35,10 +35,6 @@ export const curriculumKeys = {
   questions: (lessonId: string) => ['admin', 'curriculum', 'questions', lessonId] as const,
 }
 
-/** Postgres FK violation — a lesson with student activity can't be deleted. */
-const FK_VIOLATION = '23503'
-export const LESSON_IN_USE = 'LESSON_IN_USE'
-
 export function parseOptions(raw: unknown): QuizOption[] {
   if (!Array.isArray(raw)) return []
   return raw.flatMap((entry) => {
@@ -63,6 +59,9 @@ export function useModules(courseId: string) {
         .from('modules')
         .select('*')
         .eq('course_id', courseId)
+        // Trashed topics live on /admin/trash (migration 013); an admin's RLS
+        // can read them, so the filter is what hides them here.
+        .is('deleted_at', null)
         .order('position', { ascending: true })
       if (error) throw new Error(error.message)
       return data ?? []
@@ -70,17 +69,36 @@ export function useModules(courseId: string) {
   })
 }
 
+/**
+ * Live lessons only: not trashed themselves, and not under a trashed topic.
+ * Trashing a topic hides its lessons through the parent — the lesson rows are
+ * never marked — so without the second query below they would reappear here as
+ * "Ungrouped" (their `module_id` still points at the trashed topic).
+ */
 export function useLessons(courseId: string) {
   return useQuery({
     queryKey: curriculumKeys.lessons(courseId),
     queryFn: async (): Promise<Lesson[]> => {
-      const { data, error } = await supabase
-        .from('lessons')
-        .select('*')
-        .eq('course_id', courseId)
-        .order('position', { ascending: true })
-      if (error) throw new Error(error.message)
-      return data ?? []
+      const [lessonsResult, trashedModulesResult] = await Promise.all([
+        supabase
+          .from('lessons')
+          .select('*')
+          .eq('course_id', courseId)
+          .is('deleted_at', null)
+          .order('position', { ascending: true }),
+        supabase
+          .from('modules')
+          .select('id')
+          .eq('course_id', courseId)
+          .not('deleted_at', 'is', null),
+      ])
+      if (lessonsResult.error) throw new Error(lessonsResult.error.message)
+      if (trashedModulesResult.error) throw new Error(trashedModulesResult.error.message)
+
+      const hiddenModuleIds = new Set((trashedModulesResult.data ?? []).map((m) => m.id))
+      return (lessonsResult.data ?? []).filter(
+        (lesson) => !lesson.module_id || !hiddenModuleIds.has(lesson.module_id),
+      )
     },
   })
 }
@@ -143,20 +161,6 @@ export function useModuleMutations(courseId: string) {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const remove = useMutation({
-    mutationFn: async (id: string) => {
-      // lessons.module_id is ON DELETE SET NULL — the lessons survive and
-      // fall into "Ungrouped" rather than being destroyed.
-      const { error } = await supabase.from('modules').delete().eq('id', id)
-      if (error) throw new Error(error.message)
-    },
-    onSuccess: () => {
-      invalidate()
-      toast.success('Topic deleted. Its lessons moved to Ungrouped.')
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
   /**
    * Drag reorder can move an item across several siblings in one drop, not
    * just swap two neighbors, so this takes every module whose `position`
@@ -202,7 +206,7 @@ export function useModuleMutations(courseId: string) {
     onSettled: invalidate,
   })
 
-  return { create, rename, remove, reorder }
+  return { create, rename, reorder }
 }
 
 export interface LessonFormValues {
@@ -275,26 +279,6 @@ export function useLessonMutations(courseId: string) {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const remove = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('lessons').delete().eq('id', id)
-      // lesson_progress and quiz_attempts are NO ACTION: once any student has
-      // touched this lesson the delete is refused at the database level.
-      if (error?.code === FK_VIOLATION) throw new Error(LESSON_IN_USE)
-      if (error) throw new Error(error.message)
-    },
-    onSuccess: () => {
-      invalidate()
-      toast.success('Lesson deleted.')
-    },
-    onError: (e: Error) =>
-      toast.error(
-        e.message === LESSON_IN_USE
-          ? "This lesson has student activity and can't be deleted — unpublish it instead."
-          : e.message,
-      ),
-  })
-
   /**
    * Same batch-upsert reasoning as the module reorder, plus the same
    * optimistic-cache fix for the same drop-then-snap-back jank. One wrinkle
@@ -343,7 +327,7 @@ export function useLessonMutations(courseId: string) {
     onSettled: invalidate,
   })
 
-  return { create, update, remove, reorder }
+  return { create, update, reorder }
 }
 
 export interface QuestionFormValues {

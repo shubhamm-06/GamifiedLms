@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
@@ -8,6 +8,7 @@ import {
   createSortedRowModel,
   filterFn_includesString,
   rowPaginationFeature,
+  rowSelectionFeature,
   rowSortingFeature,
   sortFn_basic,
   sortFn_datetime,
@@ -32,6 +33,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import {
+  SelectPageCheckbox,
+  SelectRowCheckbox,
+} from '@/components/admin/selection/SelectionCheckboxes'
+import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
+import type { TableSelection } from '@/components/admin/selection/useTableSelection'
+import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import type { Game } from '@/hooks/admin/useGames'
 
 /**
@@ -43,6 +51,7 @@ const gamesFeatures = tableFeatures({
   columnFilteringFeature,
   rowSortingFeature,
   rowPaginationFeature,
+  rowSelectionFeature,
   filteredRowModel: createFilteredRowModel(),
   sortedRowModel: createSortedRowModel(),
   paginatedRowModel: createPaginatedRowModel(),
@@ -70,11 +79,20 @@ interface GameTableProps {
   isError: boolean
   search: string
   onEdit: (game: Game) => void
-  onDelete: (game: Game) => void
+  /** Moves the game to the trash straight away — Undo toast instead of a confirm. */
+  onTrash: (game: Game) => void
+  selection: TableSelection
+  bulkActions?: ReactNode
 }
 
-function buildColumns(onEdit: GameTableProps['onEdit'], onDelete: GameTableProps['onDelete']) {
+function buildColumns(onEdit: GameTableProps['onEdit'], onTrash: GameTableProps['onTrash']) {
   return columnHelper.columns([
+    columnHelper.display({
+      id: 'select',
+      header: ({ table }) => <SelectPageCheckbox table={table} label="Select all games on this page" />,
+      cell: ({ row }) => <SelectRowCheckbox row={row} label={`Select ${row.original.title}`} />,
+      enableSorting: false,
+    }),
     columnHelper.accessor('title', {
       id: 'title',
       header: 'Title',
@@ -124,9 +142,7 @@ function buildColumns(onEdit: GameTableProps['onEdit'], onDelete: GameTableProps
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => onEdit(game)}>Edit</DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onSelect={() => onDelete(game)}>
-                  Delete
-                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => onTrash(game)}>Move to trash</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -136,22 +152,38 @@ function buildColumns(onEdit: GameTableProps['onEdit'], onDelete: GameTableProps
   ])
 }
 
-const COLUMN_COUNT = 5
+const COLUMN_COUNT = 6
 
-export function GameTable({ games, isPending, isError, search, onEdit, onDelete }: GameTableProps) {
+export function GameTable({
+  games,
+  isPending,
+  isError,
+  search,
+  onEdit,
+  onTrash,
+  selection,
+  bulkActions,
+}: GameTableProps) {
   // Memoised because the filtered row model compares these by *reference*: a
   // fresh array/object each render reads as "the filters changed" and fires
   // the model's autoResetPageIndex, pinning the table to page 1. See
   // `ui.md` — this was caught live on the users list.
+  const columnFilters = useMemo(() => [...(search ? [{ id: 'title', value: search }] : [])], [search])
+  // rowSelection joins the state object without touching columnFilters' identity.
   const state = useMemo(
-    () => ({ columnFilters: [...(search ? [{ id: 'title', value: search }] : [])] }),
-    [search],
+    () => ({ columnFilters, rowSelection: selection.rowSelection }),
+    [columnFilters, selection.rowSelection],
   )
+
+  const handlers = useStableCallbacks({ onEdit, onTrash })
+  const columns = useMemo(() => buildColumns(handlers.onEdit, handlers.onTrash), [handlers])
 
   const table = useTable({
     features: gamesFeatures,
-    columns: buildColumns(onEdit, onDelete),
+    columns,
     data: games,
+    getRowId: (game) => game.id,
+    onRowSelectionChange: selection.onRowSelectionChange,
     state,
   })
 
@@ -242,6 +274,10 @@ export function GameTable({ games, isPending, isError, search, onEdit, onDelete 
           </TableBody>
         </Table>
       </div>
+
+      <TableSelectionBar table={table} selection={selection}>
+        {bulkActions}
+      </TableSelectionBar>
 
       {pageCount > 1 ? (
         <div className="flex items-center justify-end gap-2">

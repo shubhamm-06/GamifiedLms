@@ -11,10 +11,6 @@ export const gamesQueryKey = ['admin', 'games'] as const
 const UNIQUE_VIOLATION = '23505'
 export const SLUG_TAKEN = 'SLUG_TAKEN'
 
-/** Postgres FK violation — a game still referenced by a lesson can't be deleted. */
-const FK_VIOLATION = '23503'
-export const GAME_IN_USE_PREFIX = 'GAME_IN_USE:'
-
 function mapWriteError(error: { code?: string; message: string }): Error {
   if (error.code === UNIQUE_VIOLATION && error.message.includes('slug')) {
     return new Error(SLUG_TAKEN)
@@ -36,6 +32,10 @@ export function useGames() {
       const { data, error } = await supabase
         .from('games')
         .select('*')
+        // Trashed games live on /admin/trash (migration 013); an admin's RLS
+        // can read them, so the filter is what hides them here and in the
+        // lesson editor's game picker.
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
       if (error) throw new Error(error.message)
       return data ?? []
@@ -115,42 +115,6 @@ export function useUpdateGame() {
     onSuccess: () => {
       invalidate()
       toast.success('Game saved.')
-    },
-  })
-}
-
-export function useDeleteGame() {
-  const invalidate = useGamesInvalidator()
-  return useMutation({
-    mutationFn: async (game: Game) => {
-      const { error } = await supabase.from('games').delete().eq('id', game.id)
-      if (error?.code === FK_VIOLATION) {
-        // lessons.game_id has no ON DELETE action, so the FK violation alone
-        // doesn't say how many lessons are blocking it — a second query gets
-        // the count for a message worth showing, rather than a raw Postgres
-        // error. Only run on the error path since the happy path (no
-        // references) never needs it.
-        const { count } = await supabase
-          .from('lessons')
-          .select('id', { count: 'exact', head: true })
-          .eq('game_id', game.id)
-        throw new Error(`${GAME_IN_USE_PREFIX}${count ?? 0}`)
-      }
-      if (error) throw new Error(error.message)
-    },
-    onSuccess: (_result, game) => {
-      invalidate()
-      toast.success(`“${game.title}” was deleted.`)
-    },
-    onError: (error: Error) => {
-      if (error.message.startsWith(GAME_IN_USE_PREFIX)) {
-        const count = error.message.slice(GAME_IN_USE_PREFIX.length)
-        toast.error(
-          `This game is used by ${count} lesson${count === '1' ? '' : 's'} — remove it from ${count === '1' ? 'that lesson' : 'those lessons'} first.`,
-        )
-        return
-      }
-      toast.error(error.message)
     },
   })
 }

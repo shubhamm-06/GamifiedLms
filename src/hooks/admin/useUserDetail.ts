@@ -24,6 +24,8 @@ export interface UserProfileDetail {
   avatar_url: string | null
   role: string
   created_at: string
+  /** Non-null = in the trash (migration 013). Admins can still open the page. */
+  deleted_at: string | null
   // Left-joined: most users have earned no XP yet, and that is not an
   // error state — see fn_process_xp_transaction, which only creates this
   // row on a user's first xp_transactions insert.
@@ -73,7 +75,7 @@ export function useUserProfile(userId: string) {
       const { data, error } = await supabase
         .from('profiles')
         .select(
-          'id, display_name, email, avatar_url, role, created_at, user_stats(total_xp, level, current_streak, longest_streak, last_activity_date, lessons_completed)',
+          'id, display_name, email, avatar_url, role, created_at, deleted_at, user_stats(total_xp, level, current_streak, longest_streak, last_activity_date, lessons_completed)',
         )
         .eq('id', userId)
         .maybeSingle()
@@ -116,9 +118,10 @@ export function useUserEnrollments(userId: string) {
  * decoupled, and this one naturally refetches whenever the enrolled set
  * changes because those ids are part of its query key.
  *
- * The denominator is published lessons only, never courses.total_lessons
- * (that counter includes drafts a student was never shown — see
- * schema.md). The completed count is intersected against that same
+ * The denominator is LIVE published lessons only — not trashed, and not under
+ * a trashed topic (trashing a topic hides its lessons without marking them) —
+ * never courses.total_lessons (that counter includes drafts a student was
+ * never shown — see schema.md). The completed count is intersected against that same
  * published-id set client-side, so a lesson_progress row completed before
  * its lesson was unpublished can't inflate the numerator either.
  */
@@ -131,9 +134,10 @@ export function useUserProgress(userId: string, courseIds: string[]) {
         await Promise.all([
           supabase
             .from('lessons')
-            .select('id, course_id')
+            .select('id, course_id, modules(deleted_at)')
             .in('course_id', courseIds)
-            .eq('status', 'published'),
+            .eq('status', 'published')
+            .is('deleted_at', null),
           supabase
             .from('lesson_progress')
             .select('lesson_id, course_id')
@@ -147,6 +151,8 @@ export function useUserProgress(userId: string, courseIds: string[]) {
 
       const publishedIdsByCourse = new Map<string, Set<string>>()
       for (const lesson of lessons ?? []) {
+        // Under a trashed topic: hidden from students, so not in the denominator.
+        if (lesson.modules?.deleted_at) continue
         const set = publishedIdsByCourse.get(lesson.course_id) ?? new Set<string>()
         set.add(lesson.id)
         publishedIdsByCourse.set(lesson.course_id, set)

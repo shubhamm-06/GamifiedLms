@@ -57,8 +57,6 @@ const UNIQUE_VIOLATION = '23505'
 export const SLUG_TAKEN = 'SLUG_TAKEN'
 
 /** Postgres FK violation — a badge some student already unlocked can't be deleted. */
-const FK_VIOLATION = '23503'
-export const BADGE_UNLOCKED_PREFIX = 'BADGE_UNLOCKED:'
 
 function mapWriteError(error: { code?: string; message: string }): Error {
   if (error.code === UNIQUE_VIOLATION && error.message.includes('slug')) {
@@ -72,7 +70,13 @@ export function useBadges() {
   return useQuery({
     queryKey: badgesQueryKey,
     queryFn: async (): Promise<Badge[]> => {
-      const { data, error } = await supabase.from('badges').select('*').order('name')
+      // Trashed badges live on /admin/trash (migration 013); an admin's RLS can
+      // read them, so the filter is what hides them here.
+      const { data, error } = await supabase
+        .from('badges')
+        .select('*')
+        .is('deleted_at', null)
+        .order('name')
       if (error) throw new Error(error.message)
       return data ?? []
     },
@@ -158,40 +162,5 @@ export function useSetBadgeActive() {
     },
     onSuccess: () => invalidate(),
     onError: (error: Error) => toast.error(error.message),
-  })
-}
-
-export function useDeleteBadge() {
-  const invalidate = useBadgesInvalidator()
-  return useMutation({
-    mutationFn: async (badge: Badge) => {
-      const { error } = await supabase.from('badges').delete().eq('id', badge.id)
-      if (error?.code === FK_VIOLATION) {
-        // user_badges.badge_id is NO ACTION, so the FK violation alone
-        // doesn't say how many students are blocking it — a second query
-        // gets the count for a message worth showing, only on the error
-        // path since the happy path (nobody unlocked it) never needs it.
-        const { count } = await supabase
-          .from('user_badges')
-          .select('id', { count: 'exact', head: true })
-          .eq('badge_id', badge.id)
-        throw new Error(`${BADGE_UNLOCKED_PREFIX}${count ?? 0}`)
-      }
-      if (error) throw new Error(error.message)
-    },
-    onSuccess: (_result, badge) => {
-      invalidate()
-      toast.success(`“${badge.name}” was deleted.`)
-    },
-    onError: (error: Error) => {
-      if (error.message.startsWith(BADGE_UNLOCKED_PREFIX)) {
-        const count = error.message.slice(BADGE_UNLOCKED_PREFIX.length)
-        toast.error(
-          `${count} student${count === '1' ? '' : 's'} already unlocked this — deactivate it instead of deleting.`,
-        )
-        return
-      }
-      toast.error(error.message)
-    },
   })
 }
