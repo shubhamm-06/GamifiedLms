@@ -10,6 +10,12 @@
 // Removing a user is two-step (migration 013): `trash` (flag the profile,
 // ban the auth user, revoke sessions) then, only for a user already in the
 // trash, `delete`. `restore` undoes a trash.
+//
+// `bulk_create` (CSV import) creates up to 25 student accounts per call. It
+// treats the client's preview as untrusted: every row is re-validated and
+// re-checked against existing/trashed accounts here. It never modifies an
+// existing account, and it never logs a password (supplied or generated) —
+// generated ones travel only in the response to the calling admin.
 // =====================================================================
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
@@ -20,7 +26,18 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 const PRIMARY_ADMIN_ID = '91392b37-91f1-4975-afda-e4c238c4d821'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// The project's enforced minimum (this function, the Add user / reset dialogs
+// and the signup page all use 8). GoTrue's own configured minimum is looser
+// (6, read from its weak_password error), so this is the stricter of the two.
 const MIN_PASSWORD_LENGTH = 8
+
+// Import limits. The client enforces the same numbers; these are the real ones.
+const MAX_BULK_ROWS = 25
+const MAX_DISPLAY_NAME_LENGTH = 100
+const MAX_EMAIL_LENGTH = 254
+// Digits with an optional leading +, after formatting characters are removed.
+const PHONE_PATTERN = /^\+?\d{7,15}$/
+const GENERATED_PASSWORD_LENGTH = 20
 
 // ~100 years. GoTrue takes a Go duration string; 'none' lifts a ban.
 const BAN_DURATION = '876000h'
@@ -31,7 +48,14 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-type Action = 'create' | 'update_email' | 'update_password' | 'trash' | 'restore' | 'delete'
+type Action =
+  | 'create'
+  | 'bulk_create'
+  | 'update_email'
+  | 'update_password'
+  | 'trash'
+  | 'restore'
+  | 'delete'
 
 /**
  * Machine-readable failure codes the client can branch on (the human
@@ -46,10 +70,14 @@ type ErrorCode =
   | 'not_trashed'
   | 'has_history'
 
-function json(body: Record<string, unknown>, status = 200): Response {
+function json(
+  body: Record<string, unknown>,
+  status = 200,
+  extraHeaders?: Record<string, string>,
+): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
+    headers: { ...CORS_HEADERS, 'Content-Type': 'application/json', ...(extraHeaders ?? {}) },
   })
 }
 
@@ -86,6 +114,260 @@ function safeError(context: string, err: unknown): string {
     return 'That email address was rejected as invalid'
   }
   return 'Something went wrong. Please try again.'
+}
+
+type AdminClient = ReturnType<typeof createClient>
+
+/**
+ * The one place an account is created — `create` and `bulk_create` both go
+ * through it, so they cannot drift. The email is marked confirmed (an admin
+ * vouches for it). display_name rides in user metadata: fn_handle_new_user
+ * (migration 005) copies it into the profile, always with role 'student'; an
+ * admin is promoted afterwards by `create` alone. Returns the raw Auth result
+ * so each caller can map the error its own way.
+ */
+function createAuthUser(
+  admin: AdminClient,
+  input: { email: string; password: string; displayName: string },
+) {
+  return admin.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: { display_name: input.displayName },
+  })
+}
+
+// No I/O/l/0/1: a password read off a printed sheet should not be ambiguous.
+const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789'
+
+/**
+ * Crypto-random password (20 chars from a 57-symbol alphabet, ~117 bits) with
+ * at least one upper, lower and digit. Bytes >= 228 are discarded so every
+ * symbol is equally likely (256 % 57 would otherwise bias the first ones).
+ * The alphabet has no `= + - @`, so a CSV formula guard can never alter it.
+ */
+function generatePassword(): string {
+  const limit = 256 - (256 % PASSWORD_ALPHABET.length)
+  for (;;) {
+    let out = ''
+    while (out.length < GENERATED_PASSWORD_LENGTH) {
+      const bytes = crypto.getRandomValues(new Uint8Array(GENERATED_PASSWORD_LENGTH * 2))
+      for (const b of bytes) {
+        if (b < limit && out.length < GENERATED_PASSWORD_LENGTH) {
+          out += PASSWORD_ALPHABET[b % PASSWORD_ALPHABET.length]
+        }
+      }
+    }
+    if (/[A-Z]/.test(out) && /[a-z]/.test(out) && /\d/.test(out)) return out
+  }
+}
+
+/** Strips spaces, dots, dashes and brackets, then checks digits with an optional leading +. */
+function normalizePhone(raw: string): string | null {
+  const stripped = raw.replace(/[\s().-]/g, '')
+  return PHONE_PATTERN.test(stripped) ? stripped : null
+}
+
+/** Escapes `\`, `%` and `_` so an email is matched literally by ILIKE. */
+function escapeLike(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&')
+}
+
+type BulkStatus = 'created' | 'skipped_exists' | 'skipped_trashed' | 'failed'
+type BulkCode =
+  | 'invalid_row'
+  | 'invalid_display_name'
+  | 'invalid_email'
+  | 'invalid_phone'
+  | 'weak_password'
+  | 'duplicate_in_request'
+  | 'create_failed'
+
+const BULK_REASONS: Record<BulkCode, string> = {
+  invalid_row: 'This row could not be read',
+  invalid_display_name: `Name is required and must be at most ${MAX_DISPLAY_NAME_LENGTH} characters`,
+  invalid_email: 'Enter a valid email address',
+  invalid_phone: 'Phone number must be digits with an optional leading +',
+  weak_password: `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+  duplicate_in_request: 'This email appears more than once in the request',
+  create_failed: 'The account could not be created',
+}
+
+interface BulkRowResult {
+  /** Position of the row in the request, so the client can map it back to a file row. */
+  index: number
+  email: string
+  status: BulkStatus
+  code?: BulkCode
+  reason?: string
+  user_id?: string
+  /** Set only when the server generated the password. Never logged. */
+  generated_password?: string
+  /** The account exists but its phone number could not be saved. */
+  warning?: 'phone_not_saved'
+}
+
+function bulkFailure(index: number, email: string, code: BulkCode): BulkRowResult {
+  return { index, email, status: 'failed', code, reason: BULK_REASONS[code] }
+}
+
+/**
+ * Creates student accounts for up to MAX_BULK_ROWS rows and reports each one.
+ * One bad row never aborts the rest. Existing accounts are skipped, never
+ * touched. Throws only when the up-front existing-email lookup fails, before
+ * anything has been created.
+ *
+ * Logging rule: nothing here passes a row, a password or an Auth error object
+ * to the console — only the row index and the error's code/status.
+ */
+async function bulkCreate(admin: AdminClient, rawRows: unknown[]): Promise<BulkRowResult[]> {
+  const results: BulkRowResult[] = new Array(rawRows.length)
+
+  type Candidate = {
+    index: number
+    email: string
+    displayName: string
+    phone: string | null
+    suppliedPassword: string
+  }
+  const candidates: Candidate[] = []
+  const seen = new Set<string>()
+
+  // 1. Re-validate every row (the client preview is untrusted).
+  rawRows.forEach((raw, index) => {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+      results[index] = bulkFailure(index, '', 'invalid_row')
+      return
+    }
+    const row = raw as Record<string, unknown>
+    const displayName = String(row.display_name ?? '').trim()
+    const email = String(row.email ?? '').trim().toLowerCase()
+    const phoneRaw = String(row.phone_number ?? '').trim()
+    const password = typeof row.password === 'string' ? row.password : ''
+
+    if (!displayName || displayName.length > MAX_DISPLAY_NAME_LENGTH) {
+      results[index] = bulkFailure(index, email, 'invalid_display_name')
+      return
+    }
+    if (!EMAIL_PATTERN.test(email) || email.length > MAX_EMAIL_LENGTH) {
+      results[index] = bulkFailure(index, email, 'invalid_email')
+      return
+    }
+    let phone: string | null = null
+    if (phoneRaw) {
+      phone = normalizePhone(phoneRaw)
+      if (!phone) {
+        results[index] = bulkFailure(index, email, 'invalid_phone')
+        return
+      }
+    }
+    // A blank (or whitespace-only) password means "generate one".
+    if (password.trim() !== '' && password.length < MIN_PASSWORD_LENGTH) {
+      results[index] = bulkFailure(index, email, 'weak_password')
+      return
+    }
+    if (seen.has(email)) {
+      results[index] = bulkFailure(index, email, 'duplicate_in_request')
+      return
+    }
+    seen.add(email)
+    candidates.push({
+      index,
+      email,
+      displayName,
+      phone,
+      suppliedPassword: password.trim() === '' ? '' : password,
+    })
+  })
+
+  // 2. One lookup for accounts that already exist, trashed ones included.
+  const existing = new Map<string, boolean>() // email -> is trashed
+  if (candidates.length > 0) {
+    const { data, error } = await admin
+      .from('profiles')
+      .select('email, deleted_at')
+      .in('email', candidates.map((c) => c.email))
+    if (error) throw error
+    for (const p of data ?? []) existing.set(String(p.email).toLowerCase(), p.deleted_at !== null)
+  }
+
+  // 3. Create one at a time so a duplicate can never race itself.
+  for (const c of candidates) {
+    const known = existing.get(c.email)
+    if (known !== undefined) {
+      results[c.index] = {
+        index: c.index,
+        email: c.email,
+        status: known ? 'skipped_trashed' : 'skipped_exists',
+      }
+      continue
+    }
+
+    const generated = c.suppliedPassword === ''
+    const password = generated ? generatePassword() : c.suppliedPassword
+
+    const { data: created, error: createError } = await createAuthUser(admin, {
+      email: c.email,
+      password,
+      displayName: c.displayName,
+    })
+
+    if (createError || !created?.user) {
+      const authCode = (createError as { code?: string } | null)?.code ?? ''
+      const authStatus = (createError as { status?: number } | null)?.status ?? 0
+      console.error(`[admin-user-management] bulk_create row ${c.index} failed:`, {
+        code: authCode,
+        status: authStatus,
+      })
+
+      if (authCode === 'email_exists' || (authStatus === 422 && /already/i.test(createError?.message ?? ''))) {
+        // Lost a race with another signup/import, or the address belongs to an
+        // auth user with no profile. Classify by whatever profile exists.
+        const { data: race } = await admin
+          .from('profiles')
+          .select('deleted_at')
+          .ilike('email', escapeLike(c.email))
+          .maybeSingle()
+        results[c.index] = {
+          index: c.index,
+          email: c.email,
+          status: race?.deleted_at ? 'skipped_trashed' : 'skipped_exists',
+        }
+      } else if (authCode === 'weak_password') {
+        results[c.index] = bulkFailure(c.index, c.email, 'weak_password')
+      } else {
+        results[c.index] = bulkFailure(c.index, c.email, 'create_failed')
+      }
+      continue
+    }
+
+    const result: BulkRowResult = {
+      index: c.index,
+      email: c.email,
+      status: 'created',
+      user_id: created.user.id,
+    }
+    if (generated) result.generated_password = password
+
+    // The trigger built the profile (role student, CSV display_name). The phone
+    // is set afterwards; if that fails the account must be kept, not orphaned.
+    if (c.phone) {
+      const { data: updated, error: phoneError } = await admin
+        .from('profiles')
+        .update({ phone_number: c.phone })
+        .eq('id', created.user.id)
+        .select('id')
+      if (phoneError || !updated || updated.length !== 1) {
+        console.error(`[admin-user-management] bulk_create row ${c.index} phone not saved`)
+        result.warning = 'phone_not_saved'
+      }
+    }
+
+    results[c.index] = result
+  }
+
+  return results
 }
 
 // Every table with a row that references a profile and would make the
@@ -242,14 +524,10 @@ Deno.serve(async (req: Request) => {
         if (!displayName) return fail('Display name is required', 400)
         if (role !== 'student' && role !== 'admin') return fail('Role must be student or admin', 400)
 
-        // display_name is read by fn_handle_new_user (migration 005) out
-        // of raw_user_meta_data; without it the trigger falls back to the
-        // email's local part.
-        const { data: created, error: createError } = await admin.auth.admin.createUser({
+        const { data: created, error: createError } = await createAuthUser(admin, {
           email,
           password,
-          email_confirm: true,
-          user_metadata: { display_name: displayName },
+          displayName,
         })
 
         if (createError || !created?.user) {
@@ -275,6 +553,20 @@ Deno.serve(async (req: Request) => {
         }
 
         return json({ success: true, user: { id: created.user.id, email: created.user.email } })
+      }
+
+      // -----------------------------------------------------------
+      // CSV import: up to MAX_BULK_ROWS student accounts per call, one result
+      // per row. The response can carry generated passwords, so it must never
+      // be cached or logged.
+      case 'bulk_create': {
+        const rows = payload.rows
+        if (!Array.isArray(rows) || rows.length === 0) return fail('No rows to import', 400)
+        if (rows.length > MAX_BULK_ROWS) {
+          return fail(`At most ${MAX_BULK_ROWS} rows can be imported per request`, 400)
+        }
+        const results = await bulkCreate(admin, rows)
+        return json({ success: true, results }, 200, { 'Cache-Control': 'no-store' })
       }
 
       // -----------------------------------------------------------
