@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
 import {
   columnFilteringFeature,
@@ -136,6 +136,12 @@ interface UserTableProps {
   selection: TableSelection
   /** Context actions for the bulk bar, supplied by the page. */
   bulkActions?: ReactNode
+  /**
+   * Called with every row that passes the search + role filter, in the current
+   * sort order, across all pages — what the export's "Current filtered results"
+   * needs. Must be a stable function (a state setter is), or it re-fires.
+   */
+  onRowsChange?: (rows: AdminUserRow[]) => void
 }
 
 function buildColumns({
@@ -299,6 +305,7 @@ export function UserTable({
   currentUserId,
   selection,
   bulkActions,
+  onRowsChange,
 }: UserTableProps) {
   // Memoised because the filtered row model compares these by *reference*:
   // a fresh array/object each render reads as "the filters changed", which
@@ -338,6 +345,11 @@ export function UserTable({
     // in as controlled state rather than driven through per-column UI.
     state,
   })
+
+  const preRows = table.getPrePaginatedRowModel().rows
+  useEffect(() => {
+    onRowsChange?.(preRows.map((row) => row.original))
+  }, [preRows, onRowsChange])
 
   const visibleRows = table.getRowModel().rows
   const pageCount = table.getPageCount()

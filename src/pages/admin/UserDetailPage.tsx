@@ -52,8 +52,10 @@ function toAdminUserRow(profile: UserProfileDetail): AdminUserRow {
     display_name: profile.display_name,
     email: profile.email,
     avatar_url: profile.avatar_url,
+    phone_number: profile.phone_number,
     role: profile.role,
     created_at: profile.created_at,
+    deleted_at: profile.deleted_at,
     user_stats: profile.user_stats
       ? { total_xp: profile.user_stats.total_xp, level: profile.user_stats.level }
       : null,

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Search } from 'lucide-react'
+import { Download, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -18,7 +18,9 @@ import { EditUserDialog } from '@/components/admin/users/EditUserDialog'
 import { UpdateEmailDialog } from '@/components/admin/users/UpdateEmailDialog'
 import { UpdatePasswordDialog } from '@/components/admin/users/UpdatePasswordDialog'
 import { UserTable } from '@/components/admin/users/UserTable'
+import { ExportUsersMenu } from '@/components/admin/users/ExportUsersMenu'
 import { useUsers, type AdminUserRow, type RoleFilter } from '@/hooks/admin/useUsers'
+import { useUsersExport } from '@/hooks/admin/useUsersExport'
 import { adminSessionQueryOptions } from '@/lib/adminSession'
 
 type DialogKind = 'edit' | 'email' | 'password'
@@ -42,7 +44,17 @@ export function UsersPage() {
 
   // A selection is only meaningful under the search/filter it was made in.
   const selection = useTableSelection([search, roleFilter])
-  const selectedUsers = users.filter((u) => selection.rowSelection[u.id])
+
+  // Rows passing the search + role filter, across every page, in the table's
+  // sort order (reported up by the table). Selected rows follow the same order.
+  const [tableRows, setTableRows] = useState<AdminUserRow[]>([])
+  const selectedUsers = tableRows.filter((u) => selection.rowSelection[u.id])
+  const usersExport = useUsersExport({
+    selected: selectedUsers,
+    filtered: tableRows,
+    search,
+    roleFilter,
+  })
 
   function openDialog(kind: DialogKind, user: AdminUserRow) {
     setActiveUser(user)
@@ -62,10 +74,18 @@ export function UsersPage() {
             {users.length} {users.length === 1 ? 'account' : 'accounts'}
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus />
-          Add user
-        </Button>
+        <div className="flex items-center gap-2">
+          <ExportUsersMenu
+            selectedCount={selectedUsers.length}
+            filteredCount={tableRows.length}
+            isExporting={usersExport.isExporting}
+            onExport={(scope, includeTrashed) => void usersExport.run(scope, includeTrashed)}
+          />
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus />
+            Add user
+          </Button>
+        </div>
       </header>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row">
@@ -106,10 +126,22 @@ export function UsersPage() {
         onTrash={(user) => setTrashTargets([user])}
         currentUserId={session?.userId}
         selection={selection}
+        onRowsChange={setTableRows}
         bulkActions={
-          <Button variant="outline" size="sm" onClick={() => setTrashTargets(selectedUsers)}>
-            Move to trash
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={usersExport.isExporting}
+              onClick={() => void usersExport.run('selected')}
+            >
+              <Download />
+              Export selected
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setTrashTargets(selectedUsers)}>
+              Move to trash
+            </Button>
+          </>
         }
       />
 

@@ -22,6 +22,7 @@ export interface UserProfileDetail {
   display_name: string
   email: string
   avatar_url: string | null
+  phone_number: string | null
   role: string
   created_at: string
   /** Non-null = in the trash (migration 013). Admins can still open the page. */
@@ -75,7 +76,7 @@ export function useUserProfile(userId: string) {
       const { data, error } = await supabase
         .from('profiles')
         .select(
-          'id, display_name, email, avatar_url, role, created_at, deleted_at, user_stats(total_xp, level, current_streak, longest_streak, last_activity_date, lessons_completed)',
+          'id, display_name, email, avatar_url, phone_number, role, created_at, deleted_at, user_stats(total_xp, level, current_streak, longest_streak, last_activity_date, lessons_completed)',
         )
         .eq('id', userId)
         .maybeSingle()
