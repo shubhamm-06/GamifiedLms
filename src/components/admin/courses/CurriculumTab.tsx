@@ -38,6 +38,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { BulkActionBar } from '@/components/admin/selection/BulkActionBar'
 import { useTableSelection } from '@/components/admin/selection/useTableSelection'
+import { useCourse } from '@/hooks/admin/useCourses'
 import { useTrashActions } from '@/hooks/admin/useTrashActions'
 import { cn } from '@/lib/utils'
 import {
@@ -49,7 +50,7 @@ import {
   type LessonFormValues,
   type Module,
 } from '@/hooks/admin/useCurriculum'
-import { ContentTypeBadge, LessonStatusBadge } from './ContentTypeBadge'
+import { ContentTypeBadge, LessonSettingChips, LessonStatusBadge } from './ContentTypeBadge'
 import { LessonDialog } from './LessonDialog'
 
 /** Where a new/edited lesson belongs. `null` moduleId means Ungrouped. */
@@ -419,9 +420,17 @@ function LessonRow({
         onToggle={() => onToggleSelect(lesson.id)}
         label={`Select ${lesson.title}`}
       />
-      <span className="min-w-0 flex-1 truncate text-sm">{lesson.title}</span>
-      <ContentTypeBadge contentType={lesson.content_type} />
-      <LessonStatusBadge status={lesson.status} />
+      {/* The title keeps a floor of 5rem and truncates; the badges and setting
+          chips sit in a group that WRAPS onto a second line when the row is
+          narrow, instead of forcing one line wide enough to push the edit/trash
+          buttons out of the row. min-w-0 is what lets the group shrink below
+          its content width so it can wrap. */}
+      <span className="min-w-[5rem] flex-1 truncate text-sm">{lesson.title}</span>
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+        <ContentTypeBadge contentType={lesson.content_type} />
+        <LessonSettingChips lesson={lesson} />
+        <LessonStatusBadge status={lesson.status} />
+      </div>
       <Button
         variant="ghost"
         size="icon-sm"
@@ -680,6 +689,8 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
   const lessonMutations = useLessonMutations(courseId)
   const sensors = useReorderSensors()
   const { trash, isPending: trashPending } = useTrashActions()
+  // Only the two fields the lesson dialog needs to show a lesson's effective XP.
+  const { data: course } = useCourse(courseId)
   // Modules and lessons share one selection map — their ids are both UUIDs, so
   // they can't collide.
   const selection = useTableSelection([courseId])
@@ -1007,6 +1018,14 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
         open={!!lessonTarget}
         onOpenChange={(open) => !open && setLessonTarget(null)}
         lesson={lessonTarget?.lesson ?? null}
+        course={
+          course
+            ? {
+                default_lesson_xp: course.default_lesson_xp,
+                gamification_enabled: course.gamification_enabled,
+              }
+            : null
+        }
         isSubmitting={lessonMutations.create.isPending || lessonMutations.update.isPending}
         onSubmit={handleLessonSubmit}
       />

@@ -25,11 +25,27 @@ import {
   type LessonFormValues,
 } from '@/hooks/admin/useCurriculum'
 import { useGames } from '@/hooks/admin/useGames'
+import {
+  DEFAULT_MIN_TIME_SECONDS,
+  DEFAULT_PASS_PERCENTAGE,
+  defaultMinTimeFor,
+  describeEffectiveXp,
+  validateMinTime,
+  validatePassPercentage,
+  validateXpOverride,
+} from '@/lib/lessonSettings'
 import { cn } from '@/lib/utils'
 import { isEmbedUrl, normalizeEmbedUrl } from '@/lib/video'
+import { MinTimeField } from './MinTimeField'
 import { QuizQuestionsEditor } from './QuizQuestionsEditor'
 
 type VideoMode = 'direct' | 'embed'
+
+/** The two course fields that decide what XP a lesson really awards. */
+export interface LessonCourseXp {
+  default_lesson_xp: number
+  gamification_enabled: boolean
+}
 
 const EMPTY_LESSON: LessonFormValues = {
   title: '',
@@ -40,6 +56,10 @@ const EMPTY_LESSON: LessonFormValues = {
   game_id: '',
   duration_seconds: '',
   xp_reward: '',
+  // A new video lesson: the video/game/text default. Switching the type on an
+  // unedited new lesson re-derives it (see handleTypeChange).
+  min_time_seconds: String(DEFAULT_MIN_TIME_SECONDS),
+  pass_percentage: String(DEFAULT_PASS_PERCENTAGE),
   is_preview: false,
   status: 'draft',
 }
@@ -54,6 +74,8 @@ function lessonToFormValues(lesson: Lesson): LessonFormValues {
     game_id: lesson.game_id ?? '',
     duration_seconds: lesson.duration_seconds == null ? '' : String(lesson.duration_seconds),
     xp_reward: lesson.xp_reward == null ? '' : String(lesson.xp_reward),
+    min_time_seconds: String(lesson.min_time_seconds),
+    pass_percentage: String(lesson.pass_percentage),
     is_preview: lesson.is_preview,
     status: lesson.status,
   }
@@ -64,6 +86,8 @@ interface LessonDialogProps {
   onOpenChange: (open: boolean) => void
   /** The lesson being edited, or null when creating a new one. */
   lesson: Lesson | null
+  /** For the effective-XP helper text; absent while the course is still loading. */
+  course: LessonCourseXp | null
   isSubmitting: boolean
   onSubmit: (values: LessonFormValues) => void
 }
@@ -71,11 +95,13 @@ interface LessonDialogProps {
 /** Mounts fresh per open, so switching lessons never carries over stale state. */
 function LessonForm({
   lesson,
+  course,
   isSubmitting,
   onSubmit,
   onCancel,
 }: {
   lesson: Lesson | null
+  course: LessonCourseXp | null
   isSubmitting: boolean
   onSubmit: (values: LessonFormValues) => void
   onCancel: () => void
@@ -84,6 +110,11 @@ function LessonForm({
     lesson ? lessonToFormValues(lesson) : EMPTY_LESSON,
   )
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // Whether the admin has touched the minimum-time field. While it is false on
+  // a NEW lesson, changing the content type re-derives the pre-fill (90 for
+  // video/game/text, 0 for quiz); once touched, the type never overwrites it.
+  // An existing lesson's saved value is never re-derived.
+  const [minTimeTouched, setMinTimeTouched] = useState(false)
   // Not a stored field — there is no column marking a video as "embedded".
   // Defaults from whatever's already saved: an existing embed URL opens back
   // into Embed mode rather than looking like a mismatched direct link.
@@ -96,10 +127,31 @@ function LessonForm({
     setValues((prev) => ({ ...prev, [field]: value }))
   }
 
+  function handleTypeChange(contentType: ContentType) {
+    setValues((prev) => ({
+      ...prev,
+      content_type: contentType,
+      min_time_seconds:
+        !lesson && !minTimeTouched
+          ? String(defaultMinTimeFor(contentType))
+          : prev.min_time_seconds,
+    }))
+  }
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const next: Record<string, string> = {}
     if (!values.title.trim()) next.title = 'Title is required.'
+
+    // Same ranges as the database checks, with readable messages.
+    const timeError = validateMinTime(values.min_time_seconds)
+    if (timeError) next.min_time_seconds = timeError
+    if (values.content_type === 'quiz') {
+      const passError = validatePassPercentage(values.pass_percentage)
+      if (passError) next.pass_percentage = passError
+    }
+    const xpError = validateXpOverride(values.xp_reward)
+    if (xpError) next.xp_reward = xpError
 
     // video_url is optional either way, so an empty field isn't an error —
     // only a non-empty value that doesn't parse as a YouTube/Vimeo link is.
@@ -149,7 +201,7 @@ function LessonForm({
         <Label htmlFor="lesson-type">Content type</Label>
         <Select
           value={values.content_type}
-          onValueChange={(v) => set('content_type', v as ContentType)}
+          onValueChange={(v) => handleTypeChange(v as ContentType)}
         >
           <SelectTrigger id="lesson-type" className="w-full">
             <SelectValue />
@@ -264,6 +316,45 @@ function LessonForm({
         </div>
       ) : null}
 
+      {/* Stored settings only — nothing enforces either yet (docs/rules.md). */}
+      <MinTimeField
+        id="lesson-min-time"
+        value={values.min_time_seconds}
+        error={errors.min_time_seconds}
+        onChange={(v) => {
+          setMinTimeTouched(true)
+          set('min_time_seconds', v)
+        }}
+      />
+
+      {values.content_type === 'quiz' ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="lesson-pass">Pass mark</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="lesson-pass"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={100}
+              step={1}
+              className="w-28"
+              value={values.pass_percentage}
+              aria-invalid={!!errors.pass_percentage}
+              onChange={(e) => set('pass_percentage', e.target.value)}
+            />
+            <span className="text-muted-foreground text-sm">%</span>
+          </div>
+          {errors.pass_percentage ? (
+            <p className="text-coral-d text-sm">{errors.pass_percentage}</p>
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              Kids must score at least this to pass. Retries are unlimited.
+            </p>
+          )}
+        </div>
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="lesson-duration">Duration (seconds)</Label>
@@ -282,11 +373,18 @@ function LessonForm({
             type="number"
             min={0}
             value={values.xp_reward}
+            aria-invalid={!!errors.xp_reward}
             onChange={(e) => set('xp_reward', e.target.value)}
           />
-          <p className="text-muted-foreground text-xs">
-            Blank inherits the course default.
-          </p>
+          {errors.xp_reward ? (
+            <p className="text-coral-d text-sm">{errors.xp_reward}</p>
+          ) : (
+            <p className="text-muted-foreground text-xs">
+              {course
+                ? `Blank uses the course default (${course.default_lesson_xp} XP). ${describeEffectiveXp(values.xp_reward, course)}`
+                : 'Blank uses the course default.'}
+            </p>
+          )}
         </div>
       </div>
 
@@ -341,6 +439,7 @@ export function LessonDialog({
   open,
   onOpenChange,
   lesson,
+  course,
   isSubmitting,
   onSubmit,
 }: LessonDialogProps) {
@@ -362,6 +461,7 @@ export function LessonDialog({
         <LessonForm
           key={lesson?.id ?? 'new'}
           lesson={lesson}
+          course={course}
           isSubmitting={isSubmitting}
           onSubmit={onSubmit}
           onCancel={() => onOpenChange(false)}

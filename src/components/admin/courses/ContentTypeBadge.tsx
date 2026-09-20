@@ -1,4 +1,6 @@
+import { Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatClock } from '@/lib/lessonSettings'
 import type { ContentType } from '@/hooks/admin/useCurriculum'
 
 /**
@@ -27,7 +29,7 @@ export function ContentTypeBadge({ contentType }: { contentType: ContentType | s
         // Outlined, where status pills are solid: a quiz lesson in draft puts
         // gold next to gold, so the two badge families need to differ by more
         // than hue alone.
-        'inline-flex rounded-full border border-current/25 px-2 py-0.5 text-xs font-medium',
+        'inline-flex shrink-0 rounded-full border border-current/25 px-2 py-0.5 text-xs font-medium whitespace-nowrap',
         CONTENT_TYPE_STYLES[contentType] ?? 'bg-muted text-muted-foreground',
       )}
     >
@@ -45,11 +47,48 @@ export function LessonStatusBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+        'inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap',
         LESSON_STATUS_STYLES[status] ?? 'bg-muted text-muted-foreground',
       )}
     >
       {status === 'published' ? 'Published' : 'Draft'}
     </span>
+  )
+}
+
+const SETTING_CHIP =
+  'text-muted-foreground bg-muted inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap tabular-nums'
+
+/**
+ * Compact readout of a lesson's stored settings on a curriculum row: a clock
+ * and the minimum time ("1:30") when it is above 0, and "Pass 60%" for a quiz.
+ * Purely informational spans — no handlers, so they can't interfere with the
+ * drag handle or the selection checkbox beside them. The settings are stored
+ * only; nothing enforces them yet (docs/rules.md).
+ */
+export function LessonSettingChips({
+  lesson,
+}: {
+  lesson: { content_type: string; min_time_seconds: number; pass_percentage: number }
+}) {
+  const hasTime = lesson.min_time_seconds > 0
+  const isQuiz = lesson.content_type === 'quiz'
+  if (!hasTime && !isQuiz) return null
+
+  return (
+    <>
+      {hasTime ? (
+        <span className={SETTING_CHIP} title={`Minimum time ${formatClock(lesson.min_time_seconds)}`}>
+          <Clock className="size-3" aria-hidden />
+          <span className="sr-only">Minimum time </span>
+          {formatClock(lesson.min_time_seconds)}
+        </span>
+      ) : null}
+      {isQuiz ? (
+        <span className={SETTING_CHIP} title={`Pass mark ${lesson.pass_percentage}%`}>
+          Pass {lesson.pass_percentage}%
+        </span>
+      ) : null}
+    </>
   )
 }

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Json, Tables } from '@/lib/database.types'
+import { DEFAULT_PASS_PERCENTAGE } from '@/lib/lessonSettings'
 
 export type Module = Tables<'modules'>
 export type Lesson = Tables<'lessons'>
@@ -218,8 +219,22 @@ export interface LessonFormValues {
   game_id: string
   duration_seconds: string
   xp_reward: string
+  /** Whole seconds, 0–3600; 0 = no minimum. Stored only — nothing enforces it yet. */
+  min_time_seconds: string
+  /** Whole percent, 1–100. Only meaningful for quizzes. Stored only — nothing enforces it yet. */
+  pass_percentage: string
   is_preview: boolean
   status: string
+}
+
+/**
+ * The pass mark only means something for a quiz, so every other type keeps
+ * whatever the form holds (the stored value, or the default for a new lesson):
+ * switching a lesson's type never silently rewrites it.
+ */
+function passPercentageForSave(values: LessonFormValues): number {
+  const n = Number(values.pass_percentage)
+  return Number.isInteger(n) && n >= 1 && n <= 100 ? n : DEFAULT_PASS_PERCENTAGE
 }
 
 /** Only the column matching the chosen content_type is persisted. */
@@ -233,9 +248,27 @@ function lessonToRow(values: LessonFormValues) {
     game_id: values.content_type === 'game' ? values.game_id.trim() || null : null,
     duration_seconds: values.duration_seconds.trim() ? Number(values.duration_seconds) : null,
     xp_reward: values.xp_reward.trim() ? Number(values.xp_reward) : null,
+    min_time_seconds: Number(values.min_time_seconds),
+    pass_percentage: passPercentageForSave(values),
     is_preview: values.is_preview,
     status: values.status,
   }
+}
+
+const CHECK_VIOLATION = '23514'
+
+/**
+ * A failed lesson insert/update as an Error. A CHECK violation means a setting
+ * is out of range (client validation should have caught it); everything else
+ * keeps the existing behaviour of showing the message.
+ */
+function lessonWriteError(error: { code?: string; message: string }): Error {
+  if (error.code === CHECK_VIOLATION) {
+    return new Error(
+      'A setting is out of range — minimum time is 0 to 3600 seconds and the pass mark is 1 to 100.',
+    )
+  }
+  return new Error(error.message)
 }
 
 export function useLessonMutations(courseId: string) {
@@ -258,7 +291,7 @@ export function useLessonMutations(courseId: string) {
         module_id: moduleId,
         position,
       })
-      if (error) throw new Error(error.message)
+      if (error) throw lessonWriteError(error)
     },
     onSuccess: () => {
       invalidate()
@@ -269,8 +302,18 @@ export function useLessonMutations(courseId: string) {
 
   const update = useMutation({
     mutationFn: async ({ id, values }: { id: string; values: LessonFormValues }) => {
-      const { error } = await supabase.from('lessons').update(lessonToRow(values)).eq('id', id)
-      if (error) throw new Error(error.message)
+      // `.select('id')` + the count is the check: RLS filters a write the caller
+      // may not make (or a row that no longer exists) to zero rows and returns no
+      // error, which used to read as a successful save.
+      const { data, error } = await supabase
+        .from('lessons')
+        .update(lessonToRow(values))
+        .eq('id', id)
+        .select('id')
+      if (error) throw lessonWriteError(error)
+      if (!data || data.length !== 1) {
+        throw new Error("This lesson couldn't be saved — it may have been deleted, or you may not have permission.")
+      }
     },
     onSuccess: () => {
       invalidate()
