@@ -202,11 +202,11 @@ Established by Courses; follow these for the next admin domain.
   replaced an earlier Sheet (slide-over) — swapped for consistency with the
   Dialog convention already used elsewhere (e.g. Admin Users' create/edit);
   only the container primitive changed, not the field set or submit logic.
-- **Lesson timing and pass-mark settings (migration 015) — stored only.** The
+- **Lesson timing and pass-mark settings (migration 015, enforced server-side since 017).** The
   field copy describes the intended kid-side behaviour ("Kids can tap Mark
   complete after spending this long…", "Kids must score at least this to
-  pass…") exactly as specified, but **nothing enforces any of it yet**
-  (`rules.md`). The lesson dialog gains *Minimum time on lesson*
+  pass…") exactly as specified, and the lesson engine now enforces them
+  (`schema.md`, `rules.md`); no kid-side screen shows them yet. The lesson dialog gains *Minimum time on lesson*
   (`MinTimeField.tsx`: quick-pick chips Off / 30s / 1 min / 90s / 2 min / 5 min
   plus a numeric input — a chip is only a shortcut for typing its number) and,
   for quiz lessons only, *Pass mark* (whole percent). A NEW lesson pre-fills 90
@@ -235,7 +235,8 @@ Established by Courses; follow these for the next admin domain.
     runs.
   - **Games:** an *Orientation* select (Any / Portrait / Landscape) in
     `GameDialog` with the helper text "Landscape games will ask kids to rotate
-    their phone." — likewise stored only, and not a column on the games list.
+    their phone." — still stored only (nothing reads it; there is no game player),
+    and not a column on the games list.
 - **Destructive copy states the actual consequence.** Deleting a topic says
   its lessons move to Ungrouped (the FK is `SET NULL`, so they genuinely
   survive); deleting a lesson warns that its questions go with it and that

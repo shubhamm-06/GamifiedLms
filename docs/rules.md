@@ -303,15 +303,41 @@ belongs in `context.md` or `state.md`, not here.
   use it, so they cannot drift — email confirmed, `display_name` in user
   metadata for the signup trigger). Nothing in the client creates an `auth`
   user.
-- **`lessons.min_time_seconds`, `lessons.pass_percentage` and
-  `games.orientation` are stored settings only — nothing enforces or reads them
-  yet, and no doc, UI copy or code comment may say otherwise.** An admin can set
-  them (migration 015); the kid-side completion function that will honour the
-  first two does not exist. When it does, the minimum time and the pass mark must
-  be enforced **server-side** in that function, against timing the server
-  recorded — a client-side timer or a client-reported score is a courtesy at
-  most, never the check. The effective-XP hint in the lesson dialog is
-  display-only: the amount awarded is decided by `fn_award_lesson_xp`.
+- **A student's browser never writes lesson progress, quiz attempts, XP or
+  badges.** `lesson_progress` and `quiz_attempts` have no client INSERT/UPDATE/
+  DELETE policy *and* no such table privilege for `anon`/`authenticated`
+  (migration 017); `xp_transactions`, `user_stats` and `user_badges` have no
+  student write policy. The only student write path is the four lesson-engine
+  functions (`fn_lesson_heartbeat`, `fn_complete_lesson`, `fn_submit_quiz`,
+  `fn_course_lesson_states`), which take the user from `auth.uid()` — never from a
+  parameter. Completion, minimum time (`lessons.min_time_seconds`, counted as
+  active seconds by heartbeat), the quiz pass mark (`lessons.pass_percentage`),
+  unlock order and enrollment are all checked there; a client-side timer or a
+  client-reported score is a courtesy, never the check. A new function that a
+  client can call and that writes any of those tables, or that takes a user id
+  from the client, breaks this rule — including a definer function granted to
+  `authenticated` by default (`fn_evaluate_badges` was one until 019).
+- **Quiz answers never leave the server.** `quiz_questions.correct_option` and
+  `explanation` reach a student in no response — not `quiz_questions_public` (no
+  such columns), not `fn_submit_quiz` (per-question correct/incorrect flags only).
+  Showing a correct answer or explanation later is a product decision that needs
+  its own gated path, not a column added to a view.
+- **XP is awarded once per lesson, on the first completion.** A completed
+  `lesson_progress` row is never modified again by the engine; a replay or a
+  repeated `fn_complete_lesson` returns success with 0 XP, and
+  `uq_xp_transactions_dedupe` backs it. The effective-XP hint in the lesson dialog
+  is display-only: the amount awarded is decided by `fn_award_lesson_xp`.
+- **A view must not be writable by clients.** Supabase grants `ALL` on every new
+  public table and view to `anon` and `authenticated`; an auto-updatable
+  single-table view then lets a client write around the base table's RLS
+  (`profiles_public` was writable by anon until migration 016). Every migration
+  that creates a view must `revoke all` from `anon`/`authenticated` and grant
+  `select` only. A function a view calls must be executable by `authenticated`
+  (Postgres checks `EXECUTE` against the caller), so give views caller-only
+  wrappers with no user-id parameter — never grant an internal helper that takes a
+  user id.
+- **`games.orientation` is a stored setting only** — nothing reads it (there is no
+  game player); no doc, UI copy or code comment may say otherwise.
 - **KNOWN LIMITATION — the database still accepts an admin-created order for
   a trashed course.** `fn_create_manual_order` (payment logic, deliberately
   untouched by migration 013) does not check `courses.deleted_at`; only the

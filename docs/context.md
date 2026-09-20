@@ -84,7 +84,8 @@ src/
   pages/       route-level components: HomePage, LoginPage, SignupPage;
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
                CourseEdit, Games, Orders, Settings, Gamification, Trash)
-  hooks/       TanStack Query hooks: useAppSettings, useCourseCount; admin/ has
+  hooks/       TanStack Query hooks: useAppSettings, useCourseCount,
+               useLessonEngine (states/heartbeat/complete/quiz; no screen yet); admin/ has
                one file per domain (useUsers, useUserMutations, useUserDetail,
                useCourses, useCurriculum, useGames, usePayments,
                useManualOrderProviders, useCurrencies, useBadges,
@@ -95,7 +96,9 @@ src/
                adminSession.ts (route guard logic), adminUserApi.ts,
                adminConstants.ts, currency.ts, csv.ts (generic CSV read/write),
                userExport.ts, userImport.ts, lessonSettings.ts (lesson timer /
-               pass-mark / game-orientation constants + validation), slug.ts,
+               pass-mark / game-orientation constants + validation),
+               lessonEngine.ts (typed wrappers + error codes for the four
+               lesson-engine RPCs; see schema.md), slug.ts,
                video.ts, utils.ts,
                trash.ts (soft delete/restore), permanentDelete.ts (Trash page only)
   index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,
@@ -103,7 +106,7 @@ src/
   styles.css   brand tokens + Baloo 2 (auth/kid-facing; see ui.md)
   main.tsx, router.tsx   entry, route tree
 supabase/
-  migrations/  001-015, source of truth for schema — write here first, apply via
+  migrations/  001-019, source of truth for schema — write here first, apply via
                Supabase MCP second, regenerate database.types.ts third, every time
                (006-012 filenames drifted from live versions — see schema.md)
   functions/   admin-user-management (Deno) — the only Edge Function so far
@@ -119,9 +122,11 @@ supabase/
 - Enrollment-as-row, not a profile flag. `expires_at` computed at insert time
   from `courses.access_duration_days` — never read live (a calling-convention
   rule, not schema-enforced).
-- Server-side quiz grading intended (`quiz_questions_public` view strips
-  `correct_option`; `quiz_attempts` insert is `service_role`-only) but **no
-  grading Edge Function exists yet** — this path doesn't functionally work.
+- Lesson progress, timing, quiz grading, unlock order and lesson XP are
+  server-side only (migration 017, "Lesson engine" in `schema.md`): clients call
+  four `SECURITY DEFINER` RPCs and have no write path to progress/attempts/XP;
+  the XP/stats/badge triggers run inside the engine's transaction. No screen
+  calls them yet.
 - Service-role wall, "Option B": admins write `enrollments` and `manual`-only
   `xp_transactions` directly via RLS gated on `fn_is_admin()` — no Edge
   Function hop for these two, since the trigger check is exactly as
@@ -273,8 +278,9 @@ and level-threshold management. One deployed Edge Function handles the
 privileged account actions — creating accounts (one at a time or in bulk from
 a CSV), changing someone else's email or password, and trashing or deleting
 users. What does not exist yet is everything a
-student would touch: no student screens, no quiz grading, no payment-gateway
-webhook, and no deployed frontend.
+student would touch: no student screens (the lesson engine that will back
+them exists in the database), no payment-gateway webhook, and no deployed
+frontend.
 
 If you want to understand this fast: start with `state.md` for what's
 actually in flight right now, then `schema.md` if you're touching the

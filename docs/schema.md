@@ -44,9 +44,10 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
   deliberately. `fn_prevent_role_change()` (`BEFORE UPDATE`) raises an
   exception on any `role` change unless the caller is `service_role` or
   `fn_is_admin()`.
-- `profiles_public` view (`id`, `display_name`, `avatar_url`) is granted to
-  `authenticated` and `anon` for leaderboard/display use, since RLS can't
-  restrict individual columns on the base table.
+- `profiles_public` view (`id`, `display_name`, `avatar_url`) is granted
+  `SELECT` to `authenticated` only (migration 016 — it used to be writable by
+  `anon`, see Views) for leaderboard/display use, since RLS can't restrict
+  individual columns on the base table.
 - **XP and level are NOT here** — they live on `user_stats`, and that row
   only exists once a user has earned XP or completed a lesson. Anything
   showing XP per user must join `user_stats` and handle the null.
@@ -99,16 +100,17 @@ CASCADE`**), `title`, `position`, `created_at`, `deleted_at`, `deleted_by`
 `position` is scoped per `module_id`, not per course, and no constraint
 enforces that — see `rules.md` before writing it.
 
-**Lesson time and pass-mark settings (migration 015) — stored, not enforced.**
+**Lesson time and pass-mark settings (migration 015) — enforced by the lesson engine (migration 017).**
 `lessons.min_time_seconds` is `integer not null default 90` with
 `lessons_min_time_seconds_check` (0–3600); 0 means no minimum time.
 `lessons.pass_percentage` is `integer not null default 60` with
 `lessons_pass_percentage_check` (1–100) and only means something for a quiz
 lesson — the quiz **is** the lesson (`quiz_questions.lesson_id` and
 `quiz_attempts.lesson_id` reference `lessons(id)`), so there is no separate quiz
-table to hold it; other types store it and ignore it. **Nothing reads either
-column**: the kid-side completion function that will enforce them does not exist,
-and `lesson_progress` has no timing columns. The migration set
+table to hold it; other types store it and ignore it. Migration 015 only stored the two
+values; since 017 `fn_complete_lesson` and `fn_submit_quiz` read them on every
+call (*Lesson engine*, below), so an admin's edit takes effect on the next call,
+including for a lesson a student already has open. The migration set
 `min_time_seconds = 0` on existing quiz lessons (there were none at the time, so
 it touched 0 rows); every other lesson kept the default of 90 — `text` lessons
 included, since the spec named only video, game and quiz. The two real lessons
@@ -183,7 +185,12 @@ learners; this is a calling-convention rule, not schema-enforced).
 **`lesson_progress`** — per-user, per-lesson state. `id`, `user_id`,
 `lesson_id` (unique together), `course_id` (denormalised), `status`
 (`'not_started'|'in_progress'|'completed'`), `progress_percent`,
-`completed_at`, `updated_at`. The unique `(user_id, lesson_id)` guarantees one
+`completed_at`, `updated_at` and — migration 017 — `active_seconds` (`integer not
+null default 0`, `>= 0`), `first_opened_at` and `last_heartbeat_at` (nullable
+`timestamptz`). **Clients cannot write this table**: 017 dropped
+`lesson_progress_insert_self` / `_update_self` and revoked
+`INSERT`/`UPDATE`/`DELETE`/`TRUNCATE` from `anon` and `authenticated`; only the
+lesson-engine functions write it. The unique `(user_id, lesson_id)` guarantees one
 row per user per lesson — it is **not** what prevents double-awarding
 completion XP, since nothing stops a row leaving and re-entering
 `'completed'`. That dedupe is `uq_xp_transactions_dedupe` on `xp_transactions`
@@ -203,10 +210,12 @@ Lessons are addressed by `id`.
 
 **`quiz_attempts`** — every submission kept, not just the best. `id`,
 `user_id`, `lesson_id`, `score`, `max_score`, `passed`, `answers` (jsonb),
-`attempted_at`. The pass threshold itself now lives in
-`app_settings.quiz_pass_threshold_percent` (migration 010) — not on this
-table, and not yet read by anything, since quiz grading doesn't exist. See
-`state.md`.
+`attempted_at`. Written only by `fn_submit_quiz` (migration 017; `answers` is the
+`{question id: option id}` object the student sent, `max_score` the number of
+questions). The pass mark is `lessons.pass_percentage`;
+`app_settings.quiz_pass_threshold_percent` (migration 010) is still stored and
+read by nothing — see `state.md`. `INSERT`/`UPDATE`/`DELETE`/`TRUNCATE` are also
+revoked from `anon`/`authenticated` (017); the `service_role` insert policy remains.
 
 ### 4. Commerce — `payments`
 
@@ -369,8 +378,9 @@ Two confirmed gaps this closes: `default_currency` gives an actual place to
 set what "the platform default" is (previously `courses.currency` and
 `payments.currency` each independently defaulted to `'INR'` with nothing
 admin-configurable behind that); `quiz_pass_threshold_percent` gives quiz
-grading a value to eventually read (nothing consumes it yet — quiz grading
-doesn't exist — this table only makes the value settable and storable). See
+grading a value to eventually read (nothing consumes it: quiz grading exists
+since migration 017 but reads `lessons.pass_percentage` — this table only makes
+the value settable and storable). See
 `state.md` for the specific follow-on this unblocks (`CourseForm.tsx`'s
 hardcoded `currency: 'INR'` default should read from here instead — flagged,
 not built, since that's a separate small change on its own).
@@ -428,7 +438,7 @@ mechanism.
   valid until it expires, and every "own rows" policy kept working for it
   (observed: reading own enrollments, updating own `lesson_progress`). 014 adds
   `not fn_user_is_trashed(auth.uid())` to: `enrollments_select_self`,
-  `lesson_progress_select_self` / `_insert_self` / `_update_self`,
+  `lesson_progress_select_self` / `_insert_self` / `_update_self` (the last two were dropped again by 017),
   `quiz_attempts_select_self`, `xp_transactions_select_self`,
   `payments_select_self` (an own-row read; no payment logic or write path
   touched), `user_stats_select_public` and `user_badges_select_public` (now also
@@ -487,17 +497,135 @@ before this migration):
 
 ---
 
+## Lesson engine (migrations 017–019)
+
+All lesson completion, timing, quiz grading, unlock order and XP happen in the
+database. A student's browser has **no write path** to `lesson_progress`,
+`quiz_attempts`, `xp_transactions`, `user_stats` or `user_badges`; the four
+functions below are the only way it changes any of them. The user is always
+`auth.uid()`, never a parameter. All are `SECURITY DEFINER`, `search_path = ''`,
+`EXECUTE` revoked from `public` and `anon`, granted to `authenticated` only
+(callers: `lib/lessonEngine.ts`, `routes-permissions.md`).
+
+| Function | Does |
+|---|---|
+| `fn_course_lesson_states(p_course_id)` | One row per live, published lesson in course order: `lesson_id`, `module_id` (null = ungrouped), `state` (`locked`/`available`/`in_progress`/`completed`), `active_seconds`, `min_time_seconds`, `completed_at`, `sort_index`. The single source of truth for what is locked. Errors: `not_enrolled`, `lesson_unavailable` (course draft or trashed) |
+| `fn_lesson_heartbeat(p_lesson_id)` → `active_seconds`, `min_time_seconds`, `time_met`, `completed` | Needs enrollment and an unlocked lesson. Sets `first_opened_at` once. The first beat, or one more than 30 s after the last, only sets `last_heartbeat_at` (a resume after a gap adds nothing). Otherwise adds `least(floor(seconds since the last beat), 15)` and sets `last_heartbeat_at = now()`. A completed lesson is returned unchanged. Row-locked, so concurrent beats serialise |
+| `fn_complete_lesson(p_lesson_id)` → `completed`, `already_completed`, `completed_at`, `xp_awarded` | Needs enrollment, unlocked, published. Already completed → success with 0 XP. Else `active_seconds >= min_time_seconds` (`too_early`), and for a quiz a passed attempt (`quiz_not_passed`, checked after the time). Completing runs the existing triggers in the same transaction (XP, `lessons_completed`, badges); nothing is reimplemented |
+| `fn_submit_quiz(p_lesson_id, p_answers jsonb)` → `score`, `max_score`, `percentage`, `passed`, `results`, `completed`, `time_met`, `xp_awarded` | Grades server-side; records a `quiz_attempts` row per valid submission (unlimited retries). `passed` ⇔ `score*100 >= pass_percentage*questions` (integers, no rounding). `results` is `[{question_id, correct}]` in question order — **v1 assumption: it never contains the correct option or the explanation**. Passed and time met (or min time 0) → completes the lesson in the same call; passed but not time met → the student calls `fn_complete_lesson` later. `p_answers` must be an object with exactly one string entry per question, each an option id of that question; anything else is `invalid_answers` and records nothing. Options may be `{id,text}` objects or (legacy) bare strings |
+
+**Error codes.** Every refusal is `raise exception` with SQLSTATE `P0001` and the
+code as both `message` and `hint`: `not_enrolled` (no session, trashed user, or no
+active enrollment), `lesson_unavailable` (no such lesson, trashed lesson/module/
+course, unpublished, draft course, non-quiz sent to `fn_submit_quiz`, a quiz with
+no questions), `locked`, `too_early`, `quiz_not_passed`, `invalid_answers`,
+`internal_error` (anything unexpected; detail goes to the Postgres log, never the
+response). Anything else in a response (`42501` permission denied, an expired JWT)
+is PostgREST/Auth, not the engine. A nonexistent lesson id answers
+`lesson_unavailable` while an existing lesson in an unenrolled course answers
+`not_enrolled` — a lesson-id existence oracle; ids are random UUIDs, accepted.
+
+**Enrollment rule** — mirrors `lessons_select_enrolled_or_preview_or_admin`
+exactly and lives only in `fn_is_enrolled`: an `enrollments` row for the user and
+course with `status = 'active'`. It does **not** read `expires_at` and does not look
+at the course status (the sequence does, below). **Finding, not changed:** nothing
+in the database ever sets `status = 'expired'` (no function mentions it) and
+`expires_at` is read by no policy, function or trigger, so an enrollment past its
+`expires_at` still works everywhere — engine included (verified: status `active`
+with `expires_at` three days ago was accepted; status `expired` was refused
+`not_enrolled`). Enforcing expiry needs a product decision (see `state.md`).
+
+**Course order and lock state** (`fn_lesson_states`). A lesson is in the sequence
+only if it is not trashed, is `status = 'published'`, its course is not trashed
+and is `published` or `archived` (a `draft` course has no sequence), and it is
+ungrouped or in a non-trashed topic. Order: topics by `(position, created_at,
+id)`, each topic's lessons by `(position, created_at, id)`, then **ungrouped
+lessons after every topic** by the same key, however low their `position`.
+Trashed and unpublished lessons and lessons in trashed topics are skipped — they
+neither lock nor unlock anything. State: `completed` if the student's row is
+completed; else `locked` unless **every earlier lesson in the sequence is
+completed** (identical to "the previous lesson is completed" for normal progress,
+and it stays correct if an admin inserts or reorders lessons after students have
+progressed); else `in_progress` if they have a row that is started (heartbeat,
+attempt) ; else `available`. The first lesson is always unlocked; the first lesson
+of a topic unlocks when the previous topic is complete. `archived` courses work
+like `published` ones (the existing lessons policy allows it).
+
+**Helpers** (all in `public`; `EXECUTE` revoked from `public`/`anon`/`authenticated` unless
+stated): `fn_engine_error(code)` (raises), `fn_is_enrolled(user, course)`,
+`fn_lesson_states(user, course)`, `fn_lesson_unlocked_for(user, lesson)`,
+`fn_engine_guard(lesson)` (the shared precondition checks the three action
+functions start with), `fn_engine_complete(user, lesson, course)` (the one place a
+lesson becomes completed). **View-facing wrappers** (migration 018, granted to
+`authenticated` because views call them as the caller): `fn_caller_enrolled(course)`
+and `fn_caller_lesson_unlocked(lesson)` — no user-id parameter, so all they reveal
+is the caller's own status. The internal helpers take a user id and must never be
+granted to clients: `fn_is_enrolled(<other user>, …)` would let a student probe
+other students' enrollments.
+
+**`fn_evaluate_badges(uuid)`** was directly callable by `anon` and `authenticated`
+for any user id (it only inserts badges the user already qualifies for, so it could
+not grant anything unearned, but it was a client-triggerable write to
+`user_badges`). Migration 019 revoked `EXECUTE` from `public`/`anon`/`authenticated`;
+its callers are the two trigger functions, which run as their owner. Verified: a
+completion through the engine still awarded a `lessons_completed` badge.
+
+**Known cost.** `quiz_questions_public` and `fn_caller_lesson_unlocked` recompute a
+course's states per question row (`STABLE`, no caching) — fine at present sizes;
+revisit if a quiz has hundreds of questions.
+
+---
+
 ## Views
 
-- **`lesson_effective_xp`** — `coalesce(lessons.xp_reward,
-  courses.default_lesson_xp)`, so the client never does this fallback
-  itself. Live lessons only (`fn_lesson_is_live`, migration 013).
-- **`profiles_public`** — `id`, `display_name`, `avatar_url` only, granted
-  to `authenticated`/`anon`. Excludes trashed profiles (migration 013).
-- **`quiz_questions_public`** — strips `correct_option`; row-gated (in the
-  view definition itself, not a table policy) to admins, or — for live lessons
-  only — `is_preview` lessons and users with an active enrollment in the
-  lesson's course.
+All three are `SECURITY DEFINER` views (the default; the security advisor
+lists all three at ERROR level) and **must stay that way**: each exposes a
+subset of columns or rows of a table whose own RLS a student cannot pass, and an
+invoker view would show a student nothing. Each was audited on 2026-09-20 —
+what it exposes, and why definer is acceptable, is below. **A view runs its
+table access as its owner, but Postgres checks `EXECUTE` on the functions it
+calls against the *calling* role** (and does so when the query starts, for every
+function in the view, whether or not a row reaches it), so every function a view
+calls must be executable by `authenticated` — which is why the view-facing
+helpers below are caller-only wrappers with no user-id parameter (migration 018;
+017 got this wrong and broke both views until 018). Views also get Supabase's
+default `ALL` privileges when created: a new view must `revoke all … from anon,
+authenticated` and grant only `SELECT` (`rules.md`).
+
+- **`lesson_effective_xp`** (`lesson_id`, `effective_xp`) — `coalesce(lessons.xp_reward,
+  courses.default_lesson_xp)`, so the client never does this fallback itself.
+  Rows follow the `lessons` SELECT policy since 017: live lessons that are
+  `is_preview`, or in a course the caller is actively enrolled in
+  (`fn_caller_enrolled`), or everything for an admin. It used to list every
+  live lesson's id and XP to every caller. Kept as definer; conversion to
+  invoker was not attempted. It joins `courses`, whose SELECT policy shows a
+  student only *published* courses, so an invoker view would (inferred from the
+  policy text, not tested) drop the lessons of an archived course the student is
+  enrolled in. It exposes only a lesson id and a number. `SELECT` granted to
+  `authenticated` only (016).
+- **`profiles_public`** (`id`, `display_name`, `avatar_url`) — needed as definer
+  because `profiles` RLS is self-or-admin and leaderboards must read other
+  students' names. It exposes those three columns of every non-trashed profile
+  to any signed-in user (accepted: that is its purpose; no email, phone or role).
+  **Migration 016 fixed a live vulnerability:** as an auto-updatable
+  single-table view it was writable — `anon` and any student could `PATCH` or
+  `DELETE` other users' profiles through it, bypassing `profiles` RLS (it had
+  `ALL` privileges granted to `anon`/`authenticated` since migration 003).
+  016 revoked everything and granted `SELECT` to `authenticated` only; verified
+  afterwards with the same `PATCH`/`DELETE` probes (refused) and a student read
+  (still works).
+- **`quiz_questions_public`** (`id`, `lesson_id`, `prompt`, `options`, `position`) —
+  definer because `quiz_questions` is admin-only and RLS cannot hide single
+  columns. **Recreated in 017 without `explanation`** (it used to be exposed, and
+  can give the answer away); `correct_option` was never in it. Rows: everything
+  for an admin; otherwise a live, `published` lesson that is `is_preview` or
+  that the caller has unlocked (`fn_caller_lesson_unlocked` — enrolled and not
+  locked in the engine's sequence). Previously any enrolled student saw every
+  quiz of the course from the start. `SELECT` to `authenticated` only.
+
+  A preview lesson's questions (and its `lessons` row) are readable by any
+  signed-in user, a trashed one included — that is what the existing `lessons`
+  policy does for previews, and the views mirror it.
 
 ---
 
@@ -620,9 +748,9 @@ explicitly; don't lean on this.
 | `lessons` | live lessons only (`fn_lesson_is_live`) that are `is_preview` or actively-enrolled, or admin | admin | admin | admin, only when trashed |
 | `games` | any authenticated and not trashed, or admin | admin | admin | admin, only when trashed |
 | `quiz_questions` | admin only (base table) | admin | admin | admin |
-| `quiz_attempts` | self (not trashed) or admin | `service_role` only | — | — |
+| `quiz_attempts` | self (not trashed) or admin | `service_role` policy only; students write it only through `fn_submit_quiz` | — | — |
 | `enrollments` | self (not trashed) or admin | `service_role` or admin | `service_role` or admin | `service_role` or admin |
-| `lesson_progress` | self (not trashed) or admin | self (not trashed) | self (not trashed) | — |
+| `lesson_progress` | self (not trashed) or admin | — (migration 017 dropped the self policy; only the engine functions write) | — (same) | — |
 | `payments` | self (not trashed) or admin | `service_role`, or admin via `fn_create_manual_order` only (never a bare insert — migration 007) | `service_role` (any column) or admin (scoped, see trigger table) | admin, only when `deleted_at IS NOT NULL` (migration 009) |
 | `xp_transactions` | self (not trashed) or admin | `service_role`, or admin when `source_type='manual'` | — | — |
 | `user_stats` | public, except trashed users' rows and for a trashed caller (admins see all) | — | — | — |
@@ -645,7 +773,8 @@ nothing should ever add a second row or remove the one it has.
 
 Two `SELECT` layers on `quiz_questions`: the base table's policy is
 admin-only. Students must always read through `quiz_questions_public`
-instead, which strips `correct_option`.
+instead, which strips `correct_option` **and `explanation`** (migration 017) and only
+shows the questions of a lesson the student has unlocked (or a preview lesson).
 
 ---
 
@@ -734,9 +863,13 @@ table.
 | 013 | `20260919170620_013_trash_first.sql` | 2026-09-19 17:06:20 | Trash-first deletion (section 7): `deleted_at`/`deleted_by` on `courses`, `modules`, `lessons`, `games`, `badges`, `profiles`; live-only partial unique slug indexes on courses/games/badges; trashed rows and rows under trashed parents hidden from non-admins (policies, `profiles_public`, `quiz_questions_public`, `lesson_effective_xp`); the five `*_admin_delete` policies require a trashed row; `fn_is_admin()` requires a non-trashed profile; counters and XP/badge functions skip trashed content; `deleted_by` stamping + `profiles` trash-column guard; helpers and admin RPCs; `fn_revoke_user_sessions` |
 | 014 | `20260919175812_014_trashed_token_gap.sql` | 2026-09-19 17:58:12 | Gates every `auth.uid()`-scoped policy on `not fn_user_is_trashed(auth.uid())` (own-row tables, leaderboards, enrollment-derived content, games/badges reads, `quiz_questions_public`) so a trashed user's already-issued token stops working; `EXECUTE` revoked from `public`/`anon`/`authenticated` on `fn_module_trash_lesson_count` and `fn_profile_trash_student_count`. No type-level change |
 | 015 | `20260920130513_015_lesson_timer_settings.sql` | 2026-09-20 13:05:13 | `lessons.min_time_seconds` (default 90, check 0–3600), `lessons.pass_percentage` (default 60, check 1–100) and `games.orientation` (default `'any'`, check portrait/landscape/any); existing quiz lessons backfilled to `min_time_seconds = 0` (none existed). Stored settings only — nothing enforces them yet; no policy change |
+| 016 | `20260920182632_016_lock_public_views.sql` | 2026-09-20 18:26:32 | Security fix: `profiles_public`, `quiz_questions_public` and `lesson_effective_xp` had `ALL` privileges for `anon` and `authenticated` (Supabase default on new views); `profiles_public` was therefore writable/deletable by anon and any student. `REVOKE ALL`, then `GRANT SELECT` to `authenticated` only |
+| 017 | `20260920183703_017_lesson_engine.sql` | 2026-09-20 18:37:03 | The lesson engine: `lesson_progress.active_seconds`/`first_opened_at`/`last_heartbeat_at`; student write policies on `lesson_progress` dropped and write privileges revoked on `lesson_progress` and `quiz_attempts`; `fn_lesson_heartbeat`, `fn_complete_lesson`, `fn_submit_quiz`, `fn_course_lesson_states` plus internal helpers; `quiz_questions_public` recreated without `explanation`; `lesson_effective_xp` gated. **Its two view definitions were broken for every signed-in user** (permission denied for the helper functions) — fixed by 018 |
+| 018 | `20260920184704_018_engine_view_helpers.sql` | 2026-09-20 18:47:04 | `fn_caller_enrolled` / `fn_caller_lesson_unlocked` (caller-only, executable by `authenticated`) and re-created `quiz_questions_public` / `lesson_effective_xp` on top of them |
+| 019 | `20260920185147_019_lock_evaluate_badges.sql` | 2026-09-20 18:51:47 | `EXECUTE` on `fn_evaluate_badges(uuid)` revoked from `public`/`anon`/`authenticated` |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
-001–005 match `list_migrations` exactly, and so do 013, 014 and 015 (their files were named
+001–005 match `list_migrations` exactly, and so do 013–019 (their files were named
 after the live version). For 006–012 the MCP `apply_migration`
 call stamped its own version at apply time, and the hand-named files never
 matched it: 006 differs by 9 seconds; 007's file (`20260918184559`) is a day

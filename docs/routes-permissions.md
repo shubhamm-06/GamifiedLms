@@ -112,6 +112,31 @@ On sign-out the cached session is removed before navigating, otherwise
 `/login`'s own guard could read a stale admin session and bounce straight
 back to `/admin`.
 
+## Database functions callable by students (PostgREST RPC)
+
+The lesson engine (migration 017; behaviour in `schema.md`). Each is
+`SECURITY DEFINER`, derives the user from `auth.uid()` and is executable by
+`authenticated` only — `anon` gets `42501`. A trashed user's still-valid token gets
+`not_enrolled`. Client wrappers: `src/lib/lessonEngine.ts`; hooks:
+`src/hooks/useLessonEngine.ts` (no screen uses them yet).
+
+| Function | Who may call | Refusals (`hint`/`message`) |
+|---|---|---|
+| `fn_course_lesson_states(p_course_id)` | Signed-in, actively enrolled in the course | `not_enrolled`, `lesson_unavailable` (draft/trashed course) |
+| `fn_lesson_heartbeat(p_lesson_id)` | Enrolled, lesson unlocked | `not_enrolled`, `lesson_unavailable`, `locked` |
+| `fn_complete_lesson(p_lesson_id)` | Enrolled, lesson unlocked | the above plus `too_early`, `quiz_not_passed` |
+| `fn_submit_quiz(p_lesson_id, p_answers)` | Enrolled, quiz lesson unlocked | `not_enrolled`, `lesson_unavailable` (also: not a quiz), `locked`, `invalid_answers` |
+
+Admins are not special here: an admin who is not enrolled gets `not_enrolled`
+(no admin preview through the engine). Nothing in the engine accepts a user id
+from the client, and its internal helpers (`fn_is_enrolled`, `fn_lesson_states`,
+`fn_lesson_unlocked_for`, `fn_engine_*`) and `fn_evaluate_badges` are not
+executable by clients. Two caller-only helpers (`fn_caller_enrolled`,
+`fn_caller_lesson_unlocked`) are executable by `authenticated` because views
+call them; each reveals only the caller's own status. `quiz_questions_public` and
+`lesson_effective_xp` are readable by `authenticated` (row rules in `schema.md`);
+`profiles_public` likewise. `anon` can read none of the three views.
+
 ## Edge Function endpoints
 
 ### `POST /functions/v1/admin-user-management`

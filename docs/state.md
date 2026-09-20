@@ -29,8 +29,7 @@ nav entry is a real route):
   drag-and-drop reordering including cross-topic lesson moves, checkboxes and
   bulk Move to trash on topics and lessons, YouTube/Vimeo embed links, and
   per-lesson *minimum time* and (quiz) *pass mark* settings with a bulk "Set
-  minimum time" — stored only, nothing enforces them (see Designed but not
-  built).
+  minimum time" (enforced server-side by the lesson engine; see Backend).
 - Games: the `/admin/games` list (Move to trash, multi-select) plus
   `GameDialog`, including a stored *Orientation* setting.
 - Orders and payments: `/admin/orders` — KPI cards, filters, Add order (a
@@ -50,7 +49,14 @@ nav entry is a real route):
   uses the shared multi-select kit.
 
 **Backend:**
-- Schema through migration 015 (`schema.md`), RLS on every table, the
+- **The kid-side lesson engine, database and client layer only — no screen
+  uses it** (migrations 017–019, `schema.md`): server-side heartbeat-counted
+  active time, linear unlock, quiz grading, completion and XP-once through four
+  RPCs; students have no write path to progress, attempts or XP. Typed wrappers
+  and TanStack Query hooks (`lib/lessonEngine.ts`, `hooks/useLessonEngine.ts`)
+  exist and have been type-checked and built, **not run against the live API**
+  (the SQL functions were exercised over the real REST API; see the changelog).
+- Schema through migration 019 (`schema.md`), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
   false`), and an admin-editable level curve.
@@ -74,10 +80,11 @@ The schema or docs anticipate each of these; no working code exists for any.
 
 - **Student-facing app.** No student screens exist; `/` is a scaffold landing
   page.
-- **Quiz grading.** `quiz_questions_public` strips the answer key and
-  `quiz_attempts` is `service_role`-insert only, but no grading Edge Function
-  exists, so nothing writes attempts. `app_settings.quiz_pass_threshold_percent`
-  is stored and admin-editable but read by nothing.
+- **Quiz reveal.** Grading exists (`fn_submit_quiz`, v1: per-question
+  correct/incorrect only — no correct option, no explanation, by assumption).
+  Whether and when a student may see the right answer or the explanation is
+  undecided (`rules.md`). `app_settings.quiz_pass_threshold_percent` is stored
+  and admin-editable but read by nothing — the pass mark is per lesson.
 - **Other XP award paths.** Only `'lesson'` (automatic) and `'manual'` (admin)
   award XP; the `'quiz'`, `'game'` and `'streak'` `source_type`s have no
   writer.
@@ -98,20 +105,19 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Rich-text editing** for a lesson's `content_html` (a raw HTML textarea
   today) — a separate dependency decision.
 - **Analytics.** `analytics.md` deliberately doesn't exist until this starts.
-- **Kid-side enforcement of the lesson settings.** `lessons.min_time_seconds`,
-  `lessons.pass_percentage` and `games.orientation` are stored and editable
-  (migration 015) but **nothing reads or enforces them**. Enforcement needs
-  things that do not exist: timing columns on `lesson_progress`, a heartbeat
-  function that records time on a lesson, and a completion function that checks
-  the minimum time and the quiz pass mark server-side (`rules.md`); a landscape
-  game's "rotate your phone" prompt needs the game player.
+- **Anything that uses the lesson engine.** No kid-facing screen (lesson
+  player, roadmap) calls it yet, and `games.orientation` (stored, editable) is
+  read by nothing — a landscape game's "rotate your phone" prompt needs the game
+  player.
+- **A parental gate** for the kid-side app — deferred by decision.
 
 ## In flight
 
 Nothing. The trash-first task is complete (soft delete and the Trash page,
 multi-select on every list table, Users CSV export and import, the final sweep)
 and so is the admin side of the lesson timer / pass mark / game orientation
-settings. Their kid-side enforcement is a later task and has not been started.
+settings, and the database and client layer of the kid-side lesson engine (no
+screens). Nothing is mid-way.
 
 ## Live data reality
 
@@ -130,7 +136,10 @@ stats, game and badge counts were re-read after each Phase 4 fixture round and
 matched the figures above; the config-table counts were not re-read. The two
 real lessons (1 `text`, 1 `video`) carry the migration 015 defaults
 (`min_time_seconds` 90, `pass_percentage` 60), re-read on 2026-09-20 after that
-task's fixtures were removed.
+task's fixtures were removed. After the lesson-engine task's fixtures were
+removed the counts above (including `lesson_progress` 0, `quiz_attempts` 0,
+`quiz_questions` 0, `xp_transactions` 1, `user_stats` 1, `user_badges` 0, `badges` 0
+and the course counters) were re-read and matched.
 
 ## Blockers
 
@@ -147,10 +156,10 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). The UI and the Edge Function both
    refuse it; a direct `service_role`/dashboard delete or an `auth.users`
    cascade still isn't stopped.
-3. Kid-side lesson completion: timing columns on `lesson_progress`, a heartbeat
-   function and a completion function that enforce the minimum time and the quiz
-   pass mark server-side (see Designed but not built).
-4. Quiz grading is the next real gamification gap (see Designed but not built).
+3. Kid-facing screens on top of the lesson engine (course roadmap, lesson
+   player), starting from `lib/lessonEngine.ts` — beat every
+   `HEARTBEAT_INTERVAL_MS` while a lesson is in the foreground.
+4. Decide enrollment expiry (below) before any student is expected to lose access.
 
 ## Open decisions & on the horizon
 
@@ -162,23 +171,56 @@ worked on.
   admins always exist; the guard only fires on a race between two admins
   trashing each other. It is implemented and defense-in-depth, but has not
   been exercised.
-- **Security-advisor follow-up (not done).** The advisor flags 13
-  `SECURITY DEFINER` functions as executable by `anon` and `authenticated`.
-  Three are the RLS helpers (`fn_user_is_trashed`, `fn_course_is_live`,
-  `fn_lesson_is_live`) and must stay executable, because policies run them as
-  the caller. The other ten predate the trash work and were left alone on
-  purpose: `fn_award_lesson_xp`, `fn_evaluate_badges`, `fn_handle_new_user`,
-  `fn_is_admin`, `fn_prevent_role_change`, `fn_process_xp_transaction`,
-  `fn_update_course_lesson_count`, `fn_update_course_student_count`,
-  `fn_update_lessons_completed` and `rls_auto_enable`. Most are trigger
-  functions that could have `EXECUTE` revoked; `fn_evaluate_badges(uuid)` is a
-  directly callable function any signed-in user can invoke for any user id.
-  Also flagged: three functions with a mutable `search_path` (`fn_set_updated_at`,
-  `fn_compute_level`, `fn_create_manual_order`) and leaked-password protection
-  being off. The advisor also lists three `SECURITY DEFINER` views at ERROR
-  level — `lesson_effective_xp`, `quiz_questions_public` and `profiles_public`,
-  all created in earlier migrations (not by 015) — which had not been noted here
-  before 2026-09-20 and have not been examined.
+- **Security-advisor follow-up (partly done).** Last run 2026-09-20, just BEFORE
+  019 (not re-run after): 13 `SECURITY DEFINER` functions executable by `anon`,
+  19 by `authenticated`. Four are RLS helpers (`fn_user_is_trashed`,
+  `fn_course_is_live`, `fn_lesson_is_live`, `fn_is_admin`) that must stay
+  executable because policies run them as the caller. Eight are trigger or
+  event-trigger functions that predate the trash work and were left alone
+  (`fn_award_lesson_xp`, `fn_handle_new_user`, `fn_prevent_role_change`,
+  `fn_process_xp_transaction`, `fn_update_course_lesson_count`,
+  `fn_update_course_student_count`, `fn_update_lessons_completed`,
+  `rls_auto_enable`); calling a trigger function through RPC is not expected to
+  do anything useful, but that was not tried, so this is an advisor finding, not a
+  demonstrated hole. `fn_evaluate_badges(uuid)`, which was the one
+  directly callable exception, was closed by migration 019. The four engine
+  functions and the two caller-only view helpers are listed as
+  `authenticated`-executable by design. Also flagged: three functions with a
+  mutable `search_path` (`fn_set_updated_at`, `fn_compute_level`,
+  `fn_create_manual_order`) and leaked-password protection being off. The three
+  `SECURITY DEFINER` views the advisor lists at ERROR level were audited on
+  2026-09-20 and are **accepted, with a written rationale** in `schema.md`
+  (Views): each needs owner privileges, none exposes a correct answer or
+  explanation any more, and the write hole in `profiles_public` is closed
+  (016). The advisor will keep listing them.
+- **Enrollment expiry is not enforced anywhere.** `enrollments.status` can be
+  `'expired'` but nothing sets it, and `expires_at` is read by no policy, function or
+  trigger, so an enrollment past its `expires_at` still opens the course and the
+  lesson engine (observed with a status-`active` enrollment three days past
+  `expires_at`). Decide whether to enforce it in `fn_is_enrolled` (one place, the
+  lessons policy would then need the same change) or set `'expired'` on a schedule.
+- **Enrolled students can read draft lessons directly.** From the policy text
+  (not exercised over REST): `lessons_select_enrolled_or_preview_or_admin` gates on
+  `fn_lesson_is_live` (trashed or not) and enrollment, with no `status =
+  'published'` check, so a draft lesson's row is readable by an enrolled student.
+  The engine ignores drafts (they are not in the sequence and every function
+  answers `lesson_unavailable`); the table read is the leftover. Adding the status
+  check to the policy is a one-line change.
+- **A heartbeat under-credits by up to a second per beat.** It credits whole
+  seconds and stamps `last_heartbeat_at = now()`, dropping the fraction: 10 s
+  beats were credited 10 for gaps of 10.43, 10.84 and 10.76 s. Twelve back-to-back
+  beats over 3.00 s of server time credited 0 (the intent: hammering never
+  inflates). Carrying the remainder (advancing `last_heartbeat_at` only by the
+  credited seconds) would lose nothing and still never over-credit; not done
+  because the spec said `= now()`.
+- **Admins cannot preview a lesson through the engine.** Not enrolled → `not_enrolled`
+  for everything; an admin preview mode would be a separate, deliberate addition.
+- **Preview lessons are readable by any signed-in user, a trashed one included**
+  (existing `lessons` policy); `quiz_questions_public` and `lesson_effective_xp`
+  mirror it.
+- **Do the three real profiles' display names look right?** `profiles_public` was
+  writable by `anon` from migration 003 until 016. No write was observed in the
+  data, but nothing recorded one either; worth a glance at the three names.
 - **Payments' Trash view still says "permanently" / "can't be undone" outside
   `/admin/trash`.** `/admin/orders` keeps its own older Active/Trash split with
   a "Delete Permanently" action (migration 009, built before trash-first). The
@@ -300,3 +342,9 @@ worked on.
   verified fact.
 - **Capacitor session handling is unaudited** in a webview; no native
   platforms exist.
+- **The lesson-engine client layer has not been run against the live API**, only
+  type-checked, linted and built; its error mapping (`hint`/`message` → code, and
+  "Failed to fetch" → `network`) is written from the REST responses observed, not
+  exercised through supabase-js. The generated types mark every `RETURNS TABLE`
+  column non-null, including `module_id` and `completed_at`, which can be null;
+  `fetchCourseLessonStates` maps them to `string | null` by hand.
