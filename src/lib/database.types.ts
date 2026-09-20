@@ -401,9 +401,12 @@ export type Database = {
       }
       lesson_progress: {
         Row: {
+          active_seconds: number
           completed_at: string | null
           course_id: string
+          first_opened_at: string | null
           id: string
+          last_heartbeat_at: string | null
           lesson_id: string
           progress_percent: number
           status: string
@@ -411,9 +414,12 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          active_seconds?: number
           completed_at?: string | null
           course_id: string
+          first_opened_at?: string | null
           id?: string
+          last_heartbeat_at?: string | null
           lesson_id: string
           progress_percent?: number
           status?: string
@@ -421,9 +427,12 @@ export type Database = {
           user_id: string
         }
         Update: {
+          active_seconds?: number
           completed_at?: string | null
           course_id?: string
+          first_opened_at?: string | null
           id?: string
+          last_heartbeat_at?: string | null
           lesson_id?: string
           progress_percent?: number
           status?: string
@@ -1051,7 +1060,6 @@ export type Database = {
       }
       quiz_questions_public: {
         Row: {
-          explanation: string | null
           id: string | null
           lesson_id: string | null
           options: Json | null
@@ -1077,6 +1085,15 @@ export type Database = {
       }
     }
     Functions: {
+      fn_complete_lesson: {
+        Args: { p_lesson_id: string }
+        Returns: {
+          already_completed: boolean
+          completed: boolean
+          completed_at: string
+          xp_awarded: number
+        }[]
+      }
       fn_compute_level: { Args: { p_total_xp: number }; Returns: number }
       fn_course_delete_blockers: {
         Args: { p_course_id: string }
@@ -1089,6 +1106,18 @@ export type Database = {
         }[]
       }
       fn_course_is_live: { Args: { p_course_id: string }; Returns: boolean }
+      fn_course_lesson_states: {
+        Args: { p_course_id: string }
+        Returns: {
+          active_seconds: number
+          completed_at: string
+          lesson_id: string
+          min_time_seconds: number
+          module_id: string
+          sort_index: number
+          state: string
+        }[]
+      }
       fn_create_manual_order: {
         Args: {
           p_amount: number
@@ -1104,9 +1133,58 @@ export type Database = {
         Args: { p_module_id: string }
         Returns: number
       }
+      fn_engine_complete: {
+        Args: { p_course_id: string; p_lesson_id: string; p_user_id: string }
+        Returns: {
+          completed_at: string
+          was_new: boolean
+          xp_awarded: number
+        }[]
+      }
+      fn_engine_error: { Args: { p_code: string }; Returns: undefined }
+      fn_engine_guard: {
+        Args: { p_lesson_id: string }
+        Returns: {
+          content_type: string
+          course_id: string
+          min_time_seconds: number
+          pass_percentage: number
+          state: string
+          user_id: string
+        }[]
+      }
       fn_evaluate_badges: { Args: { p_user_id: string }; Returns: undefined }
       fn_is_admin: { Args: never; Returns: boolean }
+      fn_is_enrolled: {
+        Args: { p_course_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      fn_lesson_heartbeat: {
+        Args: { p_lesson_id: string }
+        Returns: {
+          active_seconds: number
+          completed: boolean
+          min_time_seconds: number
+          time_met: boolean
+        }[]
+      }
       fn_lesson_is_live: { Args: { p_lesson_id: string }; Returns: boolean }
+      fn_lesson_states: {
+        Args: { p_course_id: string; p_user_id: string }
+        Returns: {
+          active_seconds: number
+          completed_at: string
+          lesson_id: string
+          min_time_seconds: number
+          module_id: string
+          sort_index: number
+          state: string
+        }[]
+      }
+      fn_lesson_unlocked_for: {
+        Args: { p_lesson_id: string; p_user_id: string }
+        Returns: boolean
+      }
       fn_recompute_course_lesson_count: {
         Args: { p_course_id: string }
         Returns: undefined
@@ -1122,6 +1200,19 @@ export type Database = {
       fn_revoke_user_sessions: {
         Args: { p_user_id: string }
         Returns: undefined
+      }
+      fn_submit_quiz: {
+        Args: { p_answers: Json; p_lesson_id: string }
+        Returns: {
+          completed: boolean
+          max_score: number
+          passed: boolean
+          percentage: number
+          results: Json
+          score: number
+          time_met: boolean
+          xp_awarded: number
+        }[]
       }
       fn_user_is_trashed: { Args: { p_user_id: string }; Returns: boolean }
     }

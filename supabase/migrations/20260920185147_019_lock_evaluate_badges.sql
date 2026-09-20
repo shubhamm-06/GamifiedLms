@@ -1,0 +1,21 @@
+-- =====================================================================
+-- Gamified LMS — Migration 019: fn_evaluate_badges is not a client function
+--
+-- FINDING (security advisor, after 017): fn_evaluate_badges(p_user_id uuid) —
+-- SECURITY DEFINER, writes public.user_badges — was executable by anon and
+-- authenticated through /rest/v1/rpc, with the user id as a parameter. It only
+-- ever inserts badges the target user already qualifies for by their own
+-- user_stats / progress, so it cannot grant anything unearned, but it let any
+-- caller (signed out included) force a badge evaluation, and thereby a write
+-- to user_badges, for any user id. The engine goal is that clients have no
+-- write path to progress, XP or badges except the four engine functions, so
+-- this closes it.
+--
+-- The only callers are trigger functions (fn_update_lessons_completed and
+-- fn_process_xp_transaction, both SECURITY DEFINER, owned by the same role),
+-- so they keep working: a trigger's function call is checked against the
+-- function owner, not the client. Verified after applying — see the 017/019
+-- entry in docs/changelog.md.
+-- =====================================================================
+
+revoke all on function public.fn_evaluate_badges(uuid) from public, anon, authenticated;
