@@ -94,14 +94,16 @@ src/
   lib/         supabase.ts (client), database.types.ts (generated), queryClient.ts,
                adminSession.ts (route guard logic), adminUserApi.ts,
                adminConstants.ts, currency.ts, csv.ts (generic CSV read/write),
-               userExport.ts, userImport.ts, slug.ts, video.ts, utils.ts,
+               userExport.ts, userImport.ts, lessonSettings.ts (lesson timer /
+               pass-mark / game-orientation constants + validation), slug.ts,
+               video.ts, utils.ts,
                trash.ts (soft delete/restore), permanentDelete.ts (Trash page only)
   index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,
                shadcn tokens, Geist font
   styles.css   brand tokens + Baloo 2 (auth/kid-facing; see ui.md)
   main.tsx, router.tsx   entry, route tree
 supabase/
-  migrations/  001-014, source of truth for schema — write here first, apply via
+  migrations/  001-015, source of truth for schema — write here first, apply via
                Supabase MCP second, regenerate database.types.ts third, every time
                (006-012 filenames drifted from live versions — see schema.md)
   functions/   admin-user-management (Deno) — the only Edge Function so far

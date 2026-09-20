@@ -202,6 +202,40 @@ Established by Courses; follow these for the next admin domain.
   replaced an earlier Sheet (slide-over) — swapped for consistency with the
   Dialog convention already used elsewhere (e.g. Admin Users' create/edit);
   only the container primitive changed, not the field set or submit logic.
+- **Lesson timing and pass-mark settings (migration 015) — stored only.** The
+  field copy describes the intended kid-side behaviour ("Kids can tap Mark
+  complete after spending this long…", "Kids must score at least this to
+  pass…") exactly as specified, but **nothing enforces any of it yet**
+  (`rules.md`). The lesson dialog gains *Minimum time on lesson*
+  (`MinTimeField.tsx`: quick-pick chips Off / 30s / 1 min / 90s / 2 min / 5 min
+  plus a numeric input — a chip is only a shortcut for typing its number) and,
+  for quiz lessons only, *Pass mark* (whole percent). A NEW lesson pre-fills 90
+  seconds (video, game and text) or 0 (quiz); switching the type re-derives the
+  pre-fill only while the admin hasn't touched the field, and an existing
+  lesson's saved value is never re-derived. Validation mirrors the database
+  checks (0–3600 s, 1–100 %) with readable messages (`lib/lessonSettings.ts`).
+  The XP reward field's helper text shows the effective XP — the lesson's own
+  value, else the *course* default (blank means the course default, not a
+  per-type one), and none when the course has gamification off; it is computed
+  in the browser for display only. Saving a lesson requests `.select('id')` and
+  treats anything but one row as an error.
+  - **Row chips** (`LessonSettingChips` in `ContentTypeBadge.tsx`): a clock and
+    the time ("1:30") when above 0, and "Pass 60%" for quizzes. They are plain
+    spans inside a group with the type and status badges that *wraps* rather
+    than forcing one line, so at narrow widths the edit and trash buttons stay
+    inside the row; the drag handle and checkbox are separate siblings and are
+    untouched.
+  - **Bulk "Set minimum time"** (`SetMinTimeDialog.tsx`) sits in the course
+    editor's bulk bar beside Move to trash. It applies to the selected
+    *lessons* only (disabled, with a reason, when only topics are selected),
+    says when topics are selected too, and flags quizzes in its copy without
+    excluding them. One update per lesson, each required to touch exactly one
+    row; the toast reads "2 updated, 1 failed" with each reason, and failed
+    lessons stay selected for a retry. The dialog cannot be dismissed while it
+    runs.
+  - **Games:** an *Orientation* select (Any / Portrait / Landscape) in
+    `GameDialog` with the helper text "Landscape games will ask kids to rotate
+    their phone." — likewise stored only, and not a column on the games list.
 - **Destructive copy states the actual consequence.** Deleting a topic says
   its lessons move to Ungrouped (the FK is `SET NULL`, so they genuinely
   survive); deleting a lesson warns that its questions go with it and that

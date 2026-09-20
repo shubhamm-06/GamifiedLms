@@ -303,6 +303,15 @@ belongs in `context.md` or `state.md`, not here.
   use it, so they cannot drift — email confirmed, `display_name` in user
   metadata for the signup trigger). Nothing in the client creates an `auth`
   user.
+- **`lessons.min_time_seconds`, `lessons.pass_percentage` and
+  `games.orientation` are stored settings only — nothing enforces or reads them
+  yet, and no doc, UI copy or code comment may say otherwise.** An admin can set
+  them (migration 015); the kid-side completion function that will honour the
+  first two does not exist. When it does, the minimum time and the pass mark must
+  be enforced **server-side** in that function, against timing the server
+  recorded — a client-side timer or a client-reported score is a courtesy at
+  most, never the check. The effective-XP hint in the lesson dialog is
+  display-only: the amount awarded is decided by `fn_award_lesson_xp`.
 - **KNOWN LIMITATION — the database still accepts an admin-created order for
   a trashed course.** `fn_create_manual_order` (payment logic, deliberately
   untouched by migration 013) does not check `courses.deleted_at`; only the

@@ -94,9 +94,33 @@ CASCADE`**), `title`, `position`, `created_at`, `deleted_at`, `deleted_by`
 `game_id` (FK), `duration_seconds`, `xp_reward` (null inherits
 `courses.default_lesson_xp` — never let the client do this fallback; use the
 `lesson_effective_xp` view), `is_preview`, `status` (`'draft'|'published'`),
-`position`, `created_at`, `deleted_at`, `deleted_by` (migration 013).
+`min_time_seconds` and `pass_percentage` (migration 015, below), `position`,
+`created_at`, `deleted_at`, `deleted_by` (migration 013).
 `position` is scoped per `module_id`, not per course, and no constraint
 enforces that — see `rules.md` before writing it.
+
+**Lesson time and pass-mark settings (migration 015) — stored, not enforced.**
+`lessons.min_time_seconds` is `integer not null default 90` with
+`lessons_min_time_seconds_check` (0–3600); 0 means no minimum time.
+`lessons.pass_percentage` is `integer not null default 60` with
+`lessons_pass_percentage_check` (1–100) and only means something for a quiz
+lesson — the quiz **is** the lesson (`quiz_questions.lesson_id` and
+`quiz_attempts.lesson_id` reference `lessons(id)`), so there is no separate quiz
+table to hold it; other types store it and ignore it. **Nothing reads either
+column**: the kid-side completion function that will enforce them does not exist,
+and `lesson_progress` has no timing columns. The migration set
+`min_time_seconds = 0` on existing quiz lessons (there were none at the time, so
+it touched 0 rows); every other lesson kept the default of 90 — `text` lessons
+included, since the spec named only video, game and quiz. The two real lessons
+(one `text`, one `video`) are at 90 / 60. No policy was added:
+`lessons_admin_update` (`fn_is_admin()`) already covers any column and no student
+write policy exists. Checked live (role-switched queries, 2026-09-20): a student
+reads the new columns on lessons they can see, every update they attempt affects
+0 rows and an insert is refused (`42501`); an admin's update affects exactly 1
+row and changes nothing else — `total_lessons` and `deleted_at`/`deleted_by`
+were unchanged (`trg_lessons_lesson_count` is `UPDATE OF deleted_at, module_id,
+course_id`, so a settings edit does not fire it; `fn_stamp_deleted_by` only ever
+sets `deleted_by`).
 
 ⚠️ **Two different cascade behaviors, easy to conflate — verified directly
 against `information_schema.referential_constraints`, not assumed:**
@@ -141,6 +165,10 @@ level but optional in the admin form — nothing reads or verifies either yet
 `''` rather than blocking submit on metadata nobody can usefully supply
 today. If a future consumer starts relying on either for integrity checking,
 that reader should treat `0`/`''` as "not provided," not as a real value.
+`orientation` (migration 015, `text not null default 'any'`,
+`games_orientation_check` in `'portrait'|'landscape'|'any'`) records the
+orientation a game is meant to be played in. Stored only: nothing reads it, and
+nothing yet asks a kid to rotate their phone.
 
 ### 3. Learner activity
 
@@ -705,9 +733,10 @@ table.
 | 012 | `20260919150000_012_gamification.sql` | 2026-09-18 18:01:09 | `level_thresholds` (seeded 1–30 from the old formula's own math, strict-monotonic validation trigger, admin-write / authenticated-read RLS); `fn_compute_level` rewritten to read it (`IMMUTABLE` → `STABLE`); one-time `user_stats.level` backfill; `fn_award_lesson_xp` + `trg_lesson_progress_award_xp` (the actual lesson-completion XP award, gated on `gamification_enabled`) |
 | 013 | `20260919170620_013_trash_first.sql` | 2026-09-19 17:06:20 | Trash-first deletion (section 7): `deleted_at`/`deleted_by` on `courses`, `modules`, `lessons`, `games`, `badges`, `profiles`; live-only partial unique slug indexes on courses/games/badges; trashed rows and rows under trashed parents hidden from non-admins (policies, `profiles_public`, `quiz_questions_public`, `lesson_effective_xp`); the five `*_admin_delete` policies require a trashed row; `fn_is_admin()` requires a non-trashed profile; counters and XP/badge functions skip trashed content; `deleted_by` stamping + `profiles` trash-column guard; helpers and admin RPCs; `fn_revoke_user_sessions` |
 | 014 | `20260919175812_014_trashed_token_gap.sql` | 2026-09-19 17:58:12 | Gates every `auth.uid()`-scoped policy on `not fn_user_is_trashed(auth.uid())` (own-row tables, leaderboards, enrollment-derived content, games/badges reads, `quiz_questions_public`) so a trashed user's already-issued token stops working; `EXECUTE` revoked from `public`/`anon`/`authenticated` on `fn_module_trash_lesson_count` and `fn_profile_trash_student_count`. No type-level change |
+| 015 | `20260920130513_015_lesson_timer_settings.sql` | 2026-09-20 13:05:13 | `lessons.min_time_seconds` (default 90, check 0–3600), `lessons.pass_percentage` (default 60, check 1–100) and `games.orientation` (default `'any'`, check portrait/landscape/any); existing quiz lessons backfilled to `min_time_seconds = 0` (none existed). Stored settings only — nothing enforces them yet; no policy change |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
-001–005 match `list_migrations` exactly, and so do 013 and 014 (their files were named
+001–005 match `list_migrations` exactly, and so do 013, 014 and 015 (their files were named
 after the live version). For 006–012 the MCP `apply_migration`
 call stamped its own version at apply time, and the hand-named files never
 matched it: 006 differs by 9 seconds; 007's file (`20260918184559`) is a day

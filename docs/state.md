@@ -27,9 +27,12 @@ nav entry is a real route):
   and the Course Builder (`/admin/courses/new`, `/admin/courses/$courseId/edit`;
   Basics and Curriculum tabs) with topics, lessons and quiz questions,
   drag-and-drop reordering including cross-topic lesson moves, checkboxes and
-  bulk Move to trash on topics and lessons, and YouTube/Vimeo embed links.
+  bulk Move to trash on topics and lessons, YouTube/Vimeo embed links, and
+  per-lesson *minimum time* and (quiz) *pass mark* settings with a bulk "Set
+  minimum time" — stored only, nothing enforces them (see Designed but not
+  built).
 - Games: the `/admin/games` list (Move to trash, multi-select) plus
-  `GameDialog`.
+  `GameDialog`, including a stored *Orientation* setting.
 - Orders and payments: `/admin/orders` — KPI cards, filters, Add order (a
   manual payment plus its enrollment, via `fn_create_manual_order`), CSV export
   and import, bulk selection (the shared kit), Active/Trash views, permanent
@@ -47,7 +50,7 @@ nav entry is a real route):
   uses the shared multi-select kit.
 
 **Backend:**
-- Schema through migration 013 (`schema.md`), RLS on every table, the
+- Schema through migration 015 (`schema.md`), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
   false`), and an admin-editable level curve.
@@ -95,12 +98,20 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Rich-text editing** for a lesson's `content_html` (a raw HTML textarea
   today) — a separate dependency decision.
 - **Analytics.** `analytics.md` deliberately doesn't exist until this starts.
+- **Kid-side enforcement of the lesson settings.** `lessons.min_time_seconds`,
+  `lessons.pass_percentage` and `games.orientation` are stored and editable
+  (migration 015) but **nothing reads or enforces them**. Enforcement needs
+  things that do not exist: timing columns on `lesson_progress`, a heartbeat
+  function that records time on a lesson, and a completion function that checks
+  the minimum time and the quiz pass mark server-side (`rules.md`); a landscape
+  game's "rotate your phone" prompt needs the game player.
 
 ## In flight
 
-Nothing. The trash-first task is complete: soft delete and the Trash page,
-multi-select on every list table, Users CSV export and import, and the final
-sweep.
+Nothing. The trash-first task is complete (soft delete and the Trash page,
+multi-select on every list table, Users CSV export and import, the final sweep)
+and so is the admin side of the lesson timer / pass mark / game orientation
+settings. Their kid-side enforcement is a later task and has not been started.
 
 ## Live data reality
 
@@ -116,7 +127,10 @@ SQL-created throwaway accounts and separately-titled test rows — never the rea
 "Wisdom Hatch Kids" content — and remove them afterwards (account rule:
 `rules.md`). On 2026-09-20 the profile, content, enrollment, payment, XP,
 stats, game and badge counts were re-read after each Phase 4 fixture round and
-matched the figures above; the config-table counts were not re-read.
+matched the figures above; the config-table counts were not re-read. The two
+real lessons (1 `text`, 1 `video`) carry the migration 015 defaults
+(`min_time_seconds` 90, `pass_percentage` 60), re-read on 2026-09-20 after that
+task's fixtures were removed.
 
 ## Blockers
 
@@ -133,7 +147,10 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). The UI and the Edge Function both
    refuse it; a direct `service_role`/dashboard delete or an `auth.users`
    cascade still isn't stopped.
-3. Quiz grading is the next real gamification gap (see Designed but not built).
+3. Kid-side lesson completion: timing columns on `lesson_progress`, a heartbeat
+   function and a completion function that enforce the minimum time and the quiz
+   pass mark server-side (see Designed but not built).
+4. Quiz grading is the next real gamification gap (see Designed but not built).
 
 ## Open decisions & on the horizon
 
@@ -158,7 +175,10 @@ worked on.
   directly callable function any signed-in user can invoke for any user id.
   Also flagged: three functions with a mutable `search_path` (`fn_set_updated_at`,
   `fn_compute_level`, `fn_create_manual_order`) and leaked-password protection
-  being off.
+  being off. The advisor also lists three `SECURITY DEFINER` views at ERROR
+  level — `lesson_effective_xp`, `quiz_questions_public` and `profiles_public`,
+  all created in earlier migrations (not by 015) — which had not been noted here
+  before 2026-09-20 and have not been examined.
 - **Payments' Trash view still says "permanently" / "can't be undone" outside
   `/admin/trash`.** `/admin/orders` keeps its own older Active/Trash split with
   a "Delete Permanently" action (migration 009, built before trash-first). The
@@ -186,6 +206,10 @@ worked on.
   attention" and the recovery is Reset password. Observed by dropping a reply in
   a test (3 accounts existed, the retry reported 3 skipped, no password was
   recoverable).
+- **Should `text` lessons default to a minimum time?** The spec named video,
+  game and quiz. `text` lessons pre-fill 90 s (and the column default gives every
+  existing lesson 90), the same as video and game. Say if reading time should
+  default to Off instead.
 - **What `courses.gamification_enabled = false` should mean.** It gates lesson
   XP only. `fn_update_lessons_completed` — the `lessons_completed` counter bump
   and the badge evaluation it runs — ignores it, so a gamification-off course
