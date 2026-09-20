@@ -60,6 +60,8 @@ export interface GameFormValues {
   bundle_size_bytes: string
   checksum: string
   max_xp: string
+  /** 'any' | 'portrait' | 'landscape' — the orientation the game is meant for. Stored only; nothing acts on it yet. */
+  orientation: string
 }
 
 function toRow(values: GameFormValues) {
@@ -73,6 +75,7 @@ function toRow(values: GameFormValues) {
     bundle_size_bytes: values.bundle_size_bytes.trim() ? Number(values.bundle_size_bytes) : 0,
     checksum: values.checksum.trim(),
     max_xp: Number(values.max_xp),
+    orientation: values.orientation,
   }
 }
 
@@ -109,8 +112,17 @@ export function useUpdateGame() {
   const invalidate = useGamesInvalidator()
   return useMutation({
     mutationFn: async ({ id, values }: { id: string; values: GameFormValues }) => {
-      const { error } = await supabase.from('games').update(toRow(values)).eq('id', id)
+      // `.select('id')` + the count is the check: RLS filters a write the caller
+      // may not make (or a row that is gone) to zero rows with no error.
+      const { data, error } = await supabase
+        .from('games')
+        .update(toRow(values))
+        .eq('id', id)
+        .select('id')
       if (error) throw mapWriteError(error)
+      if (!data || data.length !== 1) {
+        throw new Error("This game couldn't be saved — it may have been deleted, or you may not have permission.")
+      }
     },
     onSuccess: () => {
       invalidate()

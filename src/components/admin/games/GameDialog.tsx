@@ -10,8 +10,16 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import type { Game, GameFormValues } from '@/hooks/admin/useGames'
+import { GAME_ORIENTATIONS } from '@/lib/lessonSettings'
 import { slugify } from '@/lib/slug'
 
 const EMPTY_GAME: GameFormValues = {
@@ -24,6 +32,7 @@ const EMPTY_GAME: GameFormValues = {
   bundle_size_bytes: '',
   checksum: '',
   max_xp: '0',
+  orientation: 'any',
 }
 
 function gameToFormValues(game: Game): GameFormValues {
@@ -37,6 +46,7 @@ function gameToFormValues(game: Game): GameFormValues {
     bundle_size_bytes: String(game.bundle_size_bytes),
     checksum: game.checksum,
     max_xp: String(game.max_xp),
+    orientation: game.orientation,
   }
 }
 
@@ -234,6 +244,25 @@ function GameForm({
             Server-side ceiling on a single play&rsquo;s XP award.
           </p>
         )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="game-orientation">Orientation</Label>
+        <Select value={values.orientation} onValueChange={(v) => set('orientation', v)}>
+          <SelectTrigger id="game-orientation" className="w-full sm:w-1/2">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GAME_ORIENTATIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-muted-foreground text-xs">
+          Landscape games will ask kids to rotate their phone.
+        </p>
       </div>
 
       <DialogFooter>
