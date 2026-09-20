@@ -356,7 +356,10 @@ not implemented.**
   whichever row model is registered. Every list table (Users, Courses, Games,
   Badges, Orders, and the six Trash tabs) registers the feature, and the course
   editor's topic/lesson lists use the same hook and bar without a table. No
-  table ships without it. What the kit guarantees:
+  list of records ships without it; the read-only report tables (the
+  Dashboard's recent-activity feed, the import dialog's preview and results)
+  are the exception, since their rows are not records anyone can act on. What
+  the kit guarantees:
   - **The page owns the state.** `useTableSelection(resetKeys)` returns a
     controlled `{ [rowId]: true }` map; the page passes it to the table as
     `selection` and reads `selection.selectedIds` for its bulk actions. The map
@@ -601,12 +604,65 @@ not implemented.**
   - **Empty trash** (per tab) runs the same dialog over every trashed item in
     the tab and skips blocked ones, with a summary.
   - The sidebar's Trash entry carries the total count badge.
+- **CSV export and import (Users).** Shared helpers live in `lib/csv.ts`:
+  `toCsv(rows, columns)` (RFC 4180 quoting, CRLF, and a formula-injection
+  guard — a string cell starting with `=`, `+`, `-`, `@`, TAB or CR gets one
+  leading `'`; real numbers are exempt), `download(filename, csv)` (prepends a
+  UTF-8 BOM), `parseCsvTable(text)` (papaparse: BOM strip, delimiter
+  auto-detect, blank lines skipped, an unclosed quote is fatal) and
+  `stripFormulaGuard` (undoes the guard so an exported file re-imports as it
+  was). The Orders export/import still uses the original hand-written helpers
+  (`parseCsv`, `stringifyCsv`, `downloadTextFile`), which have no BOM and no
+  guard.
+  - **Export** — an Export menu in the Users header: *Selected rows* (disabled
+    with nothing selected), *Current filtered results* (every page of the
+    current search + role filter, in the table's sort order) and *All users*,
+    plus an *Include trashed users* toggle (off by default; it has no effect on
+    *Selected rows*, since a trashed user can't be ticked in the list).
+    *Export selected* is repeated in the bulk bar. Columns: `id, display_name,
+    email, role, xp, level, phone_number, created_at, status` (`active` or
+    `trashed`); `xp` and `level` are blank for a user with no `user_stats` row.
+    No password or hash is ever exported. The file is
+    `wisdom-hatch-users-YYYY-MM-DD.csv` (the admin's local date) and a toast
+    reports the count ("Exported N users"). "All users" and the trashed part of
+    a filtered export come from `fetchUsers(scope)` in `useUsers.ts`, which
+    pages in batches of 1000 and also backs the list itself.
+  - **Import** — the Import button opens `ImportUsersDialog`
+    (`components/admin/users/import/`), four views. (1) A Download template
+    link (`display_name, email, phone_number, password` plus two example rows)
+    and a drop zone: .csv only, ≤ 2 MB, ≤ 1000 rows, each refused with its own
+    message. (2) A preview, one line per row: Valid, Error with its reason,
+    "Already exists, will be skipped", or "In trash, restore that user
+    instead"; the password column says only "Provided" or "Auto-generate",
+    never the value; unknown columns are listed in a warning, and a `role`
+    column is one of them — everything imported is a student. "Row" is the
+    position among non-blank rows (header = 1). (3) *Import N valid rows* sends
+    chunks of 25 to `bulk_create` one after another, with a progress bar
+    ("Batch i of n"), a Stop that halts after the chunk in flight, and retry
+    with backoff (1 s, 2 s, 4 s) on 429, 502/503/504 and network errors; a
+    request unanswered for 60 s is abandoned and retried. The dialog cannot be
+    closed while running (no X or Cancel; Escape is ignored — exercised; outside
+    clicks and closing the tab are also guarded in code but were not exercised). A chunk that still can't be delivered ends the run: its rows are
+    failed and the rest are "Not imported". (4) A summary: created / skipped /
+    failed (plus Not imported), a table of every row that needs attention, and
+    *Download results CSV* (`email, status, reason, generated_password`), built
+    in memory on click. When the server generated passwords the summary warns
+    that the file holds credentials that cannot be regenerated, and closing
+    without downloading asks first. The dialog drops its rows and any
+    passwords about 300 ms after it closes.
+  - A **"Needs attention"** row is not a failure but did not go cleanly: the
+    phone number could not be saved, or a retried chunk found its accounts
+    already created (the unheard first reply may have carried their generated
+    passwords — reset the password from the user's actions).
 - Installed shadcn components: button, table, dialog, alert-dialog,
   dropdown-menu, input, label, select, badge, skeleton, avatar, tooltip,
   sonner, switch, checkbox, tabs (used since Course Builder, missing from
   this list until now — corrected, not a new install), popover, command,
-  input-group (pulled in by `command`, not imported directly), textarea, and
-  sheet (generated, currently unused by any page or component).
+  input-group (pulled in by `command`, not imported directly), textarea, sheet
+  (generated, currently unused by any page or component), and progress (used by
+  the import dialog; written by hand in the shadcn shape from `radix-ui`'s
+  Progress rather than with `shadcn add`, to avoid the CLI's Windows path bug
+  described in `context.md`).
   The generated `checkbox.tsx` unconditionally
   rendered `CheckIcon` for every checked state — hand-patched to swap in
   `MinusIcon` when `checked === "indeterminate"`, since a bulk-selection

@@ -12,7 +12,7 @@ file-based — new routes are added there, not by creating files under a
 | `/login` | `LoginPage` | Public, but redirects signed-in admins | Accepts a `redirect` search param; see the login guard below |
 | `/signup` | `SignupPage` | Public | On success: session present → `/`; no session (email confirmation required) → "check your email" copy |
 | `/admin` | `DashboardPage` | Admin only | KPI cards, needs-attention list, recent-activity table |
-| `/admin/users` | `UsersPage` | Admin only | List/search/filter/paginate users; create dialog; row click navigates to the detail route below |
+| `/admin/users` | `UsersPage` | Admin only | List/search/filter/paginate users; create dialog; **Export** menu (Selected rows / Current filtered results / All users, with an Include trashed toggle) and **Import** dialog (CSV → the Edge Function's `bulk_create`); row click navigates to the detail route below |
 | `/admin/users/$userId` | `UserDetailPage` | Admin only | Account (edit/change-email/reset-password/**move to trash** — same dialogs and Edge Function calls as the list; a trashed user's page shows a link to Trash instead of the button), Stats (`user_stats`, left-joined — no row yet is a normal empty state, not an error), Enrollments (manual enroll/revoke, direct RLS writes), Progress (published-lesson completion per course), Badges, manual XP award. Replaces the standalone "Students" concept — see below |
 | `/admin/courses` | `CoursesPage` | Admin only | Sortable/filterable list; row actions are status-contextual plus **Move to trash** (immediate, Undo toast); nothing here deletes — see `rules.md` |
 | `/admin/courses/new` | `CourseCreatePage` | Admin only | Always inserts as `draft`. Curriculum tab locked until saved |
@@ -121,12 +121,14 @@ enforced server-side** — the function resolves the caller from the JWT, looks
 up `profiles.role` and `deleted_at` via the service-role client, and returns
 `403 Forbidden` before parsing the body if the caller isn't an admin **or is a
 trashed admin**. `verify_jwt: true` at the platform level is a floor, not the
-authorization check itself (a request with no `Authorization` header is
-rejected `401` by the platform; a valid non-admin JWT, including the anon key,
-gets the function's `403`).
+authorization check itself (observed 2026-09-20 against `bulk_create`: a
+request with no credentials at all, or a malformed bearer token, is rejected
+`401` by the platform; a request carrying only the publishable `apikey`, the
+anon key as the bearer, or a valid non-admin JWT reaches the function and gets
+its `403`).
 
-Actions: `create`, `update_email`, `update_password`, and — since migration
-013 — `trash`, `restore` and `delete`. Removing a user is two-step: `trash`
+Actions: `create`, `bulk_create`, `update_email`, `update_password`, and — since
+migration 013 — `trash`, `restore` and `delete`. Removing a user is two-step: `trash`
 (flags the profile, bans the login, revokes sessions), then `delete` only for a
 user already in the trash with no activity history. `trash` and `delete` both
 refuse the calling admin, the primary admin and the last non-trashed admin
@@ -134,5 +136,13 @@ server-side, returning a machine-readable `code` (`self_target`,
 `primary_admin`, `last_admin`; also `not_found`, `already_trashed`,
 `not_trashed`, `has_history`). `trash` is called from the Users list and the user detail page, `restore` from the Undo toast and `/admin/trash`, and `delete` only from `/admin/trash`.
 
+`bulk_create` (CSV import) takes 1–25 rows per call — an empty list or a 26th
+row is refused `400` — creates students only, skips any email that already has
+an account (active or trashed) and returns one result per row (`created` /
+`skipped_exists` / `skipped_trashed` / `failed` with a reason code). Its response
+can carry generated passwords, so it is sent `Cache-Control: no-store`. It is
+called only from the Users import dialog.
+
 Client wrapper: `src/lib/adminUserApi.ts`, invoked from
-`src/hooks/admin/useUserMutations.ts`.
+`src/hooks/admin/useUserMutations.ts` (and, for `bulk_create`,
+`src/hooks/admin/useImportUsers.ts`).

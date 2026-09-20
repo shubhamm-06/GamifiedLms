@@ -626,14 +626,20 @@ instead, which strips `correct_option`.
 ### `admin-user-management` — **deployed, ACTIVE**
 
 Deno runtime, `jsr:@supabase/supabase-js@2`, `verify_jwt: true`. **Version
-2** (deployed 2026-09-19 with migration 013: added `trash` and `restore`,
-tightened `delete`). Version 1 was created 2026-09-02 07:38:49 UTC (deployed
-outside any session with a direct record of it completing — the prior deploy
-attempt was blocked by the MCP connector being disconnected). Confirmed via
-`list_edge_functions` after the v2 deploy: ACTIVE, `verify_jwt` true.
-**`trash`, `restore` and `delete` were exercised end to end against the
-deployed function on 2026-09-19** (see `changelog.md`); **`create`,
-`update_email` and `update_password` still have not been** — see `state.md`.
+3** (deployed 2026-09-20: added `bulk_create`; `create` now goes through the
+shared `createAuthUser` helper). Version 2 (2026-09-19, migration 013) added
+`trash` and `restore` and tightened `delete`. Version 1 was created
+2026-09-02 07:38:49 UTC (deployed outside any session with a direct record of
+it completing — the prior deploy attempt was blocked by the MCP connector being
+disconnected). Confirmed via `list_edge_functions` on 2026-09-20: `status`
+ACTIVE, `verify_jwt` true, `version` 3. The v3 source was pasted into the
+deploy call from the committed file and was not diffed byte-for-byte afterwards;
+its behaviour was tested against the deployment. **`trash`, `restore` and
+`delete` were exercised end to end on 2026-09-19, and `bulk_create` on
+2026-09-20** (see `changelog.md`); **`update_email` and `update_password`
+still have not been, and `create` has not been called directly since the
+refactor** (`bulk_create` runs the same `createAuthUser` helper) — see
+`state.md`.
 
 Uses `SUPABASE_SERVICE_ROLE_KEY` (Deno default secret, never hardcoded).
 Every request resolves the caller from the `Authorization` bearer token, then
@@ -655,12 +661,21 @@ fire on a race between two admins trashing each other.)
 
 | Action | Payload | Behavior |
 |---|---|---|
-| `create` | `email`, `password`, `display_name`, `role` | `createUser({ email_confirm: true })`; `display_name` → `user_metadata` for the signup trigger. Trigger always writes `role='student'`; an `admin` request is a follow-up `UPDATE` — if that fails, reports the account was created as a student rather than a false success. Duplicate email → "Email already registered". |
+| `create` | `email`, `password`, `display_name`, `role` | `createAuthUser` — `createUser({ email_confirm: true })`, shared with `bulk_create`; `display_name` → `user_metadata` for the signup trigger. Trigger always writes `role='student'`; an `admin` request is a follow-up `UPDATE` — if that fails, reports the account was created as a student rather than a false success. Duplicate email → "Email already registered". |
+| `bulk_create` | `rows[]` (1–25) of `{ display_name, email, phone_number, password }` | Re-validates every row server-side: name required (≤ 100 chars); email valid (≤ 254, trimmed, lower-cased); phone optional (digits with an optional leading `+`, 7–15 digits once spaces, dots, dashes and brackets are removed); password optional but ≥ 8 chars when given — a blank one gets a 20-character crypto-random password (upper, lower and digit guaranteed, no ambiguous glyphs, no `= + - @`). An email already in `profiles` — active or trashed — is `skipped_exists` / `skipped_trashed` and never touched; an email repeated inside the request fails `duplicate_in_request`; the Auth "already registered" race maps to a skip as well. Accounts are created one at a time through `createAuthUser` and are always `role='student'`. The phone is written afterwards by a service-role `UPDATE`; if that fails the account is kept and the row is reported `created` with `warning: 'phone_not_saved'`. Returns `results[]`, one per input row (`index`, `email`, `status`, `code`/`reason` for a failure, `generated_password` only when the server generated it); one bad row never aborts the rest. The response is `Cache-Control: no-store`. Nothing is logged but row indexes and Auth error codes. |
 | `update_email` | `userId`, `newEmail` | `updateUserById({ email, email_confirm: true })`, then explicitly syncs `profiles.email` (nothing else does). |
 | `update_password` | `userId`, `newPassword` | Direct admin-set password, min 8 chars, no reset email/link, never echoed back. |
 | `trash` | `userId` | Guards, then: sets `profiles.deleted_at` and `deleted_by` = the **verified caller id** (never client-supplied), bans the auth user for `876000h` (~100 years; `banned_until` ≈ 2126), and revokes sessions via `fn_revoke_user_sessions`. If the ban fails the profile flag is rolled back; if the revoke fails the trash stands and the response says `sessionsRevoked: false` (a banned user cannot refresh and RLS already cuts a trashed user off). Refuses an already-trashed user (`already_trashed`). |
 | `restore` | `userId` | Only for a trashed user (`not_trashed` otherwise). Unbans first, then clears `deleted_at`/`deleted_by`; if clearing fails it re-bans so the user is never half-restored. No guards apply. |
 | `delete` | `userId` | Guards, then requires the target to **already be trashed** (`not_trashed`), then counts blocking rows — `enrollments`, `payments`, `lesson_progress`, `quiz_attempts`, `xp_transactions`, `user_stats`, `user_badges` (by `user_id`) and `courses`/`games`/`badges` (by `created_by`); any non-zero count returns `has_history` with a readable summary and the counts, and the user stays in Trash. Otherwise `deleteUser`, cascading to `profiles`. `deleted_by` is `ON DELETE SET NULL` and does not block. |
+
+**Password length.** This function and the admin UI enforce 8 characters
+(`MIN_PASSWORD_LENGTH`). Supabase Auth's own configured minimum is 6 — observed
+2026-09-20 from its `weak_password` response to a 1-character signup attempt
+(`Password should be at least 6 characters.`, reason `length`; that request
+created no account). The stricter 8 applies to accounts created here; whether
+a direct Auth API or dashboard call would accept a 6–7-character password is
+inferred from that setting and was not tested.
 
 Raw Auth/Postgres errors never reach the client — mapped to a short message,
 detail logged server-side via `console.error`.

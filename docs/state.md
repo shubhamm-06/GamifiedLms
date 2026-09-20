@@ -18,7 +18,8 @@ nav entry is a real route):
   `app_settings.site_name`), KPI cards, a needs-attention list, a recent-activity
   table.
 - Users: the `/admin/users` list (client-side search/filter/sort/paginate,
-  create dialog, multi-select with bulk Move to trash) and the
+  create dialog, multi-select with bulk Move to trash, a CSV Export menu and an
+  Import dialog) and the
   `/admin/users/$userId` detail page (account actions incl. Move to trash,
   stats, enrollments with manual enroll/revoke, per-course progress, badges,
   manual XP award). There is no separate Students page.
@@ -57,10 +58,12 @@ nav entry is a real route):
   and every own-row policy gated so a trashed user's old token stops working.
   Verified with role-switched queries, against the deployed function and by
   driving the real UI (`changelog.md`).
-- Edge Function `admin-user-management` — deployed, version 2, ACTIVE,
-  `verify_jwt: true`, with `trash` and `restore` and a stricter `delete`.
-  `trash`, `restore` and `delete` have been exercised end to end; `create`,
-  `update_email` and `update_password` have not (next step 1).
+- Edge Function `admin-user-management` — deployed, version 3, ACTIVE,
+  `verify_jwt: true`, with `bulk_create` (CSV import), `trash`, `restore` and a
+  stricter `delete`. `trash`, `restore`, `delete` and `bulk_create` have been
+  exercised end to end; `update_email` and `update_password` have not, and
+  `create` has not been called directly since it moved onto the shared
+  `createAuthUser` helper that `bulk_create` runs (next step 1).
 
 ## Designed but not built
 
@@ -92,14 +95,12 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Rich-text editing** for a lesson's `content_html` (a raw HTML textarea
   today) — a separate dependency decision.
 - **Analytics.** `analytics.md` deliberately doesn't exist until this starts.
-- **Users CSV export and import** (with a `bulk_create` Edge Function action) —
-  Phase 4 of the trash-first task.
 
 ## In flight
 
-Trash-first deletion is done through Phase 3 (database, Edge Function, shared
-multi-select, trash actions on every list, the Trash page). Phase 4 (Users CSV
-export/import) and Phase 5 (full verification pass and docs) are not started.
+Nothing. The trash-first task is complete: soft delete and the Trash page,
+multi-select on every list table, Users CSV export and import, and the final
+sweep.
 
 ## Live data reality
 
@@ -113,7 +114,9 @@ authoring. Row counts on 2026-09-19 — `profiles` 3 (1 admin, 2 students),
 user is banned. Verification passes use
 SQL-created throwaway accounts and separately-titled test rows — never the real
 "Wisdom Hatch Kids" content — and remove them afterwards (account rule:
-`rules.md`).
+`rules.md`). On 2026-09-20 the profile, content, enrollment, payment, XP,
+stats, game and badge counts were re-read after each Phase 4 fixture round and
+matched the figures above; the config-table counts were not re-read.
 
 ## Blockers
 
@@ -121,17 +124,16 @@ None.
 
 ## Next steps, roughly in order
 
-1. Smoke-test the three `admin-user-management` actions that still haven't been
-   exercised end to end against the live deployment: `create`, `update_email`
-   and `update_password`. (`trash`, `restore` and `delete` were exercised on
-   2026-09-19, including the has-history refusal.)
+1. Smoke-test the `admin-user-management` actions not yet exercised end to end
+   against the live deployment: `update_email`, `update_password` and a direct
+   `create` (now on the shared helper). (`trash`, `restore` and `delete` were
+   exercised on 2026-09-19, including the has-history refusal, and
+   `bulk_create` on 2026-09-20.)
 2. Add the DB-level guard against deleting the primary admin
    (`91392b37-91f1-4975-afda-e4c238c4d821`). The UI and the Edge Function both
    refuse it; a direct `service_role`/dashboard delete or an `auth.users`
    cascade still isn't stopped.
-3. Trash-first deletion Phase 4 (Users CSV export/import), then Phase 5 (full
-   verification pass and docs).
-4. Quiz grading is the next real gamification gap (see Designed but not built).
+3. Quiz grading is the next real gamification gap (see Designed but not built).
 
 ## Open decisions & on the horizon
 
@@ -167,6 +169,23 @@ worked on.
   providers, level thresholds and quiz questions hard-delete from their own
   screens with their own confirm. They are not trash-first entities (no
   `deleted_at`), so they were not converted; say so if they should be.
+- **Two password minimums.** The project enforces 8 characters; Supabase Auth's
+  own configured minimum is 6 (observed 2026-09-20 — `schema.md`). An account
+  created through the app is held to 8; whether a direct Auth or dashboard call
+  could create a 6–7-character one is inferred, not tested. Raising Auth's
+  minimum to 8 in the dashboard would make the two agree.
+- **The Orders CSV export/import still uses the original helpers** — no UTF-8
+  BOM, no formula-injection guard, comma-only parsing — while the Users CSV uses
+  the generic ones in `lib/csv.ts`. Orders were left alone because payments were
+  out of scope for the Users CSV work; moving them over is a small follow-up if
+  wanted.
+- **A lost `bulk_create` reply can lose a generated password.** There is no
+  idempotency key: if the reply to a chunk is lost after the server created its
+  accounts, the retry finds them and reports them as skipped, and their
+  generated passwords are gone. The import summary lists such rows under "Needs
+  attention" and the recovery is Reset password. Observed by dropping a reply in
+  a test (3 accounts existed, the retry reported 3 skipped, no password was
+  recoverable).
 - **What `courses.gamification_enabled = false` should mean.** It gates lesson
   XP only. `fn_update_lessons_completed` — the `lessons_completed` counter bump
   and the badge evaluation it runs — ignores it, so a gamification-off course
@@ -221,7 +240,10 @@ worked on.
   a validation error, not a silent save.
 - **The admin shell is desktop-only** — no mobile responsiveness, deliberately.
 - **No automated tests and no CI.** No test runner or test files exist;
-  verification so far has been manual and live against the real project.
+  verification so far has been manual and live against the real project. The
+  Phase 4 checks — real-browser Playwright scripts, direct calls to the deployed
+  function and Node scripts over the CSV/import logic — were throwaway scripts
+  kept outside the repo, so they cannot be re-run from it.
 - **`courses.total_lessons` counts draft and published lessons**, not
   published-only.
 - **Level-curve edge behaviors, all intentional:** above the highest level (30
@@ -236,6 +258,16 @@ worked on.
   without a special-case rollback for the rest. Importing thousands of rows at
   once would need a real server-side bulk endpoint; not built, since that scale
   problem doesn't exist yet.
+- **Import size limits are unmeasured.** The preview renders every row (up to
+  1000) without virtualisation, and each file read scans every profile email (in
+  pages of 1000) to spot existing accounts. The largest import run through the UI
+  was 60 rows; a 1000-row parse was checked in Node only.
+- **Not exercised in Phase 4:** opening an exported file in desktop Excel (the
+  BOM, CRLF and quoting were checked at the byte level, not in Excel);
+  keyboard-only use of the export menu and the import dialog; mobile widths; a
+  full 1000-row import through the UI; the 60-second request timeout against a
+  real (not injected) stall; PostgREST's 1000-row cap (no table here is that
+  large).
 - **`games.bundle_size_bytes`/`checksum` are accepted but never verified.** The
   admin form takes them as optional plain inputs (defaulting to `0`/`''` when
   blank) because nothing downstream reads them — there is no game-loading

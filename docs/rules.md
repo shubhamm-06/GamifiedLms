@@ -267,7 +267,9 @@ belongs in `context.md` or `state.md`, not here.
   and no new delete. Bulk actions run per item and report partial failures
   ("8 moved, 2 failed" with reasons); one failure must never abort the rest.
   In the course editor the drag handle stays a separate element from the
-  checkbox, and reorder stays zero-animation.
+  checkbox, and reorder stays zero-animation. The one exception is a read-only
+  report table whose rows are not records anyone can act on (the Dashboard's
+  recent-activity feed; the import dialog's preview and results tables).
 - **A soft-delete, restore or other RLS-filterable write must confirm its
   affected row count — request `.select('id')` and treat a count other than the
   number requested as a failure, never as success.** RLS filters a write the
@@ -281,6 +283,26 @@ belongs in `context.md` or `state.md`, not here.
   action.** Every other delete path in the admin UI is `lib/trash.ts`
   (a soft delete). A new "Delete" button on a course, module, lesson, game,
   badge or user is a bug — it must be "Move to trash".
+- **CSV import only ever creates students, and only ever creates.** The
+  `bulk_create` action produces `role = 'student'` (`fn_handle_new_user`
+  hardcodes it); there is no role input, and a `role` column in an uploaded
+  file is ignored with a warning. Admin accounts come only from Add user. An
+  email that already belongs to any account — active or trashed — is skipped:
+  import never updates, overwrites, restores or promotes an existing account.
+  The server re-validates every row and re-checks existing and trashed emails;
+  the client's preview is advisory, never trusted.
+- **A password — supplied or generated — is never logged, toasted, put in an
+  error message, cached or stored.** `bulk_create` and the import hook write
+  no row, password or Auth error object to any console (only row indexes and
+  error codes). A generated password exists only in the `bulk_create` response
+  to the calling admin (`Cache-Control: no-store`) and in the import dialog's
+  memory until it closes; the results CSV is built on demand from that memory
+  and never persisted.
+- **Every account is created inside the `admin-user-management` Edge Function,
+  through its one `createAuthUser` helper** (`create` and `bulk_create` both
+  use it, so they cannot drift — email confirmed, `display_name` in user
+  metadata for the signup trigger). Nothing in the client creates an `auth`
+  user.
 - **KNOWN LIMITATION — the database still accepts an admin-created order for
   a trashed course.** `fn_create_manual_order` (payment logic, deliberately
   untouched by migration 013) does not check `courses.deleted_at`; only the

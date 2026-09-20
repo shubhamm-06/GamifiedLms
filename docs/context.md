@@ -10,6 +10,8 @@ build phase: admin-facing tooling only, no student-facing UI.
 - Capacitor `@capacitor/core`+`@capacitor/cli` 8.5.0 — no native platforms
   generated yet (`npx cap add ios/android` not run)
 - `@supabase/supabase-js` 2.112.4
+- papaparse 5.7.0 (+ `@types/papaparse` 5.5.2) — CSV parsing for the Users import
+  (`parseCsvTable` in `lib/csv.ts`); CSV writing is hand-rolled (`toCsv`)
 - Tailwind CSS 4.3.3, CSS-first config (no `tailwind.config.js`)
 - shadcn/ui CLI 4.19.1 (Radix base, "Nova" preset) + `radix-ui` 1.6.7
 - TanStack Query 5.102.8, TanStack Router 1.170.32 (**code-based** route tree
@@ -72,10 +74,11 @@ multiple unrelated admin domains crowd these folders):
 ```
 src/
   components/
-    ui/       shadcn-generated primitives
+    ui/       shadcn-generated primitives (progress.tsx is hand-written)
     auth/      AuthCard, AuthField (login/signup shared UI)
     admin/     AdminGuard, AdminLayout (shell); one subfolder per domain, each
-               holding that domain's table/dialogs/sections: users/, courses/,
+               holding that domain's table/dialogs/sections: users/ (its import/
+               folder holds the CSV import dialog), courses/,
                games/, orders/, settings/, gamification/; plus selection/
                (the shared multi-select kit) and trash/ (Trash page table + dialogs)
   pages/       route-level components: HomePage, LoginPage, SignupPage;
@@ -85,11 +88,13 @@ src/
                one file per domain (useUsers, useUserMutations, useUserDetail,
                useCourses, useCurriculum, useGames, usePayments,
                useManualOrderProviders, useCurrencies, useBadges,
-               useLevelThresholds, useDashboard, useTrash, useTrashActions);
+               useLevelThresholds, useDashboard, useTrash, useTrashActions,
+               useImportUsers, useUsersExport);
                useStableCallbacks.ts (stable handler identities for memoised columns)
   lib/         supabase.ts (client), database.types.ts (generated), queryClient.ts,
                adminSession.ts (route guard logic), adminUserApi.ts,
-               adminConstants.ts, currency.ts, csv.ts, slug.ts, video.ts, utils.ts,
+               adminConstants.ts, currency.ts, csv.ts (generic CSV read/write),
+               userExport.ts, userImport.ts, slug.ts, video.ts, utils.ts,
                trash.ts (soft delete/restore), permanentDelete.ts (Trash page only)
   index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,
                shadcn tokens, Geist font
@@ -157,11 +162,20 @@ student's next XP event.
 **Data flow — admin user actions:** table reads join `profiles` +
 `user_stats` directly via supabase-js (RLS permits admin reads). Profile
 edits (`display_name`, `role`) go straight through supabase-js. Create /
-change-email / reset-password / delete all call the `admin-user-management`
+bulk-create (CSV import) / change-email / reset-password / trash / restore /
+delete all call the `admin-user-management`
 Edge Function, which re-checks the caller's `profiles.role` server-side
 (via the service-role client, never the caller-scoped one) before touching
 any payload — the client-side guard and disabled buttons are UX only, this
 is the real gate.
+
+**Data flow — Users CSV.** Export: `fetchUsers(scope)` (pages of 1000) or the
+table's own filtered rows → `toCsv` → `download` (BOM). Import: file →
+`parseUserImport` (papaparse; validates, normalises, flags in-file duplicates)
+→ `fetchAccountStates` (every profile email, trashed included) → preview →
+`useImportUsers` sends the valid rows in chunks of 25 to `bulk_create` →
+per-row results → `buildResultRows` → summary and an on-demand results CSV. The
+server re-validates and re-checks everything; the preview is advisory.
 
 **Money:** one formatter, `src/lib/currency.ts`, `Intl.NumberFormat` under
 `en-IN` (Indian grouping — 1,49,900 — is not hand-rolled). Currency code is
@@ -224,6 +238,17 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
 - `profiles.email` is not kept in sync by any trigger after signup — the
   `admin-user-management` `update_email` action updates it explicitly
   alongside the Auth email change, or the two drift.
+- **PostgREST returns at most 1000 rows per request** (Supabase's default
+  `max-rows`, assumed to apply here — no table in this project has ever been
+  that large, so the cap has not been observed). `fetchUsers` in `useUsers.ts`
+  pages with `.range()` over a stable `created_at, id` order; any new "every
+  row" fetch has to do the same or it will silently truncate.
+- **Source files containing `\uFEFF` or `\uFFFD`:** the file-editing tools used
+  in agent sessions wrote the literal characters instead of the escape
+  sequences twice while the CSV utility was built (once through `Edit`, once
+  through `Write`), and ESLint's `no-irregular-whitespace` then failed. After
+  writing either, grep the file for the literal and swap it back to the
+  escape.
 
 ## HUMAN-ZONE (narrative, for a person skimming to get oriented)
 
@@ -239,12 +264,13 @@ That admin side is now broadly built. The database has 18 RLS-protected
 tables, with the XP, level, streak, and badge machinery live and verified
 against the real Supabase project rather than just read from SQL. The
 frontend covers signup and login (a trigger auto-provisions each profile),
-user management with a per-user detail page, a course builder with
+user management with a per-user detail page and CSV export and import, a course builder with
 drag-and-drop curriculum and quiz questions, games, orders and payments
 (manual orders, CSV import and export, a trash), platform settings, and badge
 and level-threshold management. One deployed Edge Function handles the
-privileged account actions — creating accounts, changing someone else's email
-or password, and deleting users. What does not exist yet is everything a
+privileged account actions — creating accounts (one at a time or in bulk from
+a CSV), changing someone else's email or password, and trashing or deleting
+users. What does not exist yet is everything a
 student would touch: no student screens, no quiz grading, no payment-gateway
 webhook, and no deployed frontend.
 
