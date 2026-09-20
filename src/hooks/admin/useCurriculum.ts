@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Json, Tables } from '@/lib/database.types'
-import { DEFAULT_PASS_PERCENTAGE } from '@/lib/lessonSettings'
+import { DEFAULT_PASS_PERCENTAGE, formatClock } from '@/lib/lessonSettings'
+import { mapLimit } from '@/lib/trash'
+import { describeFailures } from './useTrashActions'
 
 export type Module = Tables<'modules'>
 export type Lesson = Tables<'lessons'>
@@ -256,6 +258,7 @@ function lessonToRow(values: LessonFormValues) {
 }
 
 const CHECK_VIOLATION = '23514'
+const INSUFFICIENT_PRIVILEGE = '42501'
 
 /**
  * A failed lesson insert/update as an Error. A CHECK violation means a setting
@@ -269,6 +272,13 @@ function lessonWriteError(error: { code?: string; message: string }): Error {
     )
   }
   return new Error(error.message)
+}
+
+/** A short sentence for a failed settings write — never a raw Postgres message. */
+function settingWriteReason(error: { code?: string }): string {
+  if (error.code === CHECK_VIOLATION) return "That value isn't allowed (0 to 3600 seconds)."
+  if (error.code === INSUFFICIENT_PRIVILEGE) return "You don't have permission to do that."
+  return 'Something went wrong. Please try again.'
 }
 
 export function useLessonMutations(courseId: string) {
@@ -371,6 +381,84 @@ export function useLessonMutations(courseId: string) {
   })
 
   return { create, update, reorder }
+}
+
+export interface MinTimeFailure {
+  lesson: Lesson
+  reason: string
+}
+
+export interface MinTimeResult {
+  seconds: number
+  succeeded: Lesson[]
+  failed: MinTimeFailure[]
+}
+
+/**
+ * Bulk "Set minimum time": one update per lesson, at most five in flight, so a
+ * single failure never aborts the rest. Each write requests `.select('id')` and
+ * must touch exactly one row — a lesson that was deleted meanwhile, or one RLS
+ * refuses, matches nothing and returns no error, so the count is the check.
+ *
+ * Reports like a bulk trash: "N updated, M failed" with each failure's reason.
+ * The caller keeps the failed lessons selected so they can be retried.
+ */
+export function useSetMinTime(courseId: string) {
+  const invalidate = useCurriculumInvalidator(courseId)
+
+  return useMutation({
+    mutationFn: async ({
+      lessons,
+      seconds,
+    }: {
+      lessons: Lesson[]
+      seconds: number
+    }): Promise<MinTimeResult> => {
+      const outcomes = await mapLimit(lessons, 5, async (lesson) => {
+        const { data, error } = await supabase
+          .from('lessons')
+          .update({ min_time_seconds: seconds })
+          .eq('id', lesson.id)
+          .select('id')
+        if (error) {
+          console.error('[lessons] set minimum time failed:', error.code)
+          return { lesson, reason: settingWriteReason(error) }
+        }
+        if (!data || data.length !== 1) {
+          return { lesson, reason: "This lesson no longer exists or can't be changed." }
+        }
+        return { lesson, reason: null }
+      })
+
+      return {
+        seconds,
+        succeeded: outcomes.filter((o) => o.reason === null).map((o) => o.lesson),
+        failed: outcomes.flatMap((o) => (o.reason === null ? [] : [{ lesson: o.lesson, reason: o.reason }])),
+      }
+    },
+    onSuccess: ({ seconds, succeeded, failed }) => {
+      const change = seconds === 0 ? 'turned off' : `set to ${formatClock(seconds)}`
+      const n = succeeded.length
+      const f = failed.length
+      const detail = describeFailures(
+        failed.map(({ lesson, reason }) => ({ item: { id: lesson.id, name: lesson.title }, reason })),
+      )
+      if (n > 0 && f === 0) {
+        toast.success(
+          n === 1
+            ? `Minimum time ${change} on “${succeeded[0].title}”`
+            : `Minimum time ${change} on ${n} lessons`,
+        )
+      } else if (n > 0) {
+        toast.warning(`${n} updated, ${f} failed`, { description: detail })
+      } else if (f > 0) {
+        toast.error(f === 1 ? failed[0].reason : `${f} lessons could not be updated`, {
+          description: f === 1 ? undefined : detail,
+        })
+      }
+    },
+    onSettled: invalidate,
+  })
 }
 
 export interface QuestionFormValues {

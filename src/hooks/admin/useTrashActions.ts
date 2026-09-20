@@ -27,7 +27,7 @@ function merge(results: BulkResult[]): BulkResult {
 }
 
 /** "Name — reason" for the first few failures, so a partial failure explains itself. */
-function describeFailures(failed: ItemFailure[]): string {
+export function describeFailures(failed: ItemFailure[]): string {
   const shown = failed.slice(0, 3).map((f) => `${f.item.name} — ${f.reason}`)
   const more = failed.length - shown.length
   return shown.join('\n') + (more > 0 ? `\n+${more} more` : '')

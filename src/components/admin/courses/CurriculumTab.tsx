@@ -27,6 +27,7 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   ChevronDown,
   ChevronRight,
+  Clock,
   GripVertical,
   Pencil,
   Plus,
@@ -52,6 +53,7 @@ import {
 } from '@/hooks/admin/useCurriculum'
 import { ContentTypeBadge, LessonSettingChips, LessonStatusBadge } from './ContentTypeBadge'
 import { LessonDialog } from './LessonDialog'
+import { SetMinTimeDialog } from './SetMinTimeDialog'
 
 /** Where a new/edited lesson belongs. `null` moduleId means Ungrouped. */
 interface LessonTarget {
@@ -695,6 +697,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
   // they can't collide.
   const selection = useTableSelection([courseId])
 
+  const [minTimeOpen, setMinTimeOpen] = useState(false)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
@@ -1030,7 +1033,30 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
         onSubmit={handleLessonSubmit}
       />
 
+      <SetMinTimeDialog
+        open={minTimeOpen}
+        onOpenChange={setMinTimeOpen}
+        courseId={courseId}
+        lessons={selectedLessons}
+        topicCount={selectedModules.length}
+        onDone={(result) => {
+          // Succeeded lessons leave the selection; failed ones stay for a retry.
+          selection.removeIds(result.succeeded.map((lesson) => lesson.id))
+          setMinTimeOpen(false)
+        }}
+      />
+
       <BulkActionBar count={selection.count} onClear={selection.clear}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={selectedLessons.length === 0}
+          title={selectedLessons.length === 0 ? 'Select at least one lesson' : undefined}
+          onClick={() => setMinTimeOpen(true)}
+        >
+          <Clock />
+          Set minimum time
+        </Button>
         <Button
           variant="outline"
           size="sm"
