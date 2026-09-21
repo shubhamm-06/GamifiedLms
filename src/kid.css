@@ -46,6 +46,8 @@
   }
 
   .kid-app {
+    display: flex;
+    flex-direction: column;
     min-height: 100dvh;
     background: var(--cream);
     color: var(--ink);
@@ -119,6 +121,9 @@
   }
 
   .kid-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
     width: 100%;
     margin-inline: auto;
     padding: 1rem;
@@ -550,6 +555,17 @@
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
   }
+
+  /* Below lg the course page is a flex column that fills the screen, so on a
+     short course the bar still rests at the bottom edge instead of mid-page. */
+  .kid-course-grid,
+  .kid-roadmap-col {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .rm-bar { margin-top: auto; }
 
   .rm-bar .candy-btn {
     width: 100%;
