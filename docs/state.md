@@ -389,6 +389,20 @@ worked on.
   verified fact.
 - **Capacitor session handling is unaudited** in a webview; no native
   platforms exist.
+- **LAN-testing (insecure-context) audit, 2026-09-21.** Over `http://<LAN-IP>`
+  the page is not a secure context. Audit of `src/` and the built bundle: the
+  only secure-context-only call was `crypto.randomUUID` in
+  `QuizQuestionsEditor.tsx` (now `uuid()`, fixed). No use anywhere of
+  `navigator.clipboard`, `crypto.subtle`, `mediaDevices`, `share`,
+  `Notification`, `serviceWorker` or `wakeLock`. `crypto.getRandomValues`
+  (the admin password generator) and `URL.createObjectURL` (CSV downloads)
+  work everywhere. Dependencies: supabase-js uses `crypto.subtle` only for
+  OAuth/PKCE (feature-detected, falls back) and `getClaims` signature
+  checks — this app calls neither. **Known LAN-testing limitations that
+  remain:** none in current code. Any *future* feature that needs a
+  secure-context API (camera, clipboard-copy without a fallback, push,
+  service workers/PWA install) cannot be exercised over `http://<LAN-IP>`.
+  Not exercised over the LAN: a real phone, the Capacitor webview, iOS Safari.
 - **The lesson-engine client layer is now exercised** (heartbeat, complete,
   states) through the course roadmap over the real REST API and the real UI;
   `fn_submit_quiz` is still only exercised directly (no screen calls it — the

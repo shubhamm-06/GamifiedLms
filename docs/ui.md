@@ -836,3 +836,23 @@ not implemented.**
   row-selection entry above). Documented here because it's a hand-edit to a
   generated file, same disclosure obligation as `button.tsx`/`badge.tsx` in
   `context.md`'s gotchas.
+
+## Testing on a real phone over Wi-Fi
+
+1. Run the dev server so it listens on the network: `npm run dev -- --host`
+   (Vite prints a `Network:` URL such as `http://192.168.x.x:5173`).
+2. Put the phone on the **same Wi-Fi** as the computer and open that URL in the
+   phone's browser.
+3. If the page never loads, the computer's firewall is the usual cause: allow
+   Node.js through Windows Defender Firewall for **Private** networks (or allow
+   inbound TCP 5173).
+4. **It is `http`, not `https`, so the page is an insecure context.** Sign-in,
+   the roadmap, the admin screens and Supabase calls all work (verified in
+   desktop Chromium against the LAN IP, `window.isSecureContext === false`), but
+   browsers withhold secure-context-only APIs there: `crypto.randomUUID`,
+   `crypto.subtle`, clipboard, camera/microphone, share, notifications and
+   service workers. Code must not depend on them without a fallback (`rules.md`,
+   `uuid()` in `src/lib/uuid.ts`). Anything that genuinely needs one — a future
+   camera or push feature — can only be tested on `localhost` or over HTTPS.
+5. `localhost` on the phone means the phone itself; always use the computer's
+   LAN IP. Not yet exercised: a real phone, the Capacitor webview and iOS Safari.

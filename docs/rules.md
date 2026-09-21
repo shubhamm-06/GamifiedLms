@@ -435,6 +435,21 @@ belongs in `context.md` or `state.md`, not here.
   check mark, a star, a progress ring, a "locked" word in an `aria-label`) —
   never a color swap by itself. This applies to every kid-facing screen, not
   only the roadmap that introduced the rule.
+- **No code may call a secure-context-only browser API without a working
+  fallback, and every client-made id comes from `uuid()` in `src/lib/uuid.ts`.**
+  The app is routinely tested over `http://<LAN-IP>:5173` (a phone on the same
+  Wi-Fi), which is NOT a secure context: `crypto.randomUUID`,
+  `crypto.subtle`, `navigator.clipboard`, `navigator.mediaDevices`,
+  `navigator.share`, `Notification` and service workers are all missing there,
+  and calling one throws — and an uncaught throw at module load takes down the
+  whole bundle, student routes included (a white screen; it happened via
+  `crypto.randomUUID` in the quiz editor). Feature-detect, then either degrade to
+  something that works (e.g. a hidden textarea + `document.execCommand('copy')`)
+  or show a clearly disabled control — never fail silently. Never call
+  `crypto.randomUUID()` directly; `crypto.getRandomValues` is fine (it exists
+  everywhere). Also: no module-level code may call browser APIs or generate ids —
+  do that inside a component, hook or handler, so importing a file can never
+  throw.
 - **TypeScript only — no new `.js`/`.jsx` files.**
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any
