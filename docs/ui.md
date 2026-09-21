@@ -228,6 +228,23 @@ Established by Courses; follow these for the next admin domain.
 - **Row actions live in a kebab menu and are contextual to status** — the
   menu only offers transitions that are legal from the current state.
   Clicking the row itself does nothing, since several actions compete.
+- **"View course" opens the student-facing page in a new tab, for every
+  course whatever its status** (draft, published, archived — never hidden or
+  disabled by status). It is the **first item** of each row's kebab menu (with a
+  `lucide` `ExternalLink` icon) and a secondary (outline) button in the course
+  editor's page header, right-aligned beside the title. Both are TanStack
+  `Link`s to the typed route `/courses/$courseId` with `target="_blank"` and
+  `rel="noopener noreferrer"` — a relative path, never a hardcoded host, so it
+  works on localhost, over the LAN IP and in production — with
+  `aria-label="View course: <title> (opens in a new tab)"`. It is a per-course
+  action only: the bulk action bar has no version of it. An admin who is not
+  enrolled in the course lands on the student page's "not enrolled" screen
+  (`routes-permissions.md`) — accepted for now. The editor button sits in the
+  page header rather than the row of lifecycle buttons because that row is
+  already full at narrow admin widths: beside it, an archived course wrapped at
+  720 px and pushed the tabs down (measured). In the header it adds no height at
+  1400, 900 or 720 px; a very long title (132 characters tested) wraps one line
+  earlier at 900 and 720 px, which moves the tabs down by that line.
 - **Archive and Move to trash are both reversible; neither deletes.** A course's
   row menu offers its legal status transitions (archive is a status, undone by
   Restore) and Move to trash (see the trash-first bullet below). Neither needs a

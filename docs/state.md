@@ -245,6 +245,14 @@ worked on.
   because the spec said `= now()`.
 - **Admins cannot preview a lesson through the engine.** Not enrolled → `not_enrolled`
   for everything; an admin preview mode would be a separate, deliberate addition.
+- **Follow-up: admin preview mode (view a course without enrolling).** The admin
+  panel now has a "View course" action (list menu and editor header) that opens
+  `/courses/$courseId` in a new tab, but an admin who isn't enrolled sees the
+  "not enrolled" screen there. A real preview needs a deliberate design: the
+  engine functions and the `courses`/`modules`/`lessons` policies would have to
+  admit an admin without creating progress or XP rows for them, and the page
+  would need a visible "previewing" state. Nothing of that exists; it was
+  explicitly out of scope for the button.
 - **Preview lessons are readable by any signed-in user, a trashed one included**
   (existing `lessons` policy); `quiz_questions_public` and `lesson_effective_xp`
   mirror it.
