@@ -60,8 +60,7 @@ export interface RoadmapSection {
   key: string
   moduleId: string | null
   kind: 'module' | 'more'
-  /** "Module 2" / "More to explore". */
-  eyebrow: string
+  /** The module's title, or "More to explore" for ungrouped lessons. */
   title: string
   /** Cycles gold, teal, coral, plum by the section's place on the page. */
   colorIndex: number
@@ -102,7 +101,6 @@ export function buildRoadmap(content: CourseContent, states: LessonStateRow[]): 
 
   const sections: RoadmapSection[] = []
   const byKey = new Map<string, RoadmapSection>()
-  let moduleNumber = 0
 
   for (const row of states) {
     const detail = lessonById.get(row.lessonId)
@@ -112,13 +110,11 @@ export function buildRoadmap(content: CourseContent, states: LessonStateRow[]): 
     if (!section) {
       const mod = row.moduleId ? moduleById.get(row.moduleId) : undefined
       const isModule = !!row.moduleId
-      if (isModule) moduleNumber += 1
       section = {
         key,
         moduleId: row.moduleId,
         kind: isModule ? 'module' : 'more',
-        eyebrow: isModule ? `Module ${moduleNumber}` : 'More to explore',
-        title: isModule ? (mod?.title ?? 'Module') : 'Extra lessons',
+        title: isModule ? (mod?.title ?? 'Module') : 'More to explore',
         colorIndex: sections.length % MODULE_COLOR_COUNT,
         lessons: [],
         doneCount: 0,
@@ -166,16 +162,28 @@ export function buildRoadmap(content: CourseContent, states: LessonStateRow[]): 
   }
 }
 
+export interface UnlockPlan {
+  /** The lesson to do next: the first not-yet-completed lesson before this one. */
+  next: RoadmapLesson | null
+  /** How many lessons before this one are still not completed (real data, counted from the ordered states). */
+  steps: number
+}
+
 /**
- * The lesson a locked one is waiting on: the first lesson in course order that
- * isn't completed. (Every earlier lesson must be completed for one to unlock,
- * so that first incomplete lesson is the one the student can actually do next.)
+ * What a locked lesson is waiting on. Every earlier lesson in course order must
+ * be completed for it to unlock, so the steps to go are the earlier lessons not
+ * yet completed, and the one to do next is the first of them.
  */
-export function blockingLesson(roadmap: Roadmap, lessonId: string): RoadmapLesson | null {
+export function unlockPlan(roadmap: Roadmap, lessonId: string): UnlockPlan {
   const ordered = roadmap.sections.flatMap((s) => s.lessons)
+  let next: RoadmapLesson | null = null
+  let steps = 0
   for (const lesson of ordered) {
-    if (lesson.id === lessonId) return null
-    if (lesson.state !== 'completed') return lesson
+    if (lesson.id === lessonId) break
+    if (lesson.state !== 'completed') {
+      steps += 1
+      next ??= lesson
+    }
   }
-  return null
+  return { next, steps }
 }

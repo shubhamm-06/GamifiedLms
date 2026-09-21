@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/components/ui/drawer'
 import { MD_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 import { formatClock } from '@/lib/lessonSettings'
-import { blockingLesson, type Roadmap, type RoadmapLesson } from '@/lib/roadmap'
+import type { Roadmap, RoadmapLesson } from '@/lib/roadmap'
+import { LockedLessonSheet } from './LockedLessonSheet'
 import { LESSON_TYPE_META } from './lessonTypeMeta'
 
 type TextSlot = ComponentType<{ className?: string; children?: ReactNode }>
@@ -21,8 +22,8 @@ interface Props {
   returnFocusRef: RefObject<HTMLElement | null>
 }
 
-/** The line under the title. Names the lesson to finish first when locked. */
-function statusLine(lesson: RoadmapLesson, roadmap: Roadmap): string {
+/** The line under the title. (Locked lessons have their own sheet, LockedLessonSheet.) */
+function statusLine(lesson: RoadmapLesson): string {
   switch (lesson.state) {
     case 'completed':
       return lesson.xp !== null && lesson.xp > 0 ? `Done! You earned ${lesson.xp} XP` : 'Done!'
@@ -32,22 +33,18 @@ function statusLine(lesson: RoadmapLesson, roadmap: Roadmap): string {
         : 'You started this one. Pick up where you left off!'
     case 'available':
       return 'Ready when you are!'
-    case 'locked': {
-      const first = blockingLesson(roadmap, lesson.id)
-      return first ? `Finish “${first.title}” first to open this one.` : 'Finish the lessons before it to open this one.'
-    }
+    case 'locked':
+      return ''
   }
 }
 
 function SheetBody({
   courseId,
-  roadmap,
   lesson,
   Title,
   Description,
 }: {
   courseId: string
-  roadmap: Roadmap
   lesson: RoadmapLesson
   Title: TextSlot
   Description: TextSlot
@@ -74,9 +71,9 @@ function SheetBody({
           </span>
         ) : null}
       </div>
-      <Title className="mt-3 text-2xl leading-tight font-extrabold [font-family:var(--font-kid)]! [overflow-wrap:anywhere]">{lesson.title}</Title>
+      <Title className="mt-3 text-2xl leading-tight font-extrabold text-ink [font-family:var(--font-kid)]! [overflow-wrap:anywhere]">{lesson.title}</Title>
       <Description className="mt-2 text-base font-medium text-ink">
-        <span data-testid="sheet-status">{statusLine(lesson, roadmap)}</span>
+        <span data-testid="sheet-status">{statusLine(lesson)}</span>
       </Description>
       {lesson.state === 'available' || lesson.state === 'in_progress' ? (
         <div className="mt-5 flex">
@@ -127,13 +124,11 @@ export function LessonSheet({ courseId, roadmap, lesson, open, onOpenChange, ret
           className="kid-card kid-font max-w-[calc(100%-2rem)] gap-0 rounded-[26px] bg-surface p-0 text-ink ring-0 sm:max-w-md"
         >
           {lesson ? (
-            <SheetBody
-              courseId={courseId}
-              roadmap={roadmap}
-              lesson={lesson}
-              Title={DialogTitle}
-              Description={DialogDescription}
-            />
+            lesson.state === 'locked' ? (
+              <LockedLessonSheet roadmap={roadmap} lesson={lesson} Title={DialogTitle} Description={DialogDescription} />
+            ) : (
+              <SheetBody courseId={courseId} lesson={lesson} Title={DialogTitle} Description={DialogDescription} />
+            )
           ) : (
             <DialogTitle className="sr-only">Lesson</DialogTitle>
           )}
@@ -146,13 +141,11 @@ export function LessonSheet({ courseId, roadmap, lesson, open, onOpenChange, ret
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent {...focusProps} className="kid-font rounded-t-[26px] border-0 bg-surface text-ink">
         {lesson ? (
-          <SheetBody
-            courseId={courseId}
-            roadmap={roadmap}
-            lesson={lesson}
-            Title={DrawerTitle}
-            Description={DrawerDescription}
-          />
+          lesson.state === 'locked' ? (
+            <LockedLessonSheet roadmap={roadmap} lesson={lesson} Title={DrawerTitle} Description={DrawerDescription} />
+          ) : (
+            <SheetBody courseId={courseId} lesson={lesson} Title={DrawerTitle} Description={DrawerDescription} />
+          )
         ) : (
           <DrawerTitle className="sr-only">Lesson</DrawerTitle>
         )}
