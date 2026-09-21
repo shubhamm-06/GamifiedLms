@@ -19,7 +19,7 @@ export function RoadmapPath({
     <div className="rm" data-testid="roadmap">
       {roadmap.sections.map((section) => (
         <section key={section.key} className={cn('mb-2', `mod-${section.colorIndex}`)} data-testid="roadmap-section">
-          <ModuleBanner section={section} />
+          <ModuleBanner section={section} currentLessonId={roadmap.currentLessonId} />
           <div className="rm-path">
             {section.lessons.map((lesson, i) => (
               <LessonNode

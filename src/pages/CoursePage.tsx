@@ -99,7 +99,7 @@ function ReadyRoadmap({
           }}
         />
         {!roadmap.courseComplete && roadmap.currentLessonId ? (
-          <div className="rm-continue lg:hidden" data-testid="continue-bar">
+          <div className="rm-bar lg:hidden" data-testid="continue-bar">
             <ContinueButton courseId={courseId} lessonId={roadmap.currentLessonId} />
           </div>
         ) : null}

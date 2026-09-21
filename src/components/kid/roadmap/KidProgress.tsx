@@ -9,7 +9,11 @@ export function KidProgress({ percent, label }: { percent: number; label: string
       aria-valuenow={percent}
       aria-label={label}
     >
-      <div className="kid-progress-fill" style={{ width: `${percent}%` }} />
+      {/* min-width keeps a first lesson or two visible as a rounded cap. */}
+      <div
+        className="kid-progress-fill"
+        style={{ width: `${percent}%`, minWidth: percent > 0 ? '1.25rem' : undefined }}
+      />
     </div>
   )
 }

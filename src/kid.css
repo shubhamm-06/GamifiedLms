@@ -194,7 +194,7 @@
     height: 1.25rem;
     overflow: hidden;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--ink) 12%, transparent);
+    background: color-mix(in srgb, var(--gold) 24%, var(--cream));
   }
 
   .kid-progress-fill {
@@ -214,7 +214,10 @@
     --rm-row-h: 10.75rem;
   }
 
-  /* Sticky under the top bar while this module's lessons scroll past; the
+  /* The module banner is a heading, not a control: a soft --gold tint, a flat
+     bottom edge (no candy lip), no pressed or hover state, default cursor. That
+     is the difference from Continue, the only candy-pressable element. It
+     sticks under the top bar while this module's lessons scroll past; the
      section is its containing block, so it lets go when the module ends. */
   .rm-banner {
     position: sticky;
@@ -223,42 +226,52 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-radius: 26px;
-    background: var(--mod);
-    color: var(--on-mod);
-    box-shadow: 0 6px 0 var(--mod-d);
+    min-height: 2.75rem;
+    padding: 0.5rem 1rem;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--gold) 30%, var(--cream));
+    color: var(--ink);
+    box-shadow: none;
+    cursor: default;
   }
 
   .rm-banner[data-locked='true'] {
     background: var(--kid-muted);
-    color: var(--ink);
-    box-shadow: 0 6px 0 var(--kid-muted-d);
-  }
-
-  .rm-banner-eyebrow {
-    font-size: 0.875rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    opacity: 0.9;
   }
 
   .rm-banner-title {
-    font-size: 1.125rem;
+    flex: 1;
+    min-width: 0;
+    font-size: 1.0625rem;
     font-weight: 800;
     line-height: 1.2;
     overflow-wrap: anywhere;
   }
 
-  .rm-banner-count {
+  /* One dot per lesson: solid = done, ring = the current one, faint = still to
+     come. Decorative; the text equivalent ("2 of 4 lessons done") is visually
+     hidden text beside it. */
+  .rm-dots {
+    display: flex;
     flex: none;
-    padding: 0.25rem 0.75rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    max-width: 45%;
+  }
+
+  .rm-dot {
+    width: 10px;
+    height: 10px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--on-mod) 16%, transparent);
-    font-size: 0.875rem;
-    font-weight: 700;
-    white-space: nowrap;
+    background: color-mix(in srgb, var(--ink) 18%, transparent);
+  }
+
+  .rm-dot[data-s='done'] { background: var(--ink); }
+
+  .rm-dot[data-s='current'] {
+    background: transparent;
+    box-shadow: inset 0 0 0 2.5px var(--ink);
   }
 
   .rm-path {
@@ -444,19 +457,31 @@
     white-space: nowrap;
   }
 
-  /* Sticky Continue: rests in the thumb zone above the bottom inset and lets go
-     at the end of the page. Hidden at lg, where the summary card holds it. */
-  .rm-continue {
+  /* The Continue bar: a real bar, sticky at the bottom of the roadmap column,
+     bleeding to the column's gutters, with the safe-area inset (and the future
+     tab bar's --kid-bottom-inset) in its own padding. It is the last thing in
+     the column, and its negative bottom margin cancels .kid-main's bottom
+     padding, so at the end of the page it sits below the last node instead of
+     over it. Hidden at lg, where the summary card holds Continue. */
+  .rm-bar {
     position: sticky;
-    bottom: calc(env(safe-area-inset-bottom) + var(--kid-bottom-inset) + 0.75rem);
+    bottom: var(--kid-bottom-inset);
     z-index: 30;
     display: flex;
     justify-content: center;
-    padding-block: 0.75rem;
-    pointer-events: none;
+    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
+    margin-bottom: calc(-1 * (env(safe-area-inset-bottom) + var(--kid-bottom-inset) + 1.5rem));
+    padding: 0.75rem max(1rem, env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    background: color-mix(in srgb, var(--cream) 94%, transparent);
+    border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
   }
 
-  .rm-continue > * { pointer-events: auto; }
+  .rm-bar .candy-btn {
+    width: 100%;
+    max-width: 26rem;
+  }
 
   /* ------------------------------------------------------------------ tiers */
 
