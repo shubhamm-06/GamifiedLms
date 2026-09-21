@@ -327,6 +327,25 @@ belongs in `context.md` or `state.md`, not here.
   repeated `fn_complete_lesson` returns success with 0 XP, and
   `uq_xp_transactions_dedupe` backs it. The effective-XP hint in the lesson dialog
   is display-only: the amount awarded is decided by `fn_award_lesson_xp`.
+- **Lesson content that can run code is only ever shown in a sandboxed frame.**
+  A game (`games.bundle_url`) loads in an iframe with `sandbox="allow-scripts"` and
+  nothing else, never `allow-same-origin` (scripts plus same-origin would let admin-
+  or third-party-authored code read the student's session token), over https only
+  (http only in dev), with `allow=""` and `referrerPolicy="no-referrer"`. A reading
+  lesson's `content_html` renders in a `srcdoc` iframe with `sandbox="allow-same-origin"`
+  (no `allow-scripts`, so nothing in it runs) and a CSP meta that blocks scripts,
+  forms, frames and network fetches other than https images and media. It is never
+  injected into the app's own DOM (`dangerouslySetInnerHTML`). Video embeds are limited
+  to the normalized YouTube and Vimeo URLs (`lib/video.ts`).
+- **The lesson clock only runs while the lesson is on screen, and it never sends a
+  beat that would credit time spent away.** `useLessonClock` sends no heartbeat while
+  the page is hidden or the device offline, and after any pause it waits until
+  `HEARTBEAT_RESUME_QUIET_MS` (32 s) after its last beat, so the first beat lands past
+  the server's 30 s window and credits 0. The server cannot see visibility, so this
+  is the only thing keeping "active time" honest. The client's displayed time is never
+  used as a check: the Finish action is enabled only from a server reply
+  (`time_met`), the completion sheet's XP is the `xp_awarded` the server returned, and
+  the server re-checks time and quiz on `fn_complete_lesson`.
 - **A view must not be writable by clients.** Supabase grants `ALL` on every new
   public table and view to `anon` and `authenticated`; an auto-updatable
   single-table view then lets a client write around the base table's RLS
@@ -336,8 +355,9 @@ belongs in `context.md` or `state.md`, not here.
   (Postgres checks `EXECUTE` against the caller), so give views caller-only
   wrappers with no user-id parameter — never grant an internal helper that takes a
   user id.
-- **`games.orientation` is a stored setting only** — nothing reads it (there is no
-  game player); no doc, UI copy or code comment may say otherwise.
+- **`games.orientation` is advisory: the lesson player only shows a "turn your phone"
+  hint, it never locks or forces the screen orientation** (no native plugin is
+  installed for that); no doc, UI copy or code comment may say otherwise.
 - **KNOWN LIMITATION — the database still accepts an admin-created order for
   a trashed course.** `fn_create_manual_order` (payment logic, deliberately
   untouched by migration 013) does not check `courses.deleted_at`; only the

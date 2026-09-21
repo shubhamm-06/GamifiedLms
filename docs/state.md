@@ -26,9 +26,13 @@ nav entry is a real route):
   generated from the node positions, a node hierarchy (see `ui.md`). **Not
   linked from anywhere** — no home/dashboard screen exists yet, so it's
   reachable only by URL.
-- `/courses/$courseId/lessons/$lessonId` — **TEMPORARY** stub ("Lesson player
-  coming soon") so the roadmap's action buttons have somewhere to land; the
-  route stays, the component is replaced whole by the real lesson player.
+- `/courses/$courseId/lessons/$lessonId`: the lesson player: video, reading,
+  game and quiz lessons, a server-driven active-time ring, a server-graded quiz,
+  once-only XP with a completion sheet, a replay mode and screens for locked,
+  not-enrolled and unavailable lessons (`ui.md`, `routes-permissions.md`). Games
+  are treated as time-based (no game protocol exists). Verified in Chromium
+  against the live project on 2026-09-22; not yet on a device or in the
+  Capacitor webview.
 - A pathless student layout route (`KidLayout`) gates both on a signed-in
   session only — no role check; RLS and the engine decide what a signed-in
   user may see.
@@ -99,25 +103,28 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **A home/dashboard screen for students.** `/` is still a scaffold landing
   page and does not link to `/courses/$courseId` — the roadmap is reachable
   only by typing or being sent its URL.
-- **The real lesson player** (video, game, quiz, text). `/courses/$courseId/lessons/$lessonId`
-  is a temporary stub; nothing plays a lesson, submits a heartbeat from a real
-  screen, or calls `fn_submit_quiz`/`fn_complete_lesson` from the UI yet.
 - **A bottom tab bar** for the student app. `--kid-bottom-inset` (kid.css) is
   reserved for it so adding one later needs no re-layout, but it doesn't exist.
 - **Native back-button handling and a Capacitor session audit** for the
   student app — noted as follow-ups, not started (see Next steps).
 - **Quiz reveal.** Grading exists (`fn_submit_quiz`, v1: per-question
   correct/incorrect only — no correct option, no explanation, by assumption).
-  Whether and when a student may see the right answer or the explanation is
-  undecided (`rules.md`). `app_settings.quiz_pass_threshold_percent` is stored
+  The player shows right or wrong per question; each question's explanation
+  appears after grading only once migration 020 is applied (proposed, awaiting
+  approval, which also means amending the quiz-answers invariant in `rules.md`).
+  The correct option is never shown. Whether to reveal it is undecided. `app_settings.quiz_pass_threshold_percent` is stored
   and admin-editable but read by nothing — the pass mark is per lesson.
 - **Other XP award paths.** Only `'lesson'` (automatic) and `'manual'` (admin)
   award XP; the `'quiz'`, `'game'` and `'streak'` `source_type`s have no
   writer.
 - **Payment gateway webhook and pre-signup payment claiming.** No receiver and
   no Edge Function — see `integrations.md`.
-- **Game loading/playing.** Nothing consumes a game's bundle metadata
-  (`games.bundle_size_bytes`, `games.checksum`).
+- **A game protocol.** The player loads a game's `bundle_url` in a sandboxed
+  frame and completes it on the timer. Nothing reads `games.bundle_size_bytes`,
+  `games.checksum` or `games.max_xp`, no message contract lets a game report a
+  score, and both games in the live database have placeholder `example.com` bundle
+  URLs, so no real game has been loaded. A game that needs storage or network
+  identity will not work inside `sandbox="allow-scripts"`.
 - **File uploads.** No Storage bucket exists (`storage.buckets` is empty), so
   `courses.thumbnail_url` and a lesson's `video_url` are paste-a-URL fields.
 - **Native builds, hosting, CI.** Capacitor is installed but `npx cap add
@@ -131,21 +138,20 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Rich-text editing** for a lesson's `content_html` (a raw HTML textarea
   today) — a separate dependency decision.
 - **Analytics.** `analytics.md` deliberately doesn't exist until this starts.
-- **Anything that uses the lesson engine.** No kid-facing screen (lesson
-  player, roadmap) calls it yet, and `games.orientation` (stored, editable) is
-  read by nothing — a landscape game's "rotate your phone" prompt needs the game
-  player.
+- **Orientation locking.** `games.orientation` drives only a "turn your phone"
+  hint in the player. Locking the screen needs a native plugin
+  (`@capacitor/screen-orientation`), which is not installed.
 - **A parental gate** for the kid-side app — deferred by decision.
 - **Admin control over the locked design tokens** already covers `--surface`
   too (added this task, same status as the rest of the token set).
 
 ## In flight
 
-Nothing. The trash-first task is complete (soft delete and the Trash page,
-multi-select on every list table, Users CSV export and import, the final sweep),
-so is the admin side of the lesson timer / pass mark / game orientation
-settings, so is the kid-side lesson engine (database + client layer), and so is
-the course roadmap screen built on top of it. Nothing is mid-way.
+The lesson player is built and committed. One piece waits on a decision:
+migration 020 (`supabase/migrations/20260922000000_020_lesson_player_server.sql`,
+untracked, NOT applied) needs approval before anything touches the database.
+Everything else is complete: the trash-first work, the admin lesson settings, the
+kid-side engine, the course roadmap and the lesson player.
 
 ## Live data reality
 
@@ -167,7 +173,11 @@ real lessons (1 `text`, 1 `video`) carry the migration 015 defaults
 task's fixtures were removed. After the lesson-engine task's fixtures were
 removed the counts above (including `lesson_progress` 0, `quiz_attempts` 0,
 `quiz_questions` 0, `xp_transactions` 1, `user_stats` 1, `user_badges` 0, `badges` 0
-and the course counters) were re-read and matched.
+and the course counters) were re-read and matched. The lesson player task did the
+same on 2026-09-22 (profiles 3, courses 3, modules 7, lessons 17, enrollments 5,
+`lesson_progress` 0, `quiz_attempts` 0, `quiz_questions` 14, `xp_transactions` 1,
+`user_stats` 1, payments 2, games 2, badges 0, and the course counters
+`demo-fun-with-numbers` 1 student / 15 lessons, `dsgf` 0 / 0, `wisdom-hatch-kids` 2 / 2).
 
 ## Blockers
 
@@ -184,10 +194,8 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). The UI and the Edge Function both
    refuse it; a direct `service_role`/dashboard delete or an `auth.users`
    cascade still isn't stopped.
-3. The real lesson player (video, game, quiz, text) behind
-   `/courses/$courseId/lessons/$lessonId` — call `heartbeatLesson` every
-   `HEARTBEAT_INTERVAL_MS` while a lesson is in the foreground, then
-   `completeLesson`/`submitQuiz` (`lib/lessonEngine.ts`).
+3. Decide migration 020 (below), then test the player on a real phone and in the
+   Capacitor webview (`ui.md` lists what has not been exercised).
 4. A student home/dashboard screen that links to `/courses/$courseId` — the
    roadmap currently has no entry point.
 5. Decide enrollment expiry (below) before any student is expected to lose access.
@@ -198,6 +206,28 @@ None.
 
 Each of these needs a product call or a deliberate follow-on; none is being
 worked on.
+
+- **Migration 020 needs a yes or no (file written, not applied).** Section A makes
+  `fn_submit_quiz` return each question's `explanation` inside a graded result (it
+  reads `quiz_questions.explanation`, nothing else changes; it needs an amended
+  invariant in `rules.md`, and the choice to send explanations for every question or
+  only for wrong answers). Section B (optional) carries the heartbeat's sub-second
+  remainder. Nothing else in the schema changes; no policy, grant or view is touched.
+  The player already handles both states: with 020 unapplied a graded result simply has no explanation.
+- **Dead time after a pause.** The server cannot be told the child left, so after
+  a pause the client waits until 32 s after its last beat before sending the next (so
+  the beat lands past the server's 30 s window and credits 0). Cost: up to about 32 s
+  of visible time is not counted after each pause. Removing it needs a small migration
+  (a `p_resumed` flag on `fn_lesson_heartbeat` that credits 0 and restarts the clock).
+  In dev, React StrictMode sends the opening beat twice within a fraction of a second; harmless (the second credits 0).
+- **The Capacitor App plugin is not installed** (`@capacitor/app`), so the player
+  uses the Page Visibility API and online/offline events only. In a native webview
+  backgrounding may not fire `visibilitychange` reliably; adding the plugin's
+  `appStateChange` listener to `useLessonClock` is the fix, and needs a dependency approval.
+- **Reading lessons are shown, not sanitised.** No HTML sanitiser is installed, so
+  `content_html` is trusted only because it renders in a script-less sandboxed frame
+  with a restrictive CSP (`rules.md`). An admin can still put a link or a big image
+  in it. If lesson HTML ever comes from anyone but an admin, add a sanitiser.
 
 - **The last-admin guard is unreachable in normal use.** The caller must be a
   non-trashed admin different from the target, so at least two non-trashed
@@ -245,7 +275,8 @@ worked on.
   beats over 3.00 s of server time credited 0 (the intent: hammering never
   inflates). Carrying the remainder (advancing `last_heartbeat_at` only by the
   credited seconds) would lose nothing and still never over-credit; not done
-  because the spec said `= now()`.
+  because the spec said `= now()`. Migration 020, section B (proposed, optional)
+  implements the carry.
 - **Admin preview banner on the course page is not built, and cannot be as
   specified.** The redesign task asked for a slim "Admin preview. This is what
   enrolled students see." banner for an admin who is not enrolled, without

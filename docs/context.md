@@ -81,19 +81,24 @@ src/
     kid/       KidLayout (the student-route shell) + kidHeader.ts (its
                context/hook); roadmap/ (CourseHeader, SummaryCard, RoadmapPath,
                ModuleBanner, LessonNode, LessonSheet, StateScreens, CourseArt,
-               ContinueButton, KidProgress, lessonTypeMeta) — see ui.md
+               ContinueButton, KidProgress, lessonTypeMeta); player/ (LessonPlayerShell,
+               ActiveTimeRing, PausedNotice, PlayerBar, PlayerSkeleton, PlayerScreens,
+               VideoLesson, DocLesson, GameLesson, QuizLesson, QuizQuestion,
+               QuizResultView, LessonCompleteSheet, LessonMessage) — see ui.md
     admin/     AdminGuard, AdminLayout (shell); one subfolder per domain, each
                holding that domain's table/dialogs/sections: users/ (its import/
                folder holds the CSV import dialog), courses/,
                games/, orders/, settings/, gamification/; plus selection/
                (the shared multi-select kit) and trash/ (Trash page table + dialogs)
   pages/       route-level components: HomePage, LoginPage, SignupPage,
-               CoursePage (the kid-facing course roadmap), LessonStubPage
-               (TEMPORARY placeholder for the lesson player);
+               CoursePage (the kid-facing course roadmap), LessonPlayerPage
+               (the kid-facing lesson player);
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
                CourseEdit, Games, Orders, Settings, Gamification, Trash)
   hooks/       TanStack Query hooks: useAppSettings, useCourseCount,
-               useLessonEngine (states/heartbeat/complete/quiz),
+               useLessonEngine (states/heartbeat/complete/quiz), useLessonClock (the
+               active-time heartbeat loop), useLessonContent (lesson row, game,
+               quiz questions for the player),
                useCourseRoadmap (merges course content + engine states into the
                roadmap the course page renders), useMediaQuery; admin/ has
                one file per domain (useUsers, useUserMutations, useUserDetail,

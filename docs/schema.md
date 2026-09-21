@@ -169,8 +169,8 @@ today. If a future consumer starts relying on either for integrity checking,
 that reader should treat `0`/`''` as "not provided," not as a real value.
 `orientation` (migration 015, `text not null default 'any'`,
 `games_orientation_check` in `'portrait'|'landscape'|'any'`) records the
-orientation a game is meant to be played in. Stored only: nothing reads it, and
-nothing yet asks a kid to rotate their phone.
+orientation a game is meant to be played in. The lesson player reads it and shows a
+"turn your phone" hint when the screen does not match; it never locks orientation.
 
 ### 3. Learner activity
 
@@ -569,6 +569,23 @@ not grant anything unearned, but it was a client-triggerable write to
 `user_badges`). Migration 019 revoked `EXECUTE` from `public`/`anon`/`authenticated`;
 its callers are the two trigger functions, which run as their owner. Verified: a
 completion through the engine still awarded a `lessons_completed` badge.
+
+**Lesson player read path** (no schema change: the player added no table, column,
+policy, grant or view). It reads `lessons` (`id, course_id, title, summary,
+content_type, video_url, content_html, game_id, min_time_seconds, pass_percentage`,
+plus `courses(gamification_enabled)`, filtered to `status = 'published'` because the
+lessons policy has no such check), `lesson_effective_xp` (the only XP figure it shows),
+`games` (`id, title, bundle_url, orientation`, readable by any signed-in user) and
+`quiz_questions_public`. It fetches none of these for a locked lesson. Lesson `content_html`
+and a game's `bundle_url` are admin-authored and are treated as untrusted by the
+player (sandboxed frames, `rules.md`). A lesson's `video_url` is the normalized
+YouTube/Vimeo embed URL or a plain https file; a raw `watch?v=` link is not an embed
+URL and the player shows "This video isn't ready yet" for it. `fn_submit_quiz` `results`
+still carry no explanation: **migration 020 (proposed, NOT applied, file
+`supabase/migrations/20260922000000_020_lesson_player_server.sql`) would add each
+question's `explanation` to a graded result and, optionally, carry the sub-second
+remainder in the heartbeat**; the live schema is through 019 until it is approved
+(`state.md`).
 
 **Known cost.** `quiz_questions_public` and `fn_caller_lesson_unlocked` recompute a
 course's states per question row (`STABLE`, no caching) — fine at present sizes;

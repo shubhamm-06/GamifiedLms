@@ -9,8 +9,8 @@ file-based — new routes are added there, not by creating files under a
 | Route | Component | Access | Notes |
 |---|---|---|---|
 | `/` | `HomePage` | Public | Placeholder landing page; the destination for students and any non-admin bounced off `/admin` |
-| `/courses/$courseId` | `CoursePage` | Signed-in (student route group, below) | The course roadmap — modules and lessons as a learning path with lock state, progress and a Continue button. **Not linked from anywhere yet** (no home/dashboard screen exists) — reachable only by typing or being sent the URL |
-| `/courses/$courseId/lessons/$lessonId` | `LessonStubPage` | Signed-in (student route group) | **TEMPORARY.** A "Lesson player coming soon" placeholder with a Back button — exists only so the roadmap's Start/Keep going/Review/Continue actions have somewhere to land. The route and its params are permanent; only the component body is a stub, replaced whole when the real lesson player (video/game/quiz/text) is built |
+| `/courses/$courseId` | `CoursePage` | Signed-in (student route group, below) | The course roadmap — modules and lessons as a learning path with lock state, progress and a Continue button. **Not linked from anywhere yet** (no home/dashboard screen exists) — reachable only by typing or being sent the URL. Takes an optional `?open=<lessonId>` search param (`validateSearch` keeps a non-empty string, else nothing): the page opens that lesson's sheet once on arrival, then clears the param with a replace navigation so Back and refresh do not reopen it. The lesson player sends a locked lesson here this way |
+| `/courses/$courseId/lessons/$lessonId` | `LessonPlayerPage` | Signed-in (student route group) | The kid-facing lesson player: video, reading (`text`), game and quiz lessons, with a server-driven active-time ring, a server-graded quiz and a completion sheet. Access is decided by the engine, not by role (see "The lesson player route" below): not enrolled, expired or an unenrolled admin sees the not-enrolled screen; a locked lesson is sent to the roadmap with `?open=`; a missing, unpublished or wrong-course lesson sees an unavailable screen. A completed lesson opens in replay mode (no timer, no XP) |
 | `/login` | `LoginPage` | Public, but redirects signed-in admins | Accepts a `redirect` search param; see the login guard below |
 | `/signup` | `SignupPage` | Public | On success: session present → `/`; no session (email confirmation required) → "check your email" copy |
 | `/admin` | `DashboardPage` | Admin only | KPI cards, needs-attention list, recent-activity table |
@@ -99,6 +99,31 @@ since it must anyway to match the engine's sequence, so nothing leaks to the
 screen, but a different reader of this table would see them. Recorded in
 `state.md`; fixing the policy is a one-line, separately-scoped change.
 
+**The lesson player route** (`/courses/$courseId/lessons/$lessonId`). Everything the
+page shows is chosen from the server's answers, in this order:
+1. `fn_course_lesson_states(courseId)` refused `not_enrolled` (no enrollment, an
+   `expired` or `revoked` one, a trashed user, an admin who is not enrolled): the
+   not-enrolled screen. `lesson_unavailable` (draft or trashed course): the
+   unavailable screen.
+2. The lesson is absent from the states (unpublished, trashed, or the id belongs to
+   another course): the unavailable screen. Nothing is fetched for it.
+3. The lesson's state is `locked`: `<Navigate>` to `/courses/$courseId?open=<lessonId>`
+   (replace), which opens the friendly locked sheet. **The lesson row (title, body,
+   video link, quiz questions) is not requested at all for a locked lesson**, although
+   the `lessons` policy would allow the read.
+4. Otherwise the lesson row (`lessons` filtered to `status = 'published'`, with the
+   course's `gamification_enabled`), `lesson_effective_xp`, and for a game lesson the
+   `games` row are read, and quiz questions come from `quiz_questions_public` only.
+
+While a lesson is open the same rules apply live: a heartbeat, quiz submission or
+completion refused with `locked`, `not_enrolled` or `lesson_unavailable` swaps the
+page for the matching screen (or the locked redirect). A failed background refetch
+of the states never tears down a lesson that is already on screen. Replay (state
+`completed` at open) sends no heartbeats and grants no XP; the mode is latched when
+the lesson opens, so completing it does not turn the play screen into a replay.
+Verified with real JWTs against the RPCs and in a real browser (`changelog.md`); an
+unenrolled, expired or admin session logs one expected `400` on `rpc/fn_course_lesson_states`.
+
 Modules, lessons and quiz questions are deliberately **not** routes of their
 own — they only exist within a course, so they are managed inside Course
 Builder's Curriculum tab (`/admin/courses/$courseId/edit?tab=curriculum`), not
@@ -152,7 +177,8 @@ The lesson engine (migration 017; behaviour in `schema.md`). Each is
 `SECURITY DEFINER`, derives the user from `auth.uid()` and is executable by
 `authenticated` only — `anon` gets `42501`. A trashed user's still-valid token gets
 `not_enrolled`. Client wrappers: `src/lib/lessonEngine.ts`; hooks:
-`src/hooks/useLessonEngine.ts` (no screen uses them yet).
+`src/hooks/useLessonEngine.ts`, used by the roadmap and the lesson player (`useLessonClock`
+in `src/hooks/` owns the heartbeat loop).
 
 | Function | Who may call | Refusals (`hint`/`message`) |
 |---|---|---|
