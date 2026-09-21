@@ -91,7 +91,8 @@ interface RpcError {
   code?: string | null
 }
 
-function toEngineError(error: RpcError): LessonEngineError {
+/** Maps any PostgREST-style error (an RPC or a table read) to a LessonEngineError. */
+export function toEngineError(error: RpcError): LessonEngineError {
   const hint = error.hint ?? ''
   const message = error.message ?? ''
   if (SERVER_CODES.has(hint)) return new LessonEngineError(hint as LessonEngineErrorCode)
