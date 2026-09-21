@@ -74,7 +74,7 @@ function SheetBody({
           </span>
         ) : null}
       </div>
-      <Title className="mt-3 text-2xl leading-tight font-extrabold [overflow-wrap:anywhere]">{lesson.title}</Title>
+      <Title className="mt-3 text-2xl leading-tight font-extrabold [font-family:var(--font-kid)]! [overflow-wrap:anywhere]">{lesson.title}</Title>
       <Description className="mt-2 text-base font-medium text-ink">
         <span data-testid="sheet-status">{statusLine(lesson, roadmap)}</span>
       </Description>
@@ -124,7 +124,7 @@ export function LessonSheet({ courseId, roadmap, lesson, open, onOpenChange, ret
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent
           {...focusProps}
-          className="kid-card max-w-[calc(100%-2rem)] gap-0 rounded-[26px] bg-surface p-0 text-ink ring-0 sm:max-w-md"
+          className="kid-card kid-font max-w-[calc(100%-2rem)] gap-0 rounded-[26px] bg-surface p-0 text-ink ring-0 sm:max-w-md"
         >
           {lesson ? (
             <SheetBody
@@ -144,7 +144,7 @@ export function LessonSheet({ courseId, roadmap, lesson, open, onOpenChange, ret
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent {...focusProps} className="rounded-t-[26px] border-0 bg-surface text-ink">
+      <DrawerContent {...focusProps} className="kid-font rounded-t-[26px] border-0 bg-surface text-ink">
         {lesson ? (
           <SheetBody
             courseId={courseId}

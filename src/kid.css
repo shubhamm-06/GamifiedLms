@@ -11,6 +11,11 @@
 @layer components {
 
   :root {
+    /* Baloo 2 (already installed, imported in styles.css) is the kid-facing
+       face: applied by .kid-app (the student layout) and .kid-font (for
+       portaled UI such as the lesson sheet, which renders outside .kid-app).
+       Admin routes never carry either class, so they stay on Geist. */
+    --font-kid: 'Baloo 2 Variable', 'Baloo 2', sans-serif;
     /* Height of the sticky top bar's content row (the safe-area inset is added on top). */
     --kid-topbar-h: 3.5rem;
     /* Reserved for a future bottom tab bar: set this to its height and every
@@ -32,6 +37,11 @@
   .mod-1 { --mod: var(--teal);  --mod-d: var(--teal-d);  --on-mod: var(--ink); }
   .mod-2 { --mod: var(--coral); --mod-d: var(--coral-d); --on-mod: var(--ink); }
   .mod-3 { --mod: var(--plum);  --mod-d: var(--plum-d);  --on-mod: var(--cream); }
+
+  .kid-app,
+  .kid-font {
+    font-family: var(--font-kid);
+  }
 
   .kid-app {
     min-height: 100dvh;
