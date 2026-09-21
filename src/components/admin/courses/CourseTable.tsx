@@ -1,5 +1,6 @@
 import { useMemo, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ChevronsUpDown, MoreHorizontal } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronsUpDown, ExternalLink, MoreHorizontal } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import {
   columnFilteringFeature,
   createColumnHelper,
@@ -193,6 +194,24 @@ function buildColumns(
                   course from everything and is undone from the Trash page or
                   the toast. Neither deletes: only the Trash page can. */}
               <DropdownMenuContent align="end">
+                {/* Opens the student page in a new tab, for every status. A real
+                    link (relative, typed route) rather than window.open, so it
+                    works on localhost, over the LAN and in production, and
+                    middle-click / keyboard behave like any link. An admin who
+                    isn't enrolled sees the not-enrolled screen there — by design
+                    for now (routes-permissions.md). */}
+                <DropdownMenuItem asChild>
+                  <Link
+                    to="/courses/$courseId"
+                    params={{ courseId: course.id }}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`View course: ${course.title} (opens in a new tab)`}
+                  >
+                    <ExternalLink />
+                    View course
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onEdit(course)}>Edit</DropdownMenuItem>
                 {actions.length > 0 ? <DropdownMenuSeparator /> : null}
                 {actions.map((action) => (
