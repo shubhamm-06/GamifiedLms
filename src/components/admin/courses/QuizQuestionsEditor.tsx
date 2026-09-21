@@ -25,11 +25,15 @@ function newOption(): QuizOption {
   return { id: uuid(), text: '' }
 }
 
-const EMPTY_QUESTION: QuestionFormValues = {
-  prompt: '',
-  options: [newOption(), newOption()],
-  correct_option: '',
-  explanation: '',
+// A function, not a constant: option ids are made when a form opens, never at
+// import time, so importing this file can't throw or share ids between forms.
+function newQuestion(): QuestionFormValues {
+  return {
+    prompt: '',
+    options: [newOption(), newOption()],
+    correct_option: '',
+    explanation: '',
+  }
 }
 
 interface QuestionFormProps {
@@ -283,7 +287,7 @@ export function QuizQuestionsEditor({ lessonId }: { lessonId: string }) {
 
       {isAdding ? (
         <QuestionForm
-          initial={{ ...EMPTY_QUESTION, options: [newOption(), newOption()] }}
+          initial={newQuestion()}
           isSubmitting={mutations.create.isPending}
           onCancel={() => setIsAdding(false)}
           onSave={(values) =>
