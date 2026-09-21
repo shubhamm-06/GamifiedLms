@@ -6,6 +6,9 @@ export interface KidHeaderValue {
   /** Where Back goes when there is no in-app history to return to (a deep link). */
   fallbackPath: string
   setFallbackPath: (path: string) => void
+  /** The right end of the top bar, for a page's own small control (the lesson player's time ring). */
+  rightSlot: HTMLElement | null
+  setRightSlot: (el: HTMLElement | null) => void
 }
 
 export const KidHeaderContext = createContext<KidHeaderValue | null>(null)
@@ -22,4 +25,9 @@ export function useKidHeader(title: string, fallbackPath = '/') {
     setTitle?.(title)
     setFallbackPath?.(fallbackPath)
   }, [title, fallbackPath, setTitle, setFallbackPath])
+}
+
+/** The element at the right end of the top bar; render into it with a portal. Null until mounted. */
+export function useKidRightSlot(): HTMLElement | null {
+  return useContext(KidHeaderContext)?.rightSlot ?? null
 }

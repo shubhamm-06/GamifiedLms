@@ -14,9 +14,10 @@ export function KidLayout({ children }: { children?: ReactNode }) {
   const router = useRouter()
   const [title, setTitle] = useState('')
   const [fallbackPath, setFallbackPath] = useState('/')
+  const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null)
   const value = useMemo(
-    () => ({ title, setTitle, fallbackPath, setFallbackPath }),
-    [title, fallbackPath],
+    () => ({ title, setTitle, fallbackPath, setFallbackPath, rightSlot, setRightSlot }),
+    [title, fallbackPath, rightSlot],
   )
 
   function goBack() {
@@ -37,6 +38,7 @@ export function KidLayout({ children }: { children?: ReactNode }) {
             <p className="kid-topbar-title" data-testid="kid-title">
               {title}
             </p>
+            <div className="kid-topbar-right" ref={setRightSlot} />
           </div>
         </header>
         <main className="kid-main">{children ?? <Outlet />}</main>

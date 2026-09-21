@@ -110,6 +110,13 @@
     .kid-back:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
   }
 
+  .kid-topbar-right {
+    display: flex;
+    flex: none;
+    align-items: center;
+    min-height: 2.75rem;
+  }
+
   .kid-topbar-title {
     min-width: 0;
     flex: 1;
@@ -541,7 +548,8 @@
      the column, and its negative bottom margin cancels .kid-main's bottom
      padding, so at the end of the page it sits below the last node instead of
      over it. Hidden at lg, where the summary card holds Continue. */
-  .rm-bar {
+  .rm-bar,
+  .lp-bar {
     position: sticky;
     bottom: var(--kid-bottom-inset);
     z-index: 30;
@@ -565,11 +573,345 @@
     flex-direction: column;
   }
 
-  .rm-bar { margin-top: auto; }
+  .rm-bar,
+  .lp-bar { margin-top: auto; }
 
-  .rm-bar .candy-btn {
+  .rm-bar .candy-btn,
+  .lp-bar > .candy-btn,
+  .lp-bar > .candy-btn-quiet {
     width: 100%;
     max-width: 26rem;
+  }
+
+  /* ------------------------------------------------------------ lesson player */
+
+  .lp {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.875rem;
+  }
+
+  .lp-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .lp-summary {
+    font-size: 1.0625rem;
+    line-height: 1.5;
+  }
+
+  .lp-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .lp-replay,
+  .lp-notice,
+  .lp-message {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.875rem;
+    border-radius: 14px;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .lp-notice { background: color-mix(in srgb, var(--gold) 26%, var(--cream)); }
+  .lp-message { background: var(--kid-muted); }
+  .lp-replay { background: color-mix(in srgb, var(--teal) 16%, var(--cream)); }
+
+  .lp-replay-pill {
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.9375rem;
+    font-weight: 800;
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 30%, transparent);
+  }
+
+  /* Active-time ring (top bar). The fill is --teal-d so it clears 3:1 on cream;
+     the check, the pause mark and the numbers carry the state as well as colour. */
+  .lp-ring {
+    position: relative;
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .lp-ring-svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .lp-ring-track,
+  .lp-ring-fill {
+    fill: none;
+    stroke-width: 4px;
+  }
+
+  .lp-ring-track { stroke: var(--kid-line-base); }
+  .lp-ring-fill {
+    stroke: var(--teal-d);
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s linear;
+  }
+
+  .lp-ring[data-paused] .lp-ring-fill { stroke: var(--kid-muted-fg); }
+
+  .lp-ring-center {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 0.875rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  /* Media frames. The video frame is 16:9 on an ink letterbox; the document is a
+     plain surface; the game gets a tall frame. */
+  .lp-frame {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 20px;
+    background: var(--ink);
+  }
+
+  .lp-frame iframe,
+  .lp-frame video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+
+  .lp-game {
+    aspect-ratio: auto;
+    height: min(70dvh, 34rem);
+    background: var(--surface);
+  }
+
+  .lp-doc {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-radius: 20px;
+    background: var(--surface);
+    box-shadow: var(--kid-shadow);
+  }
+
+  /* The bottom action bar: the same behaviour as the roadmap's Continue bar. */
+  .lp-bar {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .lp-bar-hint {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .lp-bar-row {
+    display: flex;
+    width: 100%;
+    max-width: 26rem;
+    gap: 0.75rem;
+  }
+
+  .lp-bar-row .candy-btn { flex: 1; }
+  .lp-bar-row .candy-btn-quiet { flex: none; }
+
+  /* A disabled primary action is a muted, flat button, not a faded gold one. */
+  .candy-btn:disabled {
+    background: var(--kid-muted);
+    color: var(--kid-muted-fg);
+    box-shadow: 0 4px 0 var(--kid-muted-d);
+    cursor: not-allowed;
+  }
+
+  /* Quiz */
+  .lp-question-count {
+    font-size: 0.9375rem;
+    font-weight: 800;
+  }
+
+  .lp-prompt {
+    font-size: 1.375rem;
+    font-weight: 800;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .lp-prompt:focus { outline: none; }
+
+  .lp-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .lp-option {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 24%, transparent);
+    font-size: 1.0625rem;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .lp-option:has(input:checked) {
+    background: color-mix(in srgb, var(--gold) 26%, var(--surface));
+    box-shadow: inset 0 0 0 4px var(--ink);
+    font-weight: 800;
+  }
+
+  .lp-option:has(input:focus-visible) {
+    outline: 3px solid var(--ink);
+    outline-offset: 3px;
+  }
+
+  .lp-option-letter {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink) 10%, transparent);
+    font-weight: 800;
+  }
+
+  .lp-option:has(input:checked) .lp-option-letter {
+    background: var(--ink);
+    color: var(--cream);
+  }
+
+  .lp-option-check {
+    flex: none;
+    margin-left: auto;
+    visibility: hidden;
+  }
+
+  .lp-option:has(input:checked) .lp-option-check { visibility: visible; }
+
+  .lp-result-head {
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.2;
+  }
+
+  .lp-result-item {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.875rem 0;
+    border-top: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  }
+
+  .lp-result-mark {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--cream);
+  }
+
+  .lp-result-mark[data-correct='false'] {
+    background: transparent;
+    color: var(--ink);
+    box-shadow: inset 0 0 0 3px var(--ink);
+  }
+
+  .lp-explain {
+    margin-top: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--gold) 24%, var(--cream));
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  /* The completion moment: a star that pops and one ring that bursts outwards. */
+  .lp-star {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 5.5rem;
+    height: 5.5rem;
+    margin-inline: auto;
+    border-radius: 999px;
+    background: var(--gold);
+    color: var(--ink);
+    box-shadow: 0 6px 0 var(--gold-d);
+    animation: lp-pop 0.6s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+  }
+
+  .lp-star-burst {
+    position: absolute;
+    inset: -0.5rem;
+    border: 4px solid var(--gold);
+    border-radius: 999px;
+    animation: lp-burst 0.9s ease-out 0.15s both;
+  }
+
+  @keyframes lp-pop {
+    0% { transform: scale(0.4); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes lp-burst {
+    0% { transform: scale(0.8); opacity: 0.9; }
+    100% { transform: scale(1.7); opacity: 0; }
+  }
+
+  .lp-xp {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.75rem;
+    padding: 0.375rem 1rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--gold) 30%, var(--cream));
+    font-size: 1.25rem;
+    font-weight: 800;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lp-star,
+    .lp-star-burst { animation: none; }
+    .lp-star-burst { opacity: 0; }
+    .lp-ring-fill { transition: none; }
+  }
+
+  @media (hover: hover) {
+    .lp-option:hover { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--ink) 55%, transparent); }
+    .lp-option:has(input:checked):hover { box-shadow: inset 0 0 0 4px var(--ink); }
   }
 
   /* Locked-lesson sheet: a lock illustration and a "steps to go" hint. */
