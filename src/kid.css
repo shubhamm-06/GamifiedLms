@@ -1,0 +1,474 @@
+/*
+ * Kid-facing surface (student routes). Mobile-first: everything here is the
+ * 390 px phone layout; `md` (768+) and `lg` (1024+) only add. Colors come from
+ * the root tokens in styles.css — nothing here is a literal color. Hover styles
+ * live only inside (hover: hover); nothing may depend on hover.
+ *
+ * Everything sits in `@layer components` so Tailwind utilities (lg:hidden, w-full,
+ * p-4 …) can still override these classes — unlayered CSS would beat them.
+ */
+
+@layer components {
+
+  :root {
+    /* Height of the sticky top bar's content row (the safe-area inset is added on top). */
+    --kid-topbar-h: 3.5rem;
+    /* Reserved for a future bottom tab bar: set this to its height and every
+       kid screen's bottom padding and sticky button move up with no re-layout. */
+    --kid-bottom-inset: 0px;
+    --kid-shadow:
+      0 24px 48px -24px color-mix(in srgb, var(--ink) 28%, transparent),
+      0 2px 10px color-mix(in srgb, var(--ink) 6%, transparent);
+    --kid-muted: color-mix(in srgb, var(--ink) 14%, var(--cream));
+    --kid-muted-d: color-mix(in srgb, var(--ink) 22%, var(--cream));
+    --kid-muted-fg: color-mix(in srgb, var(--ink) 72%, var(--cream));
+    --kid-line: color-mix(in srgb, var(--ink) 20%, transparent);
+  }
+
+  /* Module colors. --mod fills, --mod-d is the candy shadow, --on-mod is the
+     text/icon color that clears contrast on that fill (checked in the review:
+     ink on gold/teal/coral, cream on plum). */
+  .mod-0 { --mod: var(--gold);  --mod-d: var(--gold-d);  --on-mod: var(--ink); }
+  .mod-1 { --mod: var(--teal);  --mod-d: var(--teal-d);  --on-mod: var(--ink); }
+  .mod-2 { --mod: var(--coral); --mod-d: var(--coral-d); --on-mod: var(--ink); }
+  .mod-3 { --mod: var(--plum);  --mod-d: var(--plum-d);  --on-mod: var(--cream); }
+
+  .kid-app {
+    min-height: 100dvh;
+    background: var(--cream);
+    color: var(--ink);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Accidental selection and the tap flash are turned off on interactive
+     elements only — text a child may want to copy stays selectable. */
+  .kid-tap {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  .kid-tap:focus-visible {
+    outline: 3px solid var(--ink);
+    outline-offset: 3px;
+  }
+
+  /* ------------------------------------------------------------------ shell */
+
+  .kid-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    background: color-mix(in srgb, var(--cream) 94%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+
+  .kid-topbar-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    height: var(--kid-topbar-h);
+    padding-inline: 0.5rem 1rem;
+  }
+
+  .kid-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+  }
+
+  .kid-back:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+
+  @media (hover: hover) {
+    .kid-back:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+  }
+
+  .kid-topbar-title {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 1.0625rem;
+    font-weight: 700;
+  }
+
+  .kid-main {
+    width: 100%;
+    margin-inline: auto;
+    padding: 1rem;
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--kid-bottom-inset) + 1.5rem);
+  }
+
+  /* ---------------------------------------------------------- cards + buttons */
+
+  .kid-card {
+    background: var(--surface);
+    border-radius: 26px;
+    box-shadow: var(--kid-shadow);
+  }
+
+  .candy-btn {
+    --c: var(--gold);
+    --c-d: var(--gold-d);
+    --c-on: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3.25rem;
+    padding: 0.75rem 1.75rem;
+    border: 0;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--c-on);
+    background: var(--c);
+    box-shadow: 0 6px 0 var(--c-d);
+    transform: translateY(0);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+    cursor: pointer;
+  }
+
+  .candy-btn:active:not(:disabled) {
+    transform: translateY(6px);
+    box-shadow: 0 0 0 var(--c-d);
+  }
+
+  @media (hover: hover) {
+    .candy-btn:hover:not(:disabled) { filter: brightness(1.04); }
+  }
+
+  .candy-btn-quiet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 3rem;
+    padding: 0.5rem 1.5rem;
+    border: 2px solid color-mix(in srgb, var(--ink) 25%, transparent);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .candy-btn-quiet:active { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+
+  @media (hover: hover) {
+    .candy-btn-quiet:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  }
+
+  /* ---------------------------------------------------------------- progress */
+
+  .kid-progress {
+    height: 1.25rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink) 12%, transparent);
+  }
+
+  .kid-progress-fill {
+    height: 100%;
+    min-width: 0;
+    border-radius: 999px;
+    background: var(--gold);
+    box-shadow: inset 0 -4px 0 var(--gold-d);
+    transition: width 0.4s ease;
+  }
+
+  /* ----------------------------------------------------------------- roadmap */
+
+  .rm {
+    --rm-node: 4rem;
+    --rm-amp: clamp(1rem, 12vw, 3.25rem);
+    --rm-row-h: 10.75rem;
+  }
+
+  /* Sticky under the top bar while this module's lessons scroll past; the
+     section is its containing block, so it lets go when the module ends. */
+  .rm-banner {
+    position: sticky;
+    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top));
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-radius: 26px;
+    background: var(--mod);
+    color: var(--on-mod);
+    box-shadow: 0 6px 0 var(--mod-d);
+  }
+
+  .rm-banner[data-locked='true'] {
+    background: var(--kid-muted);
+    color: var(--ink);
+    box-shadow: 0 6px 0 var(--kid-muted-d);
+  }
+
+  .rm-banner-eyebrow {
+    font-size: 0.875rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0.9;
+  }
+
+  .rm-banner-title {
+    font-size: 1.125rem;
+    font-weight: 800;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .rm-banner-count {
+    flex: none;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--on-mod) 16%, transparent);
+    font-size: 0.875rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .rm-path {
+    position: relative;
+    margin-top: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Dashed spine through every node's centre; the nodes zigzag around it and
+     short stubs (below) tie the off-centre ones back to it. All lengths are
+     calc() of the same variables, so it holds at any width. */
+  .rm-path::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: calc(var(--rm-node) / 2);
+    bottom: calc(var(--rm-row-h) - var(--rm-node) / 2);
+    border-left: 4px dashed var(--kid-line);
+    transform: translateX(-2px);
+  }
+
+  .rm-row {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    height: var(--rm-row-h);
+  }
+
+  .rm-slot {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: min(11rem, 100%);
+    transform: translateX(calc(var(--off) * var(--rm-amp)));
+  }
+
+  .rm-slot::before {
+    content: '';
+    position: absolute;
+    top: calc(var(--rm-node) / 2 - 2px);
+    width: var(--rm-amp);
+    border-top: 4px dashed var(--kid-line);
+    display: none;
+  }
+
+  .rm-row[data-off='-1'] .rm-slot::before { display: block; left: 50%; }
+  .rm-row[data-off='1'] .rm-slot::before { display: block; right: 50%; }
+
+  .rm-node {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: var(--rm-node);
+    height: var(--rm-node);
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--mod);
+    color: var(--on-mod);
+    box-shadow: 0 6px 0 var(--mod-d);
+    transform: translateY(0);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+    cursor: pointer;
+    scroll-margin-block: calc(var(--kid-topbar-h) + 5rem) 8rem;
+  }
+
+  .rm-node:active {
+    transform: translateY(6px);
+    box-shadow: 0 0 0 var(--mod-d);
+  }
+
+  @media (hover: hover) {
+    .rm-node:hover { filter: brightness(1.05); }
+  }
+
+  .rm-node[data-state='locked'] {
+    background: var(--kid-muted);
+    color: var(--kid-muted-fg);
+    box-shadow: 0 6px 0 var(--kid-muted-d);
+  }
+
+  /* Ring: progress for an in-progress lesson (--p = 0..100), plain when the
+     lesson has no minimum time. The mask cuts the centre out, keeping only the
+     5 px band (only the mask's alpha matters, not its colour). */
+  .rm-ring {
+    position: absolute;
+    inset: -0.5rem;
+    border-radius: 999px;
+    background: conic-gradient(var(--mod) calc(var(--p, 100) * 1%), color-mix(in srgb, var(--ink) 14%, transparent) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), var(--ink) calc(100% - 4px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 5px), var(--ink) calc(100% - 4px));
+    pointer-events: none;
+  }
+
+  /* Available: a ring that pulses. Under prefers-reduced-motion it stops pulsing
+     but stays as a static ring, so "available" never depends on the animation. */
+  .rm-node[data-state='available']::after {
+    content: '';
+    position: absolute;
+    inset: -0.375rem;
+    border: 4px solid var(--mod);
+    border-radius: 999px;
+    pointer-events: none;
+    animation: rm-pulse 1.8s ease-out infinite;
+  }
+
+  @keyframes rm-pulse {
+    0% { transform: scale(1); opacity: 0.9; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rm-node[data-state='available']::after {
+      animation: none;
+      opacity: 0.55;
+    }
+    .rm-node, .candy-btn, .kid-progress-fill { transition: none; }
+  }
+
+  .rm-badge {
+    position: absolute;
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    border: 2px solid var(--surface);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 1px 4px color-mix(in srgb, var(--ink) 25%, transparent);
+  }
+
+  .rm-badge-type { right: -0.25rem; bottom: -0.125rem; }
+  .rm-badge-star { right: -0.25rem; top: -0.25rem; background: var(--gold); border-color: var(--surface); }
+
+  /* The label sits on a cream chip so the spine runs behind it instead of
+     through the words. */
+  .rm-label {
+    position: relative;
+    z-index: 1;
+    display: -webkit-box;
+    max-width: 10.5rem;
+    margin-top: 0.875rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 12px;
+    background: var(--cream);
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-align: center;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .rm-chips {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+    padding: 0 0.25rem;
+    background: var(--cream);
+    border-radius: 999px;
+  }
+
+  .rm-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent);
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+
+  /* Sticky Continue: rests in the thumb zone above the bottom inset and lets go
+     at the end of the page. Hidden at lg, where the summary card holds it. */
+  .rm-continue {
+    position: sticky;
+    bottom: calc(env(safe-area-inset-bottom) + var(--kid-bottom-inset) + 0.75rem);
+    z-index: 30;
+    display: flex;
+    justify-content: center;
+    padding-block: 0.75rem;
+    pointer-events: none;
+  }
+
+  .rm-continue > * { pointer-events: auto; }
+
+  /* ------------------------------------------------------------------ tiers */
+
+  @media (min-width: 768px) {
+    .kid-main { max-width: 40rem; padding-top: 1.5rem; }
+    .rm { --rm-node: 4.5rem; --rm-amp: 5.5rem; --rm-row-h: 11.5rem; }
+    .rm-label { max-width: 13rem; }
+    .rm-slot { width: min(14rem, 100%); }
+  }
+
+  @media (min-width: 1024px) {
+    .kid-main { max-width: 70rem; }
+    .kid-course-grid {
+      display: grid;
+      grid-template-columns: 21rem minmax(0, 1fr);
+      gap: 2rem;
+      align-items: start;
+    }
+    .kid-summary {
+      position: sticky;
+      top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + 1.5rem);
+    }
+    .kid-roadmap-col { max-width: 40rem; width: 100%; margin-inline: auto; }
+  }
+}

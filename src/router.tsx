@@ -7,8 +7,12 @@ import {
 import type { QueryClient } from '@tanstack/react-query'
 import { AdminGuard, AdminPageSkeleton } from '@/components/admin/AdminGuard'
 import { AdminLayout } from '@/components/admin/AdminLayout'
+import { KidLayout } from '@/components/kid/KidLayout'
 import { redirectIfAdminAlreadySignedIn, requireAdmin } from '@/lib/adminSession'
 import { queryClient } from '@/lib/queryClient'
+import { requireStudentSession } from '@/lib/studentSession'
+import { CoursePage } from '@/pages/CoursePage'
+import { LessonStubPage } from '@/pages/LessonStubPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
@@ -57,6 +61,33 @@ const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/signup',
   component: SignupPage,
+})
+
+/**
+ * Kid-facing (student) routes. A pathless layout route: it adds the session
+ * check and the KidLayout shell to everything under it without adding a URL
+ * segment. No role check on purpose — RLS and the lesson-engine functions decide
+ * what a signed-in user may see. New student screens hang off this route.
+ */
+const studentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'student',
+  beforeLoad: ({ location }) => requireStudentSession(location.href),
+  component: KidLayout,
+})
+
+const courseRoute = createRoute({
+  getParentRoute: () => studentRoute,
+  path: 'courses/$courseId',
+  component: CoursePage,
+})
+
+// TEMPORARY: a placeholder so the roadmap's buttons have somewhere to land.
+// The lesson player replaces LessonStubPage; the route stays.
+const lessonStubRoute = createRoute({
+  getParentRoute: () => studentRoute,
+  path: 'courses/$courseId/lessons/$lessonId',
+  component: LessonStubPage,
 })
 
 /**
@@ -202,6 +233,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
+  studentRoute.addChildren([courseRoute, lessonStubRoute]),
   adminRoute.addChildren([
     adminIndexRoute,
     adminUsersRoute,

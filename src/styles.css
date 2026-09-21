@@ -18,6 +18,9 @@
   --plum: #7A5FA8;
   --plum-d: #57427A;
   --ink: #3A2A1A;
+  /* Raised-surface color for cards (the auth card's #fffefb, now a token so kid
+     screens don't hardcode it). Not a new brand color: a warm near-white. */
+  --surface: #FFFEFB;
 }
 
 .auth-page {
