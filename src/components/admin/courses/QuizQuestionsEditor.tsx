@@ -19,9 +19,10 @@ import {
   type QuizOption,
   type QuizQuestion,
 } from '@/hooks/admin/useCurriculum'
+import { uuid } from '@/lib/uuid'
 
 function newOption(): QuizOption {
-  return { id: crypto.randomUUID(), text: '' }
+  return { id: uuid(), text: '' }
 }
 
 const EMPTY_QUESTION: QuestionFormValues = {
