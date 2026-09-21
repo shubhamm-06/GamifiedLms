@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useParams } from '@tanstack/react-router'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useKidHeader } from '@/components/kid/kidHeader'
 import { ContinueButton } from '@/components/kid/roadmap/ContinueButton'
 import { CourseHeader } from '@/components/kid/roadmap/CourseHeader'
@@ -24,6 +24,7 @@ import type { Roadmap } from '@/lib/roadmap'
  */
 export function CoursePage() {
   const { courseId } = useParams({ strict: false }) as { courseId: string }
+  const { open } = useSearch({ strict: false }) as { open?: string }
   const screen = useCourseRoadmap(courseId)
   useKidHeader(screen.kind === 'ready' || screen.kind === 'empty' ? screen.title : '')
 
@@ -45,6 +46,7 @@ export function CoursePage() {
           title={screen.title}
           thumbnailUrl={screen.thumbnailUrl}
           roadmap={screen.roadmap}
+          openLessonId={open ?? null}
         />
       )
   }
@@ -55,19 +57,27 @@ function ReadyRoadmap({
   title,
   thumbnailUrl,
   roadmap,
+  openLessonId,
 }: {
   courseId: string
   title: string
   thumbnailUrl: string | null
   roadmap: Roadmap
+  /** From ?open=: the lesson whose sheet opens on arrival (a locked lesson the player turned away). */
+  openLessonId: string | null
 }) {
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [sheetLessonId, setSheetLessonId] = useState<string | null>(null)
-  const returnFocusRef = useRef<HTMLElement | null>(null)
   const lessonsById = useMemo(
     () => new Map(roadmap.sections.flatMap((s) => s.lessons).map((l) => [l.id, l])),
     [roadmap],
   )
+  const [sheetOpen, setSheetOpen] = useState(() => !!openLessonId && lessonsById.has(openLessonId))
+  const [sheetLessonId, setSheetLessonId] = useState<string | null>(openLessonId)
+  const returnFocusRef = useRef<HTMLElement | null>(null)
+  const navigate = useNavigate()
+  // The param only says "open this once": clear it so Back and refresh do not reopen the sheet.
+  useEffect(() => {
+    if (openLessonId) void navigate({ to: '.', search: {}, replace: true })
+  }, [openLessonId, navigate])
   const sheetLesson = sheetLessonId ? (lessonsById.get(sheetLessonId) ?? null) : null
 
   // Once, on first load: bring the current lesson to the middle of the screen.

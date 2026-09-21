@@ -12,7 +12,7 @@ import { redirectIfAdminAlreadySignedIn, requireAdmin } from '@/lib/adminSession
 import { queryClient } from '@/lib/queryClient'
 import { requireStudentSession } from '@/lib/studentSession'
 import { CoursePage } from '@/pages/CoursePage'
-import { LessonStubPage } from '@/pages/LessonStubPage'
+import { LessonPlayerPage } from '@/pages/LessonPlayerPage'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
@@ -79,15 +79,17 @@ const studentRoute = createRoute({
 const courseRoute = createRoute({
   getParentRoute: () => studentRoute,
   path: 'courses/$courseId',
+  // ?open=<lessonId> opens that lesson's sheet (the player sends a locked lesson here).
+  validateSearch: (search: Record<string, unknown>): { open?: string } => ({
+    open: typeof search.open === 'string' && search.open ? search.open : undefined,
+  }),
   component: CoursePage,
 })
 
-// TEMPORARY: a placeholder so the roadmap's buttons have somewhere to land.
-// The lesson player replaces LessonStubPage; the route stays.
-const lessonStubRoute = createRoute({
+const lessonRoute = createRoute({
   getParentRoute: () => studentRoute,
   path: 'courses/$courseId/lessons/$lessonId',
-  component: LessonStubPage,
+  component: LessonPlayerPage,
 })
 
 /**
@@ -233,7 +235,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
-  studentRoute.addChildren([courseRoute, lessonStubRoute]),
+  studentRoute.addChildren([courseRoute, lessonRoute]),
   adminRoute.addChildren([
     adminIndexRoute,
     adminUsersRoute,

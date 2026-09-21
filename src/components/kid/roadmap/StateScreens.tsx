@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
  * parents — no codes, no technical words.
  */
 
-function Screen({
+export function Screen({
   icon,
   title,
   body,
