@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -100,9 +101,29 @@ export function CourseEditPage() {
 
   return (
     <div className="space-y-4">
-      <header>
-        <h1 className="text-lg font-semibold tracking-tight">{course.title}</h1>
-        <p className="text-muted-foreground text-sm">Edit course</p>
+      <header className="flex max-w-3xl items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold tracking-tight [overflow-wrap:anywhere]">{course.title}</h1>
+          <p className="text-muted-foreground text-sm">Edit course</p>
+        </div>
+        {/* Student-facing page in a new tab, whatever the status. It sits in the
+            page header rather than beside the lifecycle buttons because that row
+            is already full at narrow admin widths (an archived course wrapped
+            at 720 px and pushed the tabs down). Relative typed link, so no host
+            is hardcoded. An admin who isn't enrolled sees the not-enrolled
+            screen there — by design for now. */}
+        <Button variant="outline" size="sm" className="shrink-0" asChild>
+          <Link
+            to="/courses/$courseId"
+            params={{ courseId }}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`View course: ${course.title} (opens in a new tab)`}
+          >
+            <ExternalLink />
+            View course
+          </Link>
+        </Button>
       </header>
 
       <section className="max-w-3xl space-y-3 rounded-lg border p-4">
