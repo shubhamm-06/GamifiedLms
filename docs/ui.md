@@ -47,9 +47,140 @@ provisional, easy to hand-tune later.
 - **Links:** `--teal`, no underline by default, underline on `:hover`.
 
 **Implemented on:** `/login` (`LoginPage.tsx`), `/signup` (`SignupPage.tsx`),
-via shared `AuthCard`/`AuthField` in `src/components/auth/`. Not applied
-anywhere else — the (future) student experience should probably use this,
-the admin section deliberately does not.
+via shared `AuthCard`/`AuthField` in `src/components/auth/`, on pure white — see
+"Kid-facing app" below for the cream/token-based system the actual student
+routes use, which is deliberately NOT this one (Baloo 2 stays auth-only).
+
+## Kid-facing app (student routes)
+
+The first real student screen, `/courses/$courseId` (the course roadmap — a
+learning path of modules and lessons). Mobile-first: designed and built at
+390 px first, then scaled up; desktop is never the starting point. Priority
+order for any kid-facing screen: phone in the Capacitor webview (390 px
+baseline) → mobile/tablet web → desktop web.
+
+**Tokens reused, one added.** Colors are the same locked `--cream`/`--gold`/
+`--teal`/`--coral`/`--plum`/`--ink` set (plus their `-d` shadow variants) from
+`styles.css` above — no new brand colors. One token was added there:
+`--surface` (`#FFFEFB`), the off-white card color the auth card already used
+as a literal hex; kid screens reference the token instead of repeating the hex.
+Global font stays Geist (`font-sans`, set on `<html>`) — Baloo 2 is NOT used
+here and must not be extended past `.auth-page`; a kid screen using a heavier
+weight or larger size is a Tailwind utility, not a font swap.
+
+**`src/kid.css`** (imported after `styles.css` in `index.css`, entirely inside
+`@layer components` so Tailwind utilities like `lg:hidden` still win over it)
+holds every kid-surface class:
+- `.kid-app` / `.kid-topbar` / `.kid-main` — the `KidLayout` shell (below).
+- `.kid-card` — the reusable raised surface: 26px radius, `--surface`
+  background, warm soft shadow (the auth card's shadow recipe, tokenized as
+  `--kid-shadow`). Reused for every state screen and the sheet/dialog.
+- `.candy-btn` / `.candy-btn-quiet` — the candy 3D button: full pill,
+  `box-shadow: 0 6px 0 var(--c-d)` at rest, collapsing to `0 0 0` with
+  `translateY(6px)` on `:active` (identical recipe to `.auth-btn-primary`,
+  generalized to take any token pair via `--c`/`--c-d`). `-quiet` is the
+  secondary/outline version (Review, Go back).
+- `.mod-0`..`.mod-3` — module color classes (gold, teal, coral, plum, cycling
+  by the module's position on the page), each setting `--mod`/`--mod-d`/
+  `--on-mod` (the text/icon color that clears contrast on that fill — plum is
+  the one module color that needs cream text, not ink; checked in the review,
+  below).
+- `.rm-*` — the roadmap path: sticky module banners, the zigzag node layout
+  (CSS `calc()` off a `--off` custom property per row, not fixed-pixel SVG, so
+  it holds at any width), the progress ring (`conic-gradient` + a radial-mask
+  cutout), the pulsing "available" ring (`@keyframes`, disabled under
+  `prefers-reduced-motion`).
+
+**`KidLayout`** (`components/kid/KidLayout.tsx`, `kidHeader.ts` for the
+context/hook): a sticky top bar (Back button, page title truncated to one
+line, safe-area padding) over a document-scrolling page — no inner scroll
+container, so iOS momentum scrolling and the sticky roadmap banners behave.
+A page calls `useKidHeader(title, fallbackPath)` to set the bar's title and
+where Back goes if there's no in-app history (a deep link — checked with
+`router.history.canGoBack()`, not `window.history.length`, since TanStack
+Router's own index knows what `window.history` doesn't after a
+`redirect`/`replace`). `--kid-bottom-inset` (kid.css, default `0px`) is where
+a future bottom tab bar would report its height — everything that pads for
+the bottom (the page, the sticky Continue button) reads this variable, so
+adding the tab bar later needs no re-layout; **the tab bar itself is not
+built**.
+
+**The roadmap** (`components/kid/roadmap/`, data in `lib/roadmap.ts` +
+`hooks/useCourseRoadmap.ts`): a course header (art, title, chunky progress
+bar, "X of Y lessons" + percent) or, at `lg`, a sticky left summary card
+holding the same plus lessons-done/XP-to-earn and the Continue button; a
+vertical path of module "banner" cards (module color, "Module N", title,
+"X of Y done", sticks under the top bar while its lessons scroll past, dims
+with a lock icon when every lesson under it is locked) each containing its
+lessons as large candy circles in a gentle left/center/right zigzag with a
+dashed connector, a two-line-clamped label, and "+N XP" / clock chips. A
+lesson with no module renders in a final "More to explore" section — never a
+special case in the component, just whatever `fn_course_lesson_states` sorts
+last (`schema.md`). Tapping a node opens `LessonSheet`: a bottom drawer
+(shadcn `drawer`/vaul, added this task — see below) under `md`, a centered
+`Dialog` from `md` up, both Radix underneath so focus is trapped while open
+and returns to the tapped node on close (a custom `onOpenAutoFocus`/
+`onCloseAutoFocus` pair, because neither primitive has a trigger element here
+to return focus to automatically).
+
+**Lesson node states are never color alone** (`rules.md`): `locked` is a
+muted fill plus a lock icon; `available` is the module color, pulsing (a ring
+`::after`, stopped — not just slowed — under `prefers-reduced-motion`, though
+the node itself keeps a static ring so the state is still legible); `in_progress`
+adds a `conic-gradient` progress ring (`active_seconds`/`min_time_seconds`, or
+no ring at all when the minimum is 0 — there is nothing to show progress
+toward); `completed` swaps the icon for a check, adds a small star badge, and
+puts the type icon in a corner badge instead (so type and state are always two
+separate visual facts, not one icon standing in for both). Every node is a real
+`<button>` with `aria-label="Lesson N, <title>, <type>, <state words>"`.
+
+**Responsive tiers**, mobile-first (base is the 390 px design, `md`/`lg` only
+add): base (< 768 px) is the single-column layout above with a sticky floating
+Continue button in the thumb zone; `md` (≥ 768 px) widens the zigzag and
+switches the sheet to a centered dialog, content column capped at a
+comfortable width; `lg` (≥ 1024 px) becomes two columns — a sticky summary
+card on the left (art, title, progress, Continue, lessons-done/XP stats) and
+the roadmap on the right — and the floating Continue button and the mobile
+course header both disappear (the summary card replaces both).
+
+**Mobile app rules — standing rules for every kid-facing route, not just this
+page** (also `rules.md`): touch targets ≥ 44 px, nothing depends on `:hover`
+(hover styles only inside `@media (hover: hover)`); `100dvh` never `100vh` for
+full-height layouts; `viewport-fit=cover` is set in `index.html` and every edge
+that can meet a notch or home indicator pads with `env(safe-area-inset-*)`;
+no text a child must read below 14 px; `-webkit-tap-highlight-color`/
+`user-select`/`touch-action` are turned off on interactive elements only
+(`.kid-tap`, kid.css) — never on text; images reserve their aspect ratio
+(`CourseArt`'s `aspect-[16/9]`) and skeletons match the real layout, so nothing
+shifts as data loads; no heavy new dependencies for a kid screen (this task
+added only `vaul`/shadcn `drawer`, already a peer of the installed `dialog`).
+
+**shadcn `drawer` was added this task** (`npx shadcn add drawer`, wraps
+`vaul`). It lands under `@/components/ui/` like every other shadcn primitive —
+the CLI's Windows path bug (an `@/` folder appearing at the repo root instead
+of resolving the alias) recurred and was moved into `src/components/ui/` by
+hand, same as past additions; the generated file's `import { cn } from "cn"`
+(a nonexistent package the CLI adds) was corrected to `@/lib/utils`, and its
+`max-h-[80vh]` became `max-h-[85dvh]` per the `vh`-never rule above.
+
+**Verified in the review (Chromium, real JWTs against the live project,
+2026-09-20):** contrast — ink on cream 12.94:1, chip text 13.64:1, every
+module's banner text ≥ 4.5:1 and node icon ≥ 3:1 including the dimmed/locked
+state; every node ≥ 56 px, Back/Continue ≥ 44 px, no visible text under 14 px;
+keyboard — Tab reaches nodes in DOM order with a visible focus ring, Enter
+opens the sheet with focus moved to its primary action, focus stays trapped
+inside while open, Escape closes it and returns focus to the node (verified
+both as a drawer at 390 px and a dialog at 768 px); reduced motion — no
+auto-scroll, the pulsing ring stops animating but stays visible as a static
+ring; no horizontal overflow or element outside the viewport at 320/360/390/
+430/768/1024/1280 px (a 2px `scrollWidth`-over-`clientWidth` reading on
+`-webkit-line-clamp`ed labels is a known measurement quirk of that property,
+confirmed against `document.documentElement.scrollWidth`, which stayed exactly
+equal to the viewport at every width — not a real overflow). Screenshots were
+saved to `review-shots/` (gitignored, not in the repo) and are not part of this
+commit. NOT exercised: a real device or the Capacitor webview, real safe-area
+insets, the native back button, and a physical screen reader (only programmatic
+`role`/`aria-label`/focus checks).
 
 ## Admin visual language (`/admin/*`)
 

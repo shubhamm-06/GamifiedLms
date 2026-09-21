@@ -9,6 +9,8 @@ file-based — new routes are added there, not by creating files under a
 | Route | Component | Access | Notes |
 |---|---|---|---|
 | `/` | `HomePage` | Public | Placeholder landing page; the destination for students and any non-admin bounced off `/admin` |
+| `/courses/$courseId` | `CoursePage` | Signed-in (student route group, below) | The course roadmap — modules and lessons as a learning path with lock state, progress and a Continue button. **Not linked from anywhere yet** (no home/dashboard screen exists) — reachable only by typing or being sent the URL |
+| `/courses/$courseId/lessons/$lessonId` | `LessonStubPage` | Signed-in (student route group) | **TEMPORARY.** A "Lesson player coming soon" placeholder with a Back button — exists only so the roadmap's Start/Keep going/Review/Continue actions have somewhere to land. The route and its params are permanent; only the component body is a stub, replaced whole when the real lesson player (video/game/quiz/text) is built |
 | `/login` | `LoginPage` | Public, but redirects signed-in admins | Accepts a `redirect` search param; see the login guard below |
 | `/signup` | `SignupPage` | Public | On success: session present → `/`; no session (email confirmation required) → "check your email" copy |
 | `/admin` | `DashboardPage` | Admin only | KPI cards, needs-attention list, recent-activity table |
@@ -64,6 +66,36 @@ with a role filter) — the actual gap was a detail view, which `/admin/users`
 now has via `$userId`. The nav slot was dropped rather than repointed at
 `/admin/users`, since a second sidebar link to the exact same destination as
 "Admin Users" would be clutter, not a feature.
+
+## Student routes
+
+A pathless layout route (`id: 'student'`, no URL segment of its own) wraps
+every kid-facing route the same way the `/admin` layout route wraps every
+admin page: `beforeLoad` calls `requireStudentSession` (`lib/studentSession.ts`)
+— no session redirects to `/login?redirect=<page>`, and a successful login
+returns the student to it (the existing `resolvePostLoginPath` already honours
+a same-origin `redirect`, so nothing there changed). **There is deliberately
+no role check** — unlike `requireAdmin`, this guard only asks "is anyone signed
+in." What a signed-in user may actually see is decided entirely by RLS
+(`schema.md`'s policy matrix) and the lesson-engine functions: an unenrolled
+student gets the friendly not-enrolled screen from `not_enrolled`, a trashed
+user's still-valid token gets the same screen, an admin who isn't enrolled
+gets it too (there is no admin preview through the engine — `state.md`). The
+route's component is `KidLayout` (`ui.md`), so every child gets the sticky top
+bar for free.
+
+`/courses/$courseId` reads: `courses`/`modules`/`lessons` (one nested
+`select`, filtered to `lessons.status = 'published'` client-side — see the
+finding below), `lesson_effective_xp` (a second request in parallel; the view
+can't be embedded in the first — no FK path from `lessons` to it, confirmed
+live as `PGRST200`), and `fn_course_lesson_states` (the lock-state source of
+truth). One content query plus one RPC call per page load, verified over the
+real network log. **Finding, not a route bug:** `lessons_select_enrolled_or_preview_or_admin`
+has no `status = 'published'` check, so an enrolled student's direct table read
+returns draft lessons too (confirmed live); the page filters `status` itself
+since it must anyway to match the engine's sequence, so nothing leaks to the
+screen, but a different reader of this table would see them. Recorded in
+`state.md`; fixing the policy is a one-line, separately-scoped change.
 
 Modules, lessons and quiz questions are deliberately **not** routes of their
 own — they only exist within a course, so they are managed inside Course

@@ -74,18 +74,28 @@ multiple unrelated admin domains crowd these folders):
 ```
 src/
   components/
-    ui/       shadcn-generated primitives (progress.tsx is hand-written)
+    ui/       shadcn-generated primitives (progress.tsx is hand-written;
+               drawer.tsx added for the kid-facing sheet, moved into place by
+               hand — see ui.md re: the shadcn CLI's Windows path bug)
     auth/      AuthCard, AuthField (login/signup shared UI)
+    kid/       KidLayout (the student-route shell) + kidHeader.ts (its
+               context/hook); roadmap/ (CourseHeader, SummaryCard, RoadmapPath,
+               ModuleBanner, LessonNode, LessonSheet, StateScreens, CourseArt,
+               ContinueButton, KidProgress, lessonTypeMeta) — see ui.md
     admin/     AdminGuard, AdminLayout (shell); one subfolder per domain, each
                holding that domain's table/dialogs/sections: users/ (its import/
                folder holds the CSV import dialog), courses/,
                games/, orders/, settings/, gamification/; plus selection/
                (the shared multi-select kit) and trash/ (Trash page table + dialogs)
-  pages/       route-level components: HomePage, LoginPage, SignupPage;
+  pages/       route-level components: HomePage, LoginPage, SignupPage,
+               CoursePage (the kid-facing course roadmap), LessonStubPage
+               (TEMPORARY placeholder for the lesson player);
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
                CourseEdit, Games, Orders, Settings, Gamification, Trash)
   hooks/       TanStack Query hooks: useAppSettings, useCourseCount,
-               useLessonEngine (states/heartbeat/complete/quiz; no screen yet); admin/ has
+               useLessonEngine (states/heartbeat/complete/quiz),
+               useCourseRoadmap (merges course content + engine states into the
+               roadmap the course page renders), useMediaQuery; admin/ has
                one file per domain (useUsers, useUserMutations, useUserDetail,
                useCourses, useCurriculum, useGames, usePayments,
                useManualOrderProviders, useCurrencies, useBadges,
@@ -98,12 +108,18 @@ src/
                userExport.ts, userImport.ts, lessonSettings.ts (lesson timer /
                pass-mark / game-orientation constants + validation),
                lessonEngine.ts (typed wrappers + error codes for the four
-               lesson-engine RPCs; see schema.md), slug.ts,
-               video.ts, utils.ts,
+               lesson-engine RPCs; see schema.md), roadmap.ts (pure model:
+               merges course content with fn_course_lesson_states — no I/O),
+               studentSession.ts (the student route guard, no role check),
+               slug.ts, video.ts, utils.ts,
                trash.ts (soft delete/restore), permanentDelete.ts (Trash page only)
   index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,
-               shadcn tokens, Geist font
-  styles.css   brand tokens + Baloo 2 (auth/kid-facing; see ui.md)
+               shadcn tokens, Geist font; imports styles.css then kid.css
+  styles.css   brand tokens (incl. `--surface`, added this task) + Baloo 2
+               (auth only; see ui.md)
+  kid.css      kid-facing (student route) surface: KidLayout shell, cards,
+               candy buttons, the roadmap path — all inside @layer components
+               so Tailwind utilities still win (see ui.md)
   main.tsx, router.tsx   entry, route tree
 supabase/
   migrations/  001-019, source of truth for schema — write here first, apply via

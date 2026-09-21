@@ -14,6 +14,21 @@ live.
 nav entry is a real route):
 - Auth: `/login`, `/signup`, role-aware post-login routing, the `/admin` guard
   (role re-read from the database on every run), open-redirect protection.
+
+**Student app** (routes and access rules: `routes-permissions.md`; visuals:
+`ui.md`):
+- `/courses/$courseId` — the course roadmap: modules and lessons as a
+  learning path with lock state (from `fn_course_lesson_states`), a progress
+  bar, a Continue button, a tap sheet per lesson, kid-friendly whole-page
+  states (loading, not-enrolled, unavailable, empty, network-retry). **Not
+  linked from anywhere** — no home/dashboard screen exists yet, so it's
+  reachable only by URL.
+- `/courses/$courseId/lessons/$lessonId` — **TEMPORARY** stub ("Lesson player
+  coming soon") so the roadmap's action buttons have somewhere to land; the
+  route stays, the component is replaced whole by the real lesson player.
+- A pathless student layout route (`KidLayout`) gates both on a signed-in
+  session only — no role check; RLS and the engine decide what a signed-in
+  user may see.
 - Admin shell and Dashboard: sidebar/topbar (title read from
   `app_settings.site_name`), KPI cards, a needs-attention list, a recent-activity
   table.
@@ -49,13 +64,13 @@ nav entry is a real route):
   uses the shared multi-select kit.
 
 **Backend:**
-- **The kid-side lesson engine, database and client layer only — no screen
-  uses it** (migrations 017–019, `schema.md`): server-side heartbeat-counted
-  active time, linear unlock, quiz grading, completion and XP-once through four
-  RPCs; students have no write path to progress, attempts or XP. Typed wrappers
-  and TanStack Query hooks (`lib/lessonEngine.ts`, `hooks/useLessonEngine.ts`)
-  exist and have been type-checked and built, **not run against the live API**
-  (the SQL functions were exercised over the real REST API; see the changelog).
+- **The kid-side lesson engine** (migrations 017–019, `schema.md`):
+  server-side heartbeat-counted active time, linear unlock, quiz grading,
+  completion and XP-once through four RPCs; students have no write path to
+  progress, attempts or XP. Typed wrappers and TanStack Query hooks
+  (`lib/lessonEngine.ts`, `hooks/useLessonEngine.ts`) are now exercised through
+  the course roadmap, both directly (real JWTs against the REST API) and via
+  the real UI (Chromium) — see the changelog.
 - Schema through migration 019 (`schema.md`), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
@@ -78,8 +93,16 @@ nav entry is a real route):
 
 The schema or docs anticipate each of these; no working code exists for any.
 
-- **Student-facing app.** No student screens exist; `/` is a scaffold landing
-  page.
+- **A home/dashboard screen for students.** `/` is still a scaffold landing
+  page and does not link to `/courses/$courseId` — the roadmap is reachable
+  only by typing or being sent its URL.
+- **The real lesson player** (video, game, quiz, text). `/courses/$courseId/lessons/$lessonId`
+  is a temporary stub; nothing plays a lesson, submits a heartbeat from a real
+  screen, or calls `fn_submit_quiz`/`fn_complete_lesson` from the UI yet.
+- **A bottom tab bar** for the student app. `--kid-bottom-inset` (kid.css) is
+  reserved for it so adding one later needs no re-layout, but it doesn't exist.
+- **Native back-button handling and a Capacitor session audit** for the
+  student app — noted as follow-ups, not started (see Next steps).
 - **Quiz reveal.** Grading exists (`fn_submit_quiz`, v1: per-question
   correct/incorrect only — no correct option, no explanation, by assumption).
   Whether and when a student may see the right answer or the explanation is
@@ -110,14 +133,16 @@ The schema or docs anticipate each of these; no working code exists for any.
   read by nothing — a landscape game's "rotate your phone" prompt needs the game
   player.
 - **A parental gate** for the kid-side app — deferred by decision.
+- **Admin control over the locked design tokens** already covers `--surface`
+  too (added this task, same status as the rest of the token set).
 
 ## In flight
 
 Nothing. The trash-first task is complete (soft delete and the Trash page,
-multi-select on every list table, Users CSV export and import, the final sweep)
-and so is the admin side of the lesson timer / pass mark / game orientation
-settings, and the database and client layer of the kid-side lesson engine (no
-screens). Nothing is mid-way.
+multi-select on every list table, Users CSV export and import, the final sweep),
+so is the admin side of the lesson timer / pass mark / game orientation
+settings, so is the kid-side lesson engine (database + client layer), and so is
+the course roadmap screen built on top of it. Nothing is mid-way.
 
 ## Live data reality
 
@@ -156,10 +181,15 @@ None.
    (`91392b37-91f1-4975-afda-e4c238c4d821`). The UI and the Edge Function both
    refuse it; a direct `service_role`/dashboard delete or an `auth.users`
    cascade still isn't stopped.
-3. Kid-facing screens on top of the lesson engine (course roadmap, lesson
-   player), starting from `lib/lessonEngine.ts` — beat every
-   `HEARTBEAT_INTERVAL_MS` while a lesson is in the foreground.
-4. Decide enrollment expiry (below) before any student is expected to lose access.
+3. The real lesson player (video, game, quiz, text) behind
+   `/courses/$courseId/lessons/$lessonId` — call `heartbeatLesson` every
+   `HEARTBEAT_INTERVAL_MS` while a lesson is in the foreground, then
+   `completeLesson`/`submitQuiz` (`lib/lessonEngine.ts`).
+4. A student home/dashboard screen that links to `/courses/$courseId` — the
+   roadmap currently has no entry point.
+5. Decide enrollment expiry (below) before any student is expected to lose access.
+6. A bottom tab bar, native back-button handling and a Capacitor session audit
+   for the student app (`--kid-bottom-inset` is reserved but nothing uses it).
 
 ## Open decisions & on the horizon
 
@@ -218,6 +248,23 @@ worked on.
 - **Preview lessons are readable by any signed-in user, a trashed one included**
   (existing `lessons` policy); `quiz_questions_public` and `lesson_effective_xp`
   mirror it.
+- **An enrolled student in an ARCHIVED course sees the "isn't ready" screen,
+  not the roadmap — an inconsistency between two rules, not a bug in either.**
+  The lesson engine treats `archived` the same as `published` (mirroring the
+  `lessons` policy), but `courses_select_published_or_admin` only shows
+  `status = 'published'` rows to a non-admin, so `CoursePage`'s course-content
+  query returns no course row and the page can't tell "archived" apart from
+  "doesn't exist" — it shows `UnavailableScreen`. Observed live with a fixture
+  archived course. Fixing it means either loosening the courses policy to admit
+  `archived`, or having the page ask the engine (which already allows it)
+  instead of the courses table for this one fact.
+- **The course-content query can't embed `lesson_effective_xp`.** No FK path
+  exists from `lessons` to that view (confirmed live, `PGRST200`), so
+  `useCourseRoadmap` fetches it as a second, unfiltered request in parallel
+  with the course query — RLS already limits the rows to what the caller may
+  see. Giving the view a `course_id` column (denormalised from `lessons`) would
+  let it be embedded and filtered instead of read whole; not done, since the
+  view's current row-gating logic would need to move or duplicate.
 - **Do the three real profiles' display names look right?** `profiles_public` was
   writable by `anon` from migration 003 until 016. No write was observed in the
   data, but nothing recorded one either; worth a glance at the three names.
@@ -342,9 +389,25 @@ worked on.
   verified fact.
 - **Capacitor session handling is unaudited** in a webview; no native
   platforms exist.
-- **The lesson-engine client layer has not been run against the live API**, only
-  type-checked, linted and built; its error mapping (`hint`/`message` → code, and
-  "Failed to fetch" → `network`) is written from the REST responses observed, not
-  exercised through supabase-js. The generated types mark every `RETURNS TABLE`
+- **The lesson-engine client layer is now exercised** (heartbeat, complete,
+  states) through the course roadmap over the real REST API and the real UI;
+  `fn_submit_quiz` is still only exercised directly (no screen calls it — the
+  lesson player doesn't exist). The generated types mark every `RETURNS TABLE`
   column non-null, including `module_id` and `completed_at`, which can be null;
   `fetchCourseLessonStates` maps them to `string | null` by hand.
+- **The roadmap's network-failure and reduced-motion checks used Playwright's
+  request interception and `reducedMotion` emulation, not a real device or a
+  real dropped connection.** A real device, the Capacitor webview, real
+  safe-area insets and the native back button were not exercised for this
+  screen either — same open item as the rest of the mobile app.
+- **A real screen reader was not used.** Accessibility checks were
+  programmatic: `role`/`aria-label` text, computed focus, and contrast ratios
+  computed from rendered colors — not a VoiceOver/NVDA/TalkBack pass.
+- **A completed course's engine state and `courses.total_lessons` mean
+  different things — expected, not a bug.** The roadmap's denominator is
+  `fn_course_lesson_states`' row count (live, published lessons only);
+  `courses.total_lessons` counts draft + published live lessons (`known
+  shortcuts`, below). Observed live: a course with 1 draft lesson mixed into 9
+  published ones showed "0 of 9 lessons" while `total_lessons` read 10. Anything
+  that shows course-wide lesson counts to a student must use the states
+  function, never the counter.

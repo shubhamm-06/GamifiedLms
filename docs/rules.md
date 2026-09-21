@@ -419,6 +419,22 @@ belongs in `context.md` or `state.md`, not here.
   deciding what "gamification off" should mean for badges, a product call) —
   see `state.md`. Nothing may rely on "gamification off ⇒ no gamification
   side effects" until that's resolved.
+- **Every kid-facing (student) route follows the mobile app rules, not just
+  the one screen that introduced them.** Touch targets ≥ 44 px and nothing may
+  depend on `:hover` (only inside `@media (hover: hover)`); use `dvh`, never
+  `vh`, for full-height layouts; `viewport-fit=cover` is set in `index.html` and
+  every edge that can meet a notch or home indicator pads with
+  `env(safe-area-inset-*)`; no text a child must read below 14 px; accidental
+  text selection and the tap-highlight flash are disabled only on interactive
+  elements (`.kid-tap`), never on text; reserve space for images and shape
+  loading skeletons like the real layout so nothing shifts; no heavy new
+  dependency for a kid screen without a reason. `ui.md` has the full list and
+  what implements each one.
+- **A kid-facing UI state must never rely on color alone.** Lesson/course
+  states need a second signal — an icon, a label, a shape change (lock icon,
+  check mark, a star, a progress ring, a "locked" word in an `aria-label`) —
+  never a color swap by itself. This applies to every kid-facing screen, not
+  only the roadmap that introduced the rule.
 - **TypeScript only — no new `.js`/`.jsx` files.**
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any

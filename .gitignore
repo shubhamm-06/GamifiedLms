@@ -25,6 +25,9 @@ doc/.env
 ios/
 android/
 
+# Verification screenshots (per-task review artifacts, not committed)
+review-shots/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
