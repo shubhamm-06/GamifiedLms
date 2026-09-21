@@ -120,7 +120,16 @@ function firstRow<T>(data: T[] | null): T {
  * lesson is actually in the foreground, and stop while it isn't. Whole seconds
  * only are credited, so beating faster than this earns no more time.
  */
-export const HEARTBEAT_INTERVAL_MS = 10_000
+export const HEARTBEAT_INTERVAL_MS = 12_000
+
+/**
+ * The server credits a beat only if it arrives within 30 s of the previous one
+ * (and at most 15 s of it). A client that was away (backgrounded, offline) must
+ * therefore not send its first beat back until this long after its last beat, or
+ * the server would credit up to 15 s for the time it was away. Slightly over 30 s
+ * to allow for network latency.
+ */
+export const HEARTBEAT_RESUME_QUIET_MS = 32_000
 
 export interface LessonHeartbeat {
   activeSeconds: number
@@ -174,11 +183,17 @@ export type QuizAnswers = Record<string, string>
 export interface QuizQuestionResult {
   questionId: string
   correct: boolean
+  /**
+   * The admin's explanation for this question, sent only inside a graded result
+   * and only once migration 020 (section A) is applied. Null when none was
+   * written, and always null until then. The correct option is never sent.
+   */
+  explanation: string | null
 }
 
 /**
- * v1: the server tells you which questions were right or wrong and never
- * sends the correct option or the explanation.
+ * The server tells you which questions were right or wrong (and, after
+ * migration 020, each question's explanation) and never sends the correct option.
  */
 export interface QuizResult {
   score: number
@@ -198,11 +213,12 @@ export interface QuizResult {
 function parseQuizResults(value: unknown): QuizQuestionResult[] {
   if (!Array.isArray(value)) throw new LessonEngineError('internal_error')
   return value.map((item) => {
-    const o = item as { question_id?: unknown; correct?: unknown }
+    const o = item as { question_id?: unknown; correct?: unknown; explanation?: unknown }
     if (typeof o?.question_id !== 'string' || typeof o.correct !== 'boolean') {
       throw new LessonEngineError('internal_error')
     }
-    return { questionId: o.question_id, correct: o.correct }
+    const explanation = typeof o.explanation === 'string' && o.explanation.trim() ? o.explanation : null
+    return { questionId: o.question_id, correct: o.correct, explanation }
   })
 }
 
