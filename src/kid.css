@@ -606,6 +606,15 @@
 
   .lp-body {
     display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* A wrapper inside the body that fills it, so a bar inside it rests at the bottom edge. */
+  .lp-fill {
+    display: flex;
+    flex: 1;
     flex-direction: column;
     gap: 1rem;
   }

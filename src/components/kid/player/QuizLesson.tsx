@@ -115,7 +115,7 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
 
   const errorNote = error || finishError
   return (
-    <div data-testid="quiz-lesson">
+    <div className="lp-fill" data-testid="quiz-lesson">
       <p role="status" className="sr-only" data-testid="quiz-announce">
         {announce}
       </p>
@@ -156,7 +156,7 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
           </PlayerBar>
         </>
       ) : (
-        <div ref={resultRef}>
+        <div className="lp-fill" ref={resultRef}>
           <QuizResultView result={result} questions={list} answers={answers} />
           {mode === 'done' ? null : !result.passed ? (
             <PlayerBar>
