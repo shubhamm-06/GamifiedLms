@@ -19,8 +19,11 @@ nav entry is a real route):
 `ui.md`):
 - `/courses/$courseId` — the course roadmap: modules and lessons as a
   learning path with lock state (from `fn_course_lesson_states`), a progress
-  bar, a Continue button, a tap sheet per lesson, kid-friendly whole-page
-  states (loading, not-enrolled, unavailable, empty, network-retry). **Not
+  bar, a sticky Continue bar, a tap sheet per lesson (a friendlier one for
+  locked lessons), kid-friendly whole-page states (loading, not-enrolled,
+  unavailable, empty, network-retry). Visually polished on 2026-09-21: Baloo 2
+  on student screens, flat module banners with progress dots, a winding SVG path
+  generated from the node positions, a node hierarchy (see `ui.md`). **Not
   linked from anywhere** — no home/dashboard screen exists yet, so it's
   reachable only by URL.
 - `/courses/$courseId/lessons/$lessonId` — **TEMPORARY** stub ("Lesson player
@@ -243,6 +246,19 @@ worked on.
   inflates). Carrying the remainder (advancing `last_heartbeat_at` only by the
   credited seconds) would lose nothing and still never over-credit; not done
   because the spec said `= now()`.
+- **Admin preview banner on the course page is not built, and cannot be as
+  specified.** The redesign task asked for a slim "Admin preview. This is what
+  enrolled students see." banner for an admin who is not enrolled, without
+  changing what the not-enrolled state returns and without new queries or RPCs.
+  Two things block it. (1) For an unenrolled admin the engine refuses
+  (`not_enrolled`), so the page shows the not-enrolled screen and never has
+  roadmap data; a banner claiming "this is what enrolled students see" would sit
+  on a screen that shows nothing of the kind. (2) The student pages load no role
+  or profile data, so knowing the viewer is an admin needs a new read (a
+  `profiles` query or `fn_is_admin` call). A meaningful banner needs the preview
+  mode below (the engine and the `courses`/`modules`/`lessons` policies admitting
+  an admin without writing progress) and a role read. Until that is decided, an
+  unenrolled admin keeps the existing not-enrolled screen.
 - **Admins cannot preview a lesson through the engine.** Not enrolled → `not_enrolled`
   for everything; an admin preview mode would be a separate, deliberate addition.
 - **Follow-up: admin preview mode (view a course without enrolling).** The admin

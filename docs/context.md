@@ -62,7 +62,7 @@ Everything is imported from `@tanstack/table-core` except `useTable`.
 - dnd-kit (`@dnd-kit/core` 6.3.1, `@dnd-kit/sortable` 10.0.0,
   `@dnd-kit/utilities` 3.2.2) — curriculum drag-and-drop; `cmdk` 1.1.1 —
   searchable combobox; `sonner` 2.0.8 — toasts; fonts via
-  `@fontsource-variable/baloo-2` (kid-facing) and
+  `@fontsource-variable/baloo-2` (auth pages and student screens) and
   `@fontsource-variable/geist` (admin)
 - Vite 8.2.2, npm only — no pnpm/yarn/bun lockfiles
 
@@ -159,7 +159,8 @@ supabase/
   existing `profiles_admin_update` RLS policy — no function hop needed.
 - Admin section (`/admin/*`) has its own visual language: neutral shadcn
   default (Geist, neutral greys), brand tokens as accents only. Kid-facing
-  auth pages (`/login`, `/signup`) use the full Baloo 2 / cream-candy system.
+  auth pages (`/login`, `/signup`) and the student screens use the Baloo 2 / cream-candy system
+  (scoped by `.auth-page`, `.kid-app` and `.kid-font`, never on admin).
   Two different audiences, deliberately different feel.
 
 **Data flow — signup:** `auth.signUp()` → `auth.users` insert → trigger

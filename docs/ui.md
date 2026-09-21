@@ -32,8 +32,9 @@ The four `-d` (dark/shadow) values weren't specified explicitly — derived at
 provisional, easy to hand-tune later.
 
 - **Typography:** Baloo 2 (`@fontsource-variable/baloo-2`, self-hosted),
-  scoped to the `.auth-page` wrapper class only — does not override the
-  app's global sans (Geist) elsewhere.
+  scoped by wrapper classes: `.auth-page` here, and `.kid-app` / `.kid-font` on
+  the student screens (see "Kid-facing app" below). It never overrides the
+  app's global sans (Geist) on admin routes.
 - **Card:** 26px border-radius, off-white surface (`#FFFEFB`, not pure
   white — distinguishes it from the page background), warm soft drop shadow
   (`rgba(58,42,26,…)`-based, not generic gray).
@@ -49,7 +50,8 @@ provisional, easy to hand-tune later.
 **Implemented on:** `/login` (`LoginPage.tsx`), `/signup` (`SignupPage.tsx`),
 via shared `AuthCard`/`AuthField` in `src/components/auth/`, on pure white — see
 "Kid-facing app" below for the cream/token-based system the actual student
-routes use, which is deliberately NOT this one (Baloo 2 stays auth-only).
+routes use. The two share the Baloo 2 face and the token set, but the student
+screens sit on `--cream`, not on pure white.
 
 ## Kid-facing app (student routes)
 
@@ -64,9 +66,20 @@ baseline) → mobile/tablet web → desktop web.
 `styles.css` above — no new brand colors. One token was added there:
 `--surface` (`#FFFEFB`), the off-white card color the auth card already used
 as a literal hex; kid screens reference the token instead of repeating the hex.
-Global font stays Geist (`font-sans`, set on `<html>`) — Baloo 2 is NOT used
-here and must not be extended past `.auth-page`; a kid screen using a heavier
-weight or larger size is a Tailwind utility, not a font swap.
+**Font scoping rule for kid-facing surfaces.** Baloo 2 applies to every
+student screen: the roadmap, module banners, lesson sheets, buttons and pills.
+It is scoped by a wrapper class, the same pattern as `.auth-page`: `.kid-app` is
+set on the `KidLayout` root (so everything under a student route inherits it) and
+`.kid-font` is added to portaled UI that renders outside that root, currently the
+lesson sheet's drawer and dialog (both defined in `kid.css`, sharing
+`--font-kid`). shadcn's `DrawerTitle` and `DialogTitle` carry a `font-heading`
+utility that would win over a component-layer rule, so the sheet titles add an
+important `[font-family:var(--font-kid)]!`. Weights: bold (700 to 800) for
+titles, buttons, pills and labels, regular (400) for body copy. **Admin routes
+carry neither class and stay on Geist** (`font-sans`, set on `<html>`); this was
+verified by computing the font of every element on `/admin`, `/admin/courses` and
+`/admin/users` (all Geist) and by confirming no `.kid-app` or `.kid-font` element
+exists there. A new portal that shows kid-facing text needs `.kid-font`.
 
 **`src/kid.css`** (imported after `styles.css` in `index.css`, entirely inside
 `@layer components` so Tailwind utilities like `lg:hidden` still win over it)
@@ -82,14 +95,13 @@ holds every kid-surface class:
   secondary/outline version (Review, Go back).
 - `.mod-0`..`.mod-3` — module color classes (gold, teal, coral, plum, cycling
   by the module's position on the page), each setting `--mod`/`--mod-d`/
-  `--on-mod` (the text/icon color that clears contrast on that fill — plum is
-  the one module color that needs cream text, not ink; checked in the review,
-  below).
-- `.rm-*` — the roadmap path: sticky module banners, the zigzag node layout
-  (CSS `calc()` off a `--off` custom property per row, not fixed-pixel SVG, so
-  it holds at any width), the progress ring (`conic-gradient` + a radial-mask
-  cutout), the pulsing "available" ring (`@keyframes`, disabled under
-  `prefers-reduced-motion`).
+  `--on-mod` (the text/icon color that clears contrast on that fill; plum is
+  the one module color that needs cream text, not ink). They color the nodes;
+  the module banner does not use them (it is always a soft gold tint).
+- `.rm-*`: the roadmap, made of the flat module banner and its dots, the node layout
+  (a per-row `--off` custom property weaves the nodes left and right), the
+  connector SVG lines, the node states and animations, the sticky Continue bar.
+- `.kid-font`: the font class for portaled kid UI (see the font scoping rule).
 
 **`KidLayout`** (`components/kid/KidLayout.tsx`, `kidHeader.ts` for the
 context/hook): a sticky top bar (Back button, page title truncated to one
@@ -109,39 +121,92 @@ built**.
 `hooks/useCourseRoadmap.ts`): a course header (art, title, chunky progress
 bar, "X of Y lessons" + percent) or, at `lg`, a sticky left summary card
 holding the same plus lessons-done/XP-to-earn and the Continue button; a
-vertical path of module "banner" cards (module color, "Module N", title,
-"X of Y done", sticks under the top bar while its lessons scroll past, dims
-with a lock icon when every lesson under it is locked) each containing its
-lessons as large candy circles in a gentle left/center/right zigzag with a
-dashed connector, a two-line-clamped label, and "+N XP" / clock chips. A
-lesson with no module renders in a final "More to explore" section — never a
-special case in the component, just whatever `fn_course_lesson_states` sorts
-last (`schema.md`). Tapping a node opens `LessonSheet`: a bottom drawer
+vertical path of modules, each a flat banner followed by its lesson nodes
+(spec below). A lesson with no module renders in a final "More to explore"
+section, never a special case in the component, just whatever
+`fn_course_lesson_states` sorts last (`schema.md`). Components:
+`RoadmapPath` (one `SectionPath` per module), `ModuleBanner`, `RoadmapConnector`,
+`RoadmapNode`, `LessonSheet` and `LockedLessonSheet`. The "empty grey bar" a design
+review saw above the first module was the real course progress bar at 0%
+(label "0 of N lessons" above a track with nothing in it), not a stray element:
+its track is now a gold tint instead of grey and its fill keeps a rounded
+minimum width once any lesson is done. Tapping a node opens `LessonSheet`: a bottom drawer
 (shadcn `drawer`/vaul, added this task — see below) under `md`, a centered
 `Dialog` from `md` up, both Radix underneath so focus is trapped while open
 and returns to the tapped node on close (a custom `onOpenAutoFocus`/
 `onCloseAutoFocus` pair, because neither primitive has a trigger element here
 to return focus to automatically).
 
-**Lesson node states are never color alone** (`rules.md`): `locked` is a
-muted fill plus a lock icon; `available` is the module color, pulsing (a ring
-`::after`, stopped — not just slowed — under `prefers-reduced-motion`, though
-the node itself keeps a static ring so the state is still legible); `in_progress`
-adds a `conic-gradient` progress ring (`active_seconds`/`min_time_seconds`, or
-no ring at all when the minimum is 0 — there is nothing to show progress
-toward); `completed` swaps the icon for a check, adds a small star badge, and
-puts the type icon in a corner badge instead (so type and state are always two
-separate visual facts, not one icon standing in for both). Every node is a real
-`<button>` with `aria-label="Lesson N, <title>, <type>, <state words>"`.
+**Module banner spec.** A heading, not a control: title only (no "MODULE N"
+eyebrow), a soft `--gold` tint (`color-mix` of the token with `--cream`), flat
+with no press lip, `cursor: default`, no hover, pressed or focus behavior, a
+plain `div` with nothing focusable inside, 44 px high with a 14 px radius, so it
+is lower and quieter than Continue (52 px, candy). Right side: one dot per
+lesson (10 px; solid ink = done, ring = the current lesson, faint = still to
+come), `aria-hidden`, with the text "N of M lessons done" as visually hidden text
+beside it. A module whose lessons are all locked uses the muted tint and shows a
+lock icon. It stays sticky under the top bar while its lessons scroll past.
+
+**Continue bar.** Continue is the only candy-pressable element on the screen. Below
+`lg` it lives in `.rm-bar`: a real bar, sticky at the bottom of the roadmap
+column (above `--kid-bottom-inset`), bleeding to the gutters, with the
+safe-area inset in its own padding, a translucent cream background and a top
+hairline. It is the last thing in the column and its negative bottom margin
+cancels the page's bottom padding, so at the end of the page it sits below the
+last node instead of over it (checked at 360, 390 and 430 px). `.kid-app` and
+`.kid-main` are flex columns that fill the screen, so on a one-lesson course the bar
+still rests at the bottom edge.
+
+**Path spec.** The connector is an SVG behind the nodes, generated from the
+measured centres of the real node elements (`useNodeCenters` reads
+`[data-rm-anchor]` boxes with a `ResizeObserver`, `lib/roadmapPath.ts` builds the
+path), never from hardcoded coordinates: a smooth solid S-curve (cubic segments
+that leave and arrive vertically), 7 px wide, round caps, `aria-hidden`. Muted tan
+(`--kid-line-base`, a `color-mix` of `--ink` into `--cream`) for the way ahead;
+`--gold` for the way travelled, drawn from the first node through every completed
+one to the next (the active) node. One path per module, none between modules,
+none for a module with a single lesson. It re-measures on resize, so it follows
+the nodes at 360, 390 and 430 px and at any lesson count (verified: every
+segment endpoint lands within 1.5 px of its node centre, including after
+resizing the viewport). It does not animate, so there is nothing for
+`prefers-reduced-motion` to turn off there.
+
+**Node hierarchy.** The active node (available or in progress) is the strongest
+thing on the path: 76 px (84 px at `md`), with a gentle idle bounce. Completed
+nodes are 64 px with a check and a star. Locked nodes are 56 px (still above the
+44 px tap minimum), a pale fill, a small lock, and a softer title. The
+bounce and the tap wiggle animate a wrapper inside a static fixed-size box, so the
+measured anchor never moves. The lesson-type badge (video, game, quiz, reading) is
+30 px, cream icon on ink (12.9:1), and shows on locked and completed nodes; the
+active node shows the type icon large in the middle instead. XP and minimum-time
+chips show on active and completed nodes only; a locked node shows its title only.
+States are never color alone (`rules.md`): `locked` is a lock icon on a small pale
+node; `available` is the module color with a pulsing ring (static ring under
+reduced motion); `in_progress` adds a `conic-gradient` ring for
+`active_seconds` over `min_time_seconds` (a plain full ring when the minimum is
+0); `completed` swaps the icon for a check with a star badge. Every node is a real
+`<button>` with `aria-label="Lesson N, <title>, <type>, <state words>"` (locked
+nodes say "locked"). Tapping a locked node wiggles it for 0.6 s. Idle bounce, wiggle
+and the pulse are all disabled under `prefers-reduced-motion`. This kid-facing
+motion allowance is separate from the admin `@dnd-kit` no-animation rule, which is
+unchanged.
+
+**Locked lesson sheet** (`LockedLessonSheet`): a lock illustration at the top, the
+type, XP and minimum-time chips, the lesson title, one friendly line naming the
+lesson to do next ("Almost there! Finish “X” to unlock Y." when one lesson
+remains, "Keep going! Finish “X” next to get closer to Y." otherwise) and a hint
+pill ("1 step to go" / "4 steps to go") whose number is the count of earlier
+lessons not yet completed, computed from the ordered states (`unlockPlan` in
+`lib/roadmap.ts`). No action button, no em dashes in the copy.
 
 **Responsive tiers**, mobile-first (base is the 390 px design, `md`/`lg` only
-add): base (< 768 px) is the single-column layout above with a sticky floating
-Continue button in the thumb zone; `md` (≥ 768 px) widens the zigzag and
+add): base (< 768 px) is the single-column layout above with the sticky Continue
+bar in the thumb zone; `md` (≥ 768 px) widens the zigzag and
 switches the sheet to a centered dialog, content column capped at a
 comfortable width; `lg` (≥ 1024 px) becomes two columns — a sticky summary
 card on the left (art, title, progress, Continue, lessons-done/XP stats) and
-the roadmap on the right — and the floating Continue button and the mobile
-course header both disappear (the summary card replaces both).
+the roadmap on the right, and the Continue bar and the mobile course header both
+disappear (the summary card replaces both).
 
 **Mobile app rules — standing rules for every kid-facing route, not just this
 page** (also `rules.md`): touch targets ≥ 44 px, nothing depends on `:hover`
@@ -188,9 +253,11 @@ Neutral shadcn default: Geist font (from shadcn's Nova preset), neutral
 greys. Rationale: dense data reads better utilitarian, and admins are a
 different audience than the kids using the product.
 
-**Baloo 2 must not leak in.** It's scoped to the `.auth-page` class, and
-`AdminLayout`'s root sets `font-sans` explicitly to make that intent obvious
-rather than merely inherited.
+**Baloo 2 must not leak in.** It's scoped to the `.auth-page`, `.kid-app` and
+`.kid-font` classes, none of which appear on admin routes, and `AdminLayout`'s
+root sets `font-sans` explicitly to make that intent obvious rather than merely
+inherited. Verified against the computed font of every element on three admin
+pages.
 
 **Color is functional, not decorative.** The panel stays visually quiet —
 sidebar, cards and borders are neutral — and color appears only where it
