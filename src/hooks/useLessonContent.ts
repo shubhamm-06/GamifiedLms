@@ -11,6 +11,7 @@ import {
 
 export const lessonContentKey = (lessonId: string) => ['lesson', 'content', lessonId] as const
 export const quizQuestionsKey = (lessonId: string) => ['lesson', 'questions', lessonId] as const
+export const enrollmentStatusKey = (courseId: string) => ['lesson', 'enrollmentStatus', courseId] as const
 
 export interface LoadedLesson {
   lesson: LessonContent
@@ -86,6 +87,31 @@ export function useLessonContent(lessonId: string, enabled: boolean) {
     enabled,
     retry: (count, error) => count < 2 && isRetryableEngineError(error),
     // A lesson can be unpublished or edited while a child is on it; refetch on focus is fine.
+  })
+}
+
+/**
+ * Only used to pick better copy for a `not_enrolled` refusal: whether THIS
+ * student has an `expired` enrollment row for this course (own-row read,
+ * `enrollments_select_self`), as opposed to never having enrolled at all. It
+ * never changes what the engine decides — `fn_course_lesson_states` already
+ * refused the page before this is asked, and it does not affect the answer.
+ */
+export function useEnrollmentStatus(courseId: string, enabled: boolean) {
+  return useQuery<'expired' | 'other' | null, LessonEngineError>({
+    queryKey: enrollmentStatusKey(courseId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('enrollments')
+        .select('status')
+        .eq('course_id', courseId)
+        .maybeSingle()
+      if (error) throw toEngineError(error)
+      if (!data) return null
+      return data.status === 'expired' ? 'expired' : 'other'
+    },
+    enabled,
+    retry: false,
   })
 }
 
