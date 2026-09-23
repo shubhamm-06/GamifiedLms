@@ -23,7 +23,7 @@ export function Screen({
 }) {
   return (
     <div className="kid-card mx-auto mt-6 max-w-md p-6 text-center" data-testid={testId} role="status">
-      <span className="mx-auto grid size-16 place-items-center rounded-full bg-gold text-ink shadow-[0_5px_0_var(--gold-d)]">
+      <span className="mx-auto grid size-16 place-items-center rounded-full bg-[var(--kid-muted)] text-ink shadow-[0_5px_0_var(--kid-muted-d)]">
         {icon}
       </span>
       <h1 className="mt-4 text-2xl leading-tight font-extrabold">{title}</h1>

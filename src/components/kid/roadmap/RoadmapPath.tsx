@@ -1,5 +1,4 @@
 import { useRef } from 'react'
-import { cn } from '@/lib/utils'
 import type { Roadmap, RoadmapSection } from '@/lib/roadmap'
 import { useNodeCenters } from '@/hooks/useNodeCenters'
 import { ModuleBanner } from './ModuleBanner'
@@ -58,7 +57,7 @@ export function RoadmapPath({
   return (
     <div className="rm" data-testid="roadmap">
       {roadmap.sections.map((section) => (
-        <section key={section.key} className={cn('mb-2', `mod-${section.colorIndex}`)} data-testid="roadmap-section">
+        <section key={section.key} className="mb-2" data-testid="roadmap-section">
           <ModuleBanner section={section} currentLessonId={roadmap.currentLessonId} />
           <SectionPath section={section} currentLessonId={roadmap.currentLessonId} onOpenLesson={onOpenLesson} />
         </section>

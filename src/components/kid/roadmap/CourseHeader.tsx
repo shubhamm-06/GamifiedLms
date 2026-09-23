@@ -34,7 +34,7 @@ export function CourseHeader({
 export function CourseCompleteCard() {
   return (
     <div className="kid-card mt-4 flex items-center gap-3 p-4" data-testid="course-complete">
-      <span className="grid size-12 flex-none place-items-center rounded-full bg-gold text-ink shadow-[0_4px_0_var(--gold-d)]">
+      <span className="grid size-12 flex-none place-items-center rounded-full bg-teal text-ink shadow-[0_4px_0_var(--teal-d)]">
         <PartyPopper className="size-6" aria-hidden />
       </span>
       <div>
