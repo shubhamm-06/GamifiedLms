@@ -322,3 +322,172 @@ export function useAwardXp(userId: string) {
     onError: (error: Error) => toast.error(error.message),
   })
 }
+
+// ---------------------------------------------------------------------
+// Restore access (migration 021)
+// ---------------------------------------------------------------------
+
+/** `yyyy-mm-dd` in LOCAL time, the shape `<input type="date">` wants. */
+export function toDateInputValue(value: string | Date): string {
+  const d = typeof value === 'string' ? new Date(value) : value
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Local midnight of a `yyyy-mm-dd` value, as a timestamptz-ready ISO string. */
+export function fromDateInputValue(value: string): string {
+  return new Date(`${value}T00:00:00`).toISOString()
+}
+
+/**
+ * The expiry a restored enrollment starts with: the SAME DURATION the
+ * revoked row granted, re-applied from the new enrollment date. A lifetime
+ * enrollment (null expiry) stays lifetime.
+ *
+ * This is deliberately NOT the course's current `access_type` /
+ * `access_duration_days` — it carries what the student actually had, so a
+ * course whose duration was changed since doesn't silently re-price their
+ * restored access. That makes it a THIRD `expires_at` rule alongside the two
+ * in `rules.md` (`useEnrollUser` and `fn_create_manual_order`, which both read
+ * the course); it has a different input by design, and the admin can override
+ * the result before confirming anyway.
+ */
+export function deriveRestoreExpiry(
+  previous: { enrolled_at: string; expires_at: string | null },
+  newEnrolledAtIso: string,
+): string | null {
+  if (!previous.expires_at) return null
+  const durationMs = new Date(previous.expires_at).getTime() - new Date(previous.enrolled_at).getTime()
+  if (!Number.isFinite(durationMs)) return null
+  return new Date(new Date(newEnrolledAtIso).getTime() + durationMs).toISOString()
+}
+
+/**
+ * A NEW enrollment row, not an edit of the revoked one: the old row stays
+ * untouched as history. Migration 021 narrowed `uq_enrollments_user_course`
+ * to a partial index over `status = 'active'` precisely so this insert is
+ * possible; a second ACTIVE row is still refused (hence the 23505 branch).
+ * `courses.total_students` increments through the existing
+ * `fn_update_course_student_count` trigger on the INSERT, so nothing counts
+ * it here.
+ */
+export function useRestoreEnrollment(userId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: {
+      courseId: string
+      /** ISO timestamp; the admin picks the date. */
+      enrolledAt: string
+      /** ISO timestamp, or null for lifetime. */
+      expiresAt: string | null
+    }) => {
+      const { error } = await supabase.from('enrollments').insert({
+        user_id: userId,
+        course_id: input.courseId,
+        source: 'manual',
+        status: 'active',
+        enrolled_at: input.enrolledAt,
+        expires_at: input.expiresAt,
+      })
+      if (error) {
+        if (error.code === UNIQUE_VIOLATION) {
+          throw new Error('They already have active access to this course.')
+        }
+        throw new Error(error.message)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: enrollmentsKey(userId) })
+      queryClient.invalidateQueries({ queryKey: coursesQueryKey })
+      toast.success('Access restored.')
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+}
+
+// ---------------------------------------------------------------------
+// Reset progress (migration 021)
+// ---------------------------------------------------------------------
+
+export interface CourseResetSummary {
+  lessonsCompleted: number
+  progressRows: number
+  quizAttempts: number
+  xpToClawBack: number
+}
+
+function resetSummaryKey(userId: string, courseId: string) {
+  return ['admin', 'userDetail', 'resetSummary', userId, courseId] as const
+}
+
+/**
+ * What a reset would remove, read from the same SQL definition the reset
+ * itself uses (`fn_admin_course_progress_summary`) rather than re-derived in
+ * the client — the confirmation dialog's numbers cannot drift from what
+ * actually happens. Admin-gated inside the function, not here.
+ */
+export function useCourseResetSummary(userId: string, courseId: string | null) {
+  return useQuery({
+    queryKey: resetSummaryKey(userId, courseId ?? ''),
+    enabled: userId.length > 0 && !!courseId,
+    // Always re-read: an admin opening this twice must see current numbers.
+    staleTime: 0,
+    gcTime: 0,
+    queryFn: async (): Promise<CourseResetSummary> => {
+      const { data, error } = await supabase.rpc('fn_admin_course_progress_summary', {
+        p_user_id: userId,
+        p_course_id: courseId as string,
+      })
+      if (error) throw new Error(error.message)
+      const row = data?.[0]
+      return {
+        lessonsCompleted: row?.lessons_completed ?? 0,
+        progressRows: row?.progress_rows ?? 0,
+        quizAttempts: row?.quiz_attempts ?? 0,
+        xpToClawBack: row?.xp_to_claw_back ?? 0,
+      }
+    },
+  })
+}
+
+/**
+ * One atomic admin-only RPC — never a sequence of client-side deletes, which
+ * could half-apply. The function removes this course's progress and attempts,
+ * deletes the per-lesson XP rows (so the once-only guard lets those lessons be
+ * earned again) and writes one compensating negative `'manual'` row; streaks
+ * and badges are left as they were. See migration 021's header.
+ */
+export function useResetCourseProgress(userId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (courseId: string) => {
+      const { data, error } = await supabase.rpc('fn_admin_reset_course_progress', {
+        p_user_id: userId,
+        p_course_id: courseId,
+      })
+      if (error) throw new Error(error.message)
+      const row = data?.[0]
+      return {
+        lessonsRemoved: row?.lessons_removed ?? 0,
+        quizAttemptsRemoved: row?.quiz_attempts_removed ?? 0,
+        xpClawedBack: row?.xp_clawed_back ?? 0,
+      }
+    },
+    onSuccess: (result) => {
+      // Progress, the stats block (total_xp/level/lessons_completed) and the
+      // list page's XP column all moved; badges are not revoked by a reset but
+      // the section is cheap to refresh alongside the rest.
+      queryClient.invalidateQueries({ queryKey: enrollmentsKey(userId) })
+      queryClient.invalidateQueries({ queryKey: ['admin', 'userDetail', 'progress', userId] })
+      queryClient.invalidateQueries({ queryKey: detailKey(userId) })
+      queryClient.invalidateQueries({ queryKey: badgesKey(userId) })
+      queryClient.invalidateQueries({ queryKey: usersQueryKey })
+      toast.success(
+        `Progress reset. ${result.lessonsRemoved} lesson ${result.lessonsRemoved === 1 ? 'record' : 'records'}, ` +
+          `${result.quizAttemptsRemoved} quiz ${result.quizAttemptsRemoved === 1 ? 'attempt' : 'attempts'} and ` +
+          `${result.xpClawedBack} XP removed.`,
+      )
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+}

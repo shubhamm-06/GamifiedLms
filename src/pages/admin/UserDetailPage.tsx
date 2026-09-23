@@ -12,6 +12,8 @@ import { TrashUsersDialog } from '@/components/admin/users/TrashUsersDialog'
 import { EditUserDialog } from '@/components/admin/users/EditUserDialog'
 import { EnrollCourseDialog } from '@/components/admin/users/EnrollCourseDialog'
 import { EnrollmentStatusPill } from '@/components/admin/users/EnrollmentStatusPill'
+import { ResetProgressAlertDialog } from '@/components/admin/users/ResetProgressAlertDialog'
+import { RestoreEnrollmentDialog } from '@/components/admin/users/RestoreEnrollmentDialog'
 import { RevokeEnrollmentAlertDialog } from '@/components/admin/users/RevokeEnrollmentAlertDialog'
 import { UpdateEmailDialog } from '@/components/admin/users/UpdateEmailDialog'
 import { UpdatePasswordDialog } from '@/components/admin/users/UpdatePasswordDialog'
@@ -109,6 +111,15 @@ export function UserDetailPage() {
   const [accountDialog, setAccountDialog] = useState<AccountDialogKind | null>(null)
   const [enrollOpen, setEnrollOpen] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState<EnrollmentWithCourse | null>(null)
+  const [restoreTarget, setRestoreTarget] = useState<EnrollmentWithCourse | null>(null)
+  const [resetTarget, setResetTarget] = useState<EnrollmentWithCourse | null>(null)
+
+  // A course can now hold one active enrollment plus any number of revoked
+  // historical ones (migration 021), so "already has access" is a lookup, not
+  // "a row exists".
+  const activeCourseIds = new Set(
+    (enrollments ?? []).filter((e) => e.status === 'active').map((e) => e.course_id),
+  )
 
   if (isPending) {
     return (
@@ -300,6 +311,27 @@ export function UserDetailPage() {
                         Revoke
                       </Button>
                     ) : null}
+                    {/* Restore is offered on a revoked row only, and only while
+                        no active enrollment exists for that course — a second
+                        active row is refused by the partial unique index
+                        anyway (migration 021), so the button never promises
+                        something the database would reject. */}
+                    {enrollment.status === 'revoked' && !activeCourseIds.has(enrollment.course_id) ? (
+                      <Button variant="ghost" size="sm" onClick={() => setRestoreTarget(enrollment)}>
+                        Restore access
+                      </Button>
+                    ) : null}
+                    {/* Every row, whatever its status: progress outlives an
+                        enrollment, so a revoked or expired one can still have
+                        something worth clearing. */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-coral-d"
+                      onClick={() => setResetTarget(enrollment)}
+                    >
+                      Reset progress
+                    </Button>
                   </div>
                 </div>
               )
@@ -375,6 +407,18 @@ export function UserDetailPage() {
         enrollment={revokeTarget}
         open={!!revokeTarget}
         onOpenChange={(open) => !open && setRevokeTarget(null)}
+      />
+      <RestoreEnrollmentDialog
+        userId={userId}
+        enrollment={restoreTarget}
+        open={!!restoreTarget}
+        onOpenChange={(open) => !open && setRestoreTarget(null)}
+      />
+      <ResetProgressAlertDialog
+        userId={userId}
+        enrollment={resetTarget}
+        open={!!resetTarget}
+        onOpenChange={(open) => !open && setResetTarget(null)}
       />
     </div>
   )
