@@ -248,93 +248,240 @@ insets, the native back button, and a physical screen reader (only programmatic
 `role`/`aria-label`/focus checks).
 
 **The lesson player** (`pages/LessonPlayerPage.tsx`; components in
-`components/kid/player/`; helpers in `lib/lessonPlayer.ts`; data in
-`hooks/useLessonContent.ts`; the timer in `hooks/useLessonClock.ts`; styles are the
-`.lp-*` block in `kid.css`, in `@layer components`). The page picks the screen from
-server answers (`routes-permissions.md`); the lesson itself is `PlayerLesson`, keyed by
-lesson id so "Next lesson" starts clean. It holds no rules: time, pass, completion and
-XP all come from the engine's replies.
+`components/kid/player/`; helpers in `lib/lessonPlayer.ts`; copy in
+`lib/playerCopy.ts`; data in `hooks/useLessonContent.ts`; the timer in
+`hooks/useLessonClock.ts`; styles are the `.lp-*` block in `kid.css`, in
+`@layer components`). The page picks the screen from server answers
+(`routes-permissions.md`); the lesson itself is `PlayerLesson`, keyed by lesson
+id so "Next lesson" starts clean. It holds no rules: time, pass, completion and
+XP all come from the engine's replies. Redesigned to a dedicated UI/UX spec on
+2026-09-23 (below); the server contracts and sandbox rules from the original
+build did not change.
 
 Component tree: `LessonPlayerPage` > `PlayerFrame` (screens: `NotEnrolledScreen`,
-`LessonUnavailableScreen`, `LessonRetryScreen`, `PlayerSkeleton`) or `PlayerLesson` >
-`LessonPlayerShell` > (`ActiveTimeRing` or the Replay pill, portalled into the top bar's
-right slot; `PausedNotice`; type / XP / minimum-time chips; replay note; summary;
-the lesson body: `VideoLesson` | `DocLesson` | `GameLesson` | `QuizLesson` >
-`QuizQuestion` / `QuizResultView`; then `PlayerBar`) and `LessonCompleteSheet`.
+`EnrollmentExpiredScreen`, `LessonUnavailableScreen`, `LessonRetryScreen`,
+`PlayerSkeleton`) or `PlayerLesson` > `LessonPlayerShell` > (`ActiveTimeRing`,
+portalled into the top bar's right slot; `PausedNotice`; type/XP/minimum-time
+chips; a Completed chip in replay; summary; the lesson body: `VideoLesson` |
+`DocLesson` | `GameLesson` | `QuizLesson` > `QuizStepDots` / `QuizQuestion` /
+`QuizFeedbackPanel` / `QuizResultView`; then `PlayerBar` > `PrimaryButton` /
+`PrimaryLink`) and `LessonCompleteSheet` (with `Confetti` and `useCountUp`).
+Errors and empty content share one pattern, `PlayerError`.
 
-Top bar: back arrow and the lesson title (the existing `KidLayout` bar; the title comes
-from `useKidHeader`), and at its right end a slot (`useKidRightSlot`) that the shell
-portals the ring into. **`ActiveTimeRing`**: 44 px, fill `--teal-d` (clears 3:1 on
-cream), track `--kid-line-base`, the time left as `m:ss` inside; a check when the
-minimum is met, a pause mark when the clock is not running. It is a `progressbar` with
-a spoken `aria-valuetext` ("1 minute 5 seconds left, paused"), and renders nothing for a
-lesson with no minimum time. It shows what the server confirmed plus up to one interval
-of smoothing, and never reaches the minimum before the server says so.
+### Typography scale
 
-Modes (latched when the lesson opens): **play** (ring, XP chip when the course awards
-XP and the lesson's effective XP is above 0, minimum-time chip), **replay** (a lesson
-already completed: a Replay pill instead of the ring, a plain note, no XP chip, no
-heartbeat, "Back to my path" as the one action; a quiz can be practised again and awards
-nothing), **done** (just completed: no ring, the completion sheet, and after it is closed
-a bar with Next lesson / Back to my path so nobody is stranded).
+| Role | Size / line-height | Weight | CSS var pair | Use |
+|---|---|---|---|---|
+| display | 32 / 36 | 800 | `--kid-text-display` / `--kid-leading-display` | celebration headline only |
+| title | 24 / 30 | 700 | `--kid-text-title` / `--kid-leading-title` | screen and question titles |
+| heading | 20 / 26 | 700 | `--kid-text-heading` / `--kid-leading-heading` | section heads, sheet titles |
+| body | 18 / 28 | 400 | `--kid-text-body` / `--kid-leading-body` | reading text, quiz options |
+| label | 16 / 20 | 600 | `--kid-text-label` / `--kid-leading-label` | buttons, chips |
+| caption | 14 / 18 | 500 | `--kid-text-caption` / `--kid-leading-caption` | hints, meta (never smaller) |
 
-Bottom bar (`PlayerBar`, the same behaviour as the roadmap's Continue bar): sticky, safe-area
-inset in its own padding, holds the ONE candy button for the step (Finish lesson, Next /
-Check my answers, Try again). A disabled candy button is a muted flat button, not a faded
-gold one. Finish is disabled until the server says the minimum time is met; a hint above it
-says how long is left. Content wrappers that hold a bar use `.lp-fill` so the bar rests at
-the bottom edge on short content.
+Reusable classes `.kid-text-display` … `.kid-text-caption` set size, line-height
+and weight together (`kid.css`); `.kid-num` sets `font-variant-numeric:
+tabular-nums` for a timer, score or XP figure that changes in place, so digits
+don't jitter. Nothing in the player goes below 14 px; reading text never below
+18 px. Tokens live in `kid.css`'s `:root`, not duplicated per component.
 
-Per type. **Video**: a normalized YouTube/Vimeo embed goes in a 16:9 frame with
-`sandbox="allow-scripts allow-same-origin allow-presentation"` (a different origin, so
-this does not touch ours); a plain https file uses a native `<video controls playsInline>`;
-anything else shows "This video isn't ready yet". Watching is not tracked; the minimum time
-is the heartbeat's, so a video lesson can finish without the video being played. **Reading**
-(`text`): `content_html` in a `srcdoc` iframe, `sandbox="allow-same-origin"`, a CSP meta, the
-app's theme tokens injected as CSS, auto-height by `ResizeObserver` (`rules.md` has the
-sandbox rules). **Game**: treated as time-based, because the schema defines no protocol for a
-game to report anything; `sandbox="allow-scripts"` only, https only (http in dev), a tall frame,
-and a rotate hint when `games.orientation` disagrees with the screen (it never locks the
-orientation). **Quiz**: one question at a time, options are real radio inputs in labels at least
-56 px tall (44 px is the floor), a chosen answer shows a thick border, bold text, a filled
-letter and a check (never colour alone), Back and Next in the bar, "Check my answers" on the
-last question. The graded result shows pass or fail, the score, and per question a check or
-cross with the word Right or Not quite and what the child chose; each question's explanation
-appears there only when the server sent one (never before grading, never the correct option).
-A failed attempt offers "Try again" (unlimited; nothing in the schema or `rules.md` limits it).
-A quiz passed before the minimum time shows "Keep going" with the time left, then Finish. A quiz
-with no questions, or a question with fewer than two usable options, shows "This quiz isn't ready".
+### Motion tokens
 
-**Completion sheet** (`LessonCompleteSheet`): a drawer below `md`, a dialog from `md`. A gold
-star that pops and one ring that bursts once (CSS keyframes, switched off under
-`prefers-reduced-motion`; the star and words still show), "Lesson complete!", and the XP line only
-when THIS completion awarded XP (`xp_awarded > 0`, from the server reply). "Next lesson" appears only
-when the refreshed lesson states show the next lesson open; the sheet waits for that refresh so it
-does not change under the child. Focus moves to its first link; Escape closes it.
+`--motion-fast` (120ms), `--motion-base` (200ms), `--motion-slow` (320ms; one
+place, `kid.css`'s `:root`), `--ease-standard`
+(`cubic-bezier(0.2, 0.8, 0.2, 1)`, ordinary state changes) and `--ease-playful`
+(`cubic-bezier(0.34, 1.56, 0.64, 1)`, rewards and correct answers only: the
+ring's time-met pop, the completion medallion). Every new animation here
+transitions only `transform`/`opacity`. `prefers-reduced-motion` turns off the
+ring pop, the medallion pop, the confetti (dropped entirely) and the wrong-answer
+shake; the final state (the number, the icon) still shows, just without motion.
 
-Accessibility: every control has a visible focus ring (radio focus is drawn on the label);
-targets are at least 44 px; the pause notice and the quiz result announcement are live regions
-(`role="status"`), "Time is up. You can finish the lesson." is announced once when the time is met;
-SVG is `aria-hidden`; state is never colour alone (check, pause and lock marks, words). Hover
-styles apply only inside `(hover: hover)`. Copy is friendly and short, with no codes.
+### Colour roles and the contrast numbers behind them
 
-**Verified** (Chromium headless, real JWTs, the live project, fixtures removed afterwards): a
-reading lesson at 390 px through its timer to the completion sheet (+15 XP, the effective XP, once);
-the same lesson in replay at 360 px (Replay pill, no ring or XP chip, zero heartbeats in 15 s);
-a quiz at 360 px (fail with 0 of 3, retry, pass; the network log shows no `correct_option` in
-`quiz_questions_public` or `fn_submit_quiz`); a timed quiz passed early (Finish stays disabled with
-the countdown, then enables); a game lesson at 390 px (sandbox attributes read back from the DOM); a
-video lesson at 430 px; Next lesson chaining; a hidden page (a simulated `visibilitychange`, 45 s: 0 seconds
-credited; a 10 s pause then the quiet wait: the first beat after it credited 0); offline (the offline notice, then
-"getting ready" on return); the reading lesson's script and `onerror` did not run
-(`contentWindow.__ran` and `__ran2` undefined, console shows the sandbox refusal); the locked redirect
-(URL `?open=` cleared, the locked sheet open); not enrolled, expired and an unenrolled admin (the
-not-enrolled screen), an unknown lesson id (the unavailable screen); reduced motion (the star and burst
-`animation-name: none`); no horizontal overflow at 360. **Not tested:** a real device, the Capacitor
-webview, iOS Safari, a screen reader, keyboard-only use of the quiz radios, the 320 px and 768 px+
-(dialog) variants of the sheet, a landscape game's rotate hint, real video playback, an explanation
-being shown (needs migration 020), and mid-session unpublish, revoke, `completedRemotely` and
-`connection` pause paths (built, not driven).
+Roles: `--gold` primary action/progress/XP, `--teal` success/completed,
+`--coral` wrong answer/error (always a tint, never alarming), `--plum` quiz
+identity only (step dots, the selected-option border), `--ink` all text,
+`--cream` page background, `--surface` cards/sheets/option rows. This matches
+what the roadmap already established (`ui.md` above); nothing here reassigns a
+role.
+
+**Measured against `--cream`** (`d3` formula, sRGB): `--ink` 12.94, `--plum-d`
+8.01, `--teal-d` 6.20, `--plum` 4.90, `--coral-d` 4.57, `--gold-d` 2.77,
+`--teal` 2.88, `--coral` 2.75, `--gold` 1.76. Only `--ink`, the `-d` tones and
+`--plum` clear the 3:1 a meaningful icon or UI boundary needs; `--gold`,
+`--gold-d`, `--teal` and `--coral` on their own do not. This is why:
+- **The active-time ring's fill stays `--teal-d` the whole time**, not the
+  spec's literal gold-while-counting/teal-when-done: both gold tones fail 3:1
+  outright. The time-met moment is carried by the icon (clock → check) and one
+  overshoot pop instead, which is arguably a clearer, colour-blind-safe
+  signal anyway.
+- **Quiz option borders use `--plum` as specified (4.90, passes) for "selected",
+  but `--teal-d`/`--coral-d` in place of the base tones for "correct"/"wrong"**
+  (`--teal` 2.88 and `--coral` 2.75 both fail 3:1 against the option's cream/surface
+  background). The tinted fill behind each state is still the base tone at 15%
+  into cream/surface; every one of those tints measures 10.6 to 12.5:1 with ink
+  text, comfortably over 4.5:1 (`ink on 15% gold/teal/coral/plum`, checked for
+  all four).
+- **A solid `--plum` fill (the selected option's letter badge) needs cream
+  text, not ink**: ink-on-plum measures 2.64 (fails even the 3:1 icon floor),
+  cream-on-plum measures 4.90 (passes), the same rule the roadmap's `.mod-3`
+  module colour already follows.
+- Ink on solid `--gold`/`--teal`/`--coral` (the primary button, the medallion,
+  a badge) measures 7.33/4.50/4.70, all pass, so those keep ink text/icons.
+
+### Button states (`PrimaryButton`/`PrimaryLink`, `.lp-primary`)
+
+One fixed-size (56 px tall, full width up to 26rem) element in the bottom bar;
+only its label and `data-variant` change, so nothing shifts when the label
+changes or a spinner appears.
+
+| Situation | Label | Variant |
+|---|---|---|
+| time not met, not a quiz | "Keep learning, 0:42 left" | muted |
+| time met, not a quiz | "Finish lesson" | candy |
+| quiz: question unanswered | "Next" / "Check" (last question) | muted |
+| quiz: question answered | "Next" / "Check" (last question) | candy |
+| quiz: reviewing a graded question | "Continue" | candy |
+| quiz passed, time not met | "Keep learning, 0:42 left" | muted |
+| finishing (server call) | spinner, label hidden | candy, disabled |
+| replay | "Back to roadmap" | candy (secondary link alongside, where relevant) |
+
+**Deviation from the spec's literal table**: mid-quiz advancing (not the last
+question) reads "Next", not "Check": there is no per-question grading (below),
+so a "Check" that does not check would be misleading. "Check" is reserved for
+the one action that actually calls `fn_submit_quiz`.
+
+### Quiz: one grade, then a per-question review
+
+`fn_submit_quiz` still grades the whole quiz in one call once every question is
+answered, and still never returns the correct option or (until migration 020 is
+approved) an explanation, unchanged by this redesign and required by
+`rules.md`. What changed is what happens with that one reply: instead of a
+single results list, `QuizLesson` walks the child back through each question
+one more time (`phase: 'review'`), showing:
+- **unanswered**: `--kid-line-base` border, letter badge.
+- **selected** (before grading): `--plum` border (3px, reserved from the start
+  as an inset shadow so picking never shifts the layout), plum-tinted
+  background, cream-on-plum letter badge, a check.
+- **graded, chosen, correct**: teal tint, `--teal-d` border, badge becomes a
+  check.
+- **graded, chosen, wrong**: coral tint, `--coral-d` border, a 0.4s shake, badge
+  becomes a cross.
+- **graded, not chosen**: dimmed to 60% opacity, not tappable.
+
+**The correct option is never marked on an option the child did not choose,
+in review or anywhere**: the server does not send which option that is,
+before or after grading (`rules.md`'s "quiz answers never leave the server").
+This is a deliberate, security-preserving reading of the spec's per-question
+reveal, not a shortcut: showing it would need either the server to reveal the
+answer key (an invariant change, not something this task's UI pass can grant
+itself) or the client to know it independently (exactly the client-trust hole
+`rules.md` exists to close). A completion this review unlocks (quiz passed,
+minimum time already met) waits until the review is finished before opening
+the completion sheet. An early pass opened it mid-review; fixed before commit.
+
+Results screen: never a percentage, always "X of Y". Passed: a teal check
+badge, "You did it!". Failed: "So close!", the pass mark in words ("You need 2
+of 2 to pass"), a candy Try again and a secondary Back to roadmap link.
+Replay's practice attempt: "Practice round", the score, no pass/fail language,
+no XP. Step dots (`--plum`, quiz identity only) replace a question counter as
+the primary progress cue; the score never shows mid-quiz.
+
+### Other lesson types
+
+**Video**: a poster with a tap-to-play overlay (so nothing plays, and no audio
+starts, before the child taps Play), then a normalized YouTube/Vimeo embed in a
+16:9 frame (`sandbox="allow-scripts allow-same-origin allow-presentation"`, a
+different origin so this does not touch ours) or a native `<video>` with
+`controlsList="nodownload noremoteplayback"` and `disablePictureInPicture`. A
+load failure shows the shared error pattern inside the frame. Watching is not
+tracked; the minimum time is the heartbeat's. **Reading**: `content_html` in a
+`srcdoc` iframe, `sandbox="allow-same-origin"`, a CSP meta, body text bumped to
+18px/28, capped at a 560px reading column (`.lp-col`) so it doesn't stretch on
+a tablet. **Game**: a "Play" start card is shown first, so the iframe is not
+even created (and cannot grab audio or focus) until tapped; still treated as
+time-based (no protocol exists for a game to report anything) and
+`sandbox="allow-scripts"` only; a 10s load timeout shows the error pattern; the
+rotate hint still never locks the orientation.
+
+### The error/empty pattern (`PlayerError`, spec Part A7)
+
+One shared component for every "something didn't load" and "nothing here yet"
+case: an icon, a headline, one sentence, and either a Try again button (retry)
+or a Back to roadmap link (nothing to retry). It paints its own light
+`--surface` background and `--ink` text regardless of where it sits. A real
+bug caught in this task: inside the video frame's dark `--ink` letterbox, the
+error text inherited dark-on-dark and was invisible; `PlayerError` (and the
+`.lp-frame .lp-error` override) now fills the frame with a light surface
+instead of relying on the parent's colour. A loading skeleton (`PlayerSkeleton`,
+reused for the quiz too) only appears after 200ms (`useDelayedFlag`), so a fast
+load never flashes it. Offline and reconnecting get a slim strip under the top
+chips (`PausedNotice`); a hidden tab and the resume quiet period are silent,
+since the dimmed ring alone carries that state, with no banner and no modal.
+
+### Completion sheet (`LessonCompleteSheet`)
+
+A drawer below `md`, a dialog from `md`. A teal check medallion (not gold:
+gold is the XP/primary colour, teal is success), a deterministic confetti burst
+(24 CSS pieces on a golden-angle spread, not `Math.random()`, so component
+render stays pure; an eslint `react-hooks/purity` rule enforces this
+project-wide), an eased XP count-up (`useCountUp`, skipped under reduced
+motion), and the XP line only when THIS call awarded some. A repeat or racing
+completion (`already_completed` from the server) shows neither XP nor confetti,
+just "You already finished this one". "Next lesson" appears only once the
+refreshed states show it open; the sheet waits for that refresh.
+
+### Edge screens (spec Part B10)
+
+Not enrolled: the roadmap's existing screen. **Enrollment expired**: a new
+screen ("Your course time is over") shown only when an own-row read of
+`enrollments` (`enrollments_select_self`) finds `status = 'expired'` for this
+course. It is a copy choice on top of the engine's existing `not_enrolled` refusal,
+not a new access rule; an admin preview or a genuinely-never-enrolled user still
+sees the plain not-enrolled screen. **Lesson unavailable** now has two copies:
+`initial` (never available this visit) and `mid-session` (a live call was
+refused `lesson_unavailable` after the lesson was already on screen, most
+likely because it was just unpublished).
+
+### Dev-only state gallery
+
+`/dev/lesson-player-gallery` (`pages/dev/LessonPlayerGallery.tsx`), registered
+in `router.tsx` only under `import.meta.env.DEV`; every state from spec Parts
+B3, B7, B8, B9, B10 and A7 with fixture data. Verified absent from the
+production bundle: grepped `dist/assets/*.js` after a real build for the
+page's own text, zero matches.
+
+### Accessibility
+
+Every interactive element has a visible focus ring; radio focus is drawn on
+the label. Targets are at least 48 px for new player elements (the shared top
+bar's 44px back button is unchanged, an existing, reused value, per the
+"reuse before building" rule); the active-time ring's drawn graphic is 40px
+(the spec's size) inside a 48px tap button, padding making up the difference.
+Live regions (`role="status"`) cover the offline/reconnecting strip and the
+quiz result; "Time is up" is announced once, not every second. SVG is
+`aria-hidden`; state is never colour alone. Hover styles apply only inside
+`(hover: hover)`.
+
+### Verified (2026-09-23, Chromium headless, real JWTs, the live project, fixtures removed afterwards)
+
+The dev gallery at 360/390/430px (no horizontal overflow at any width),
+reduced motion (medallion, confetti and the wrong-answer shake all
+`animation-name: none`, confetti removed from the DOM), 200% zoom (no
+overflow). Against a live course: a full quiz answer → review → results
+cycle (wrong pass: coral tint/border/shake, "Almost", "So close!", "You need N
+of N to pass"; then a passed retry: teal tint/border, "Nice one!", "You did
+it!", the completion sheet opening only after the review, not mid-review); a
+game's start card (zero iframes before tapping Play, one after); a replay's
+full teal ring and its exact-numbers popover; the completion sheet's XP,
+no-XP-on-repeat and Next-lesson variants; the video/game/doc empty and
+error states, including the dark-letterbox contrast bug above being caught
+and fixed. **Not tested**: a real device, the Capacitor webview, iOS Safari,
+a screen reader, keyboard-only quiz use, 320px, the 768px+ dialog variant of
+the sheet, a landscape game's rotate hint, real video playback, an
+explanation actually showing (needs migration 020), and the
+enrollment-expired and mid-session-unpublish screens against a live refusal
+(built and exercised only in the dev gallery with fixture props).
 
 ## Admin visual language (`/admin/*`)
 

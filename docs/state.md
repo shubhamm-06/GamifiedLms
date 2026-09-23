@@ -30,9 +30,13 @@ nav entry is a real route):
   game and quiz lessons, a server-driven active-time ring, a server-graded quiz,
   once-only XP with a completion sheet, a replay mode and screens for locked,
   not-enrolled and unavailable lessons (`ui.md`, `routes-permissions.md`). Games
-  are treated as time-based (no game protocol exists). Verified in Chromium
-  against the live project on 2026-09-22; not yet on a device or in the
-  Capacitor webview.
+  are treated as time-based (no game protocol exists). Redesigned to a
+  dedicated UI/UX spec on 2026-09-23 (typography scale, motion tokens,
+  measured colour contrast, a per-question quiz review, a teal completion
+  medallion with confetti, tap-to-play video/game, a dev-only state gallery
+  at `/dev/lesson-player-gallery`; details and the deliberate spec deviations
+  are in `ui.md`). Verified in Chromium against the live project; not yet on
+  a device or in the Capacitor webview.
 - A pathless student layout route (`KidLayout`) gates both on a signed-in
   session only — no role check; RLS and the engine decide what a signed-in
   user may see.
