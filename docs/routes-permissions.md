@@ -15,7 +15,7 @@ file-based — new routes are added there, not by creating files under a
 | `/signup` | `SignupPage` | Public | On success: session present → `/`; no session (email confirmation required) → "check your email" copy |
 | `/admin` | `DashboardPage` | Admin only | KPI cards, needs-attention list, recent-activity table |
 | `/admin/users` | `UsersPage` | Admin only | List/search/filter/paginate users; create dialog; **Export** menu (Selected rows / Current filtered results / All users, with an Include trashed toggle) and **Import** dialog (CSV → the Edge Function's `bulk_create`); row click navigates to the detail route below |
-| `/admin/users/$userId` | `UserDetailPage` | Admin only | Account (edit/change-email/reset-password/**move to trash** — same dialogs and Edge Function calls as the list; a trashed user's page shows a link to Trash instead of the button), Stats (`user_stats`, left-joined — no row yet is a normal empty state, not an error), Enrollments (manual enroll/revoke, direct RLS writes), Progress (published-lesson completion per course), Badges, manual XP award. Replaces the standalone "Students" concept — see below |
+| `/admin/users/$userId` | `UserDetailPage` | Admin only | Account (edit/change-email/reset-password/**move to trash** — same dialogs and Edge Function calls as the list; a trashed user's page shows a link to Trash instead of the button), Stats (`user_stats`, left-joined — no row yet is a normal empty state, not an error), Enrollments (manual enroll/revoke/**restore access**, direct RLS writes, plus **reset progress** through an admin-gated RPC), Progress (published-lesson completion per course), Badges, manual XP award. Replaces the standalone "Students" concept — see below |
 | `/admin/courses` | `CoursesPage` | Admin only | Sortable/filterable list; row actions are status-contextual plus **Move to trash** (immediate, Undo toast); nothing here deletes — see `rules.md`. The row menu's first item, **View course**, opens `/courses/$courseId` in a new tab (every status) |
 | `/admin/courses/new` | `CourseCreatePage` | Admin only | Always inserts as `draft`. Curriculum tab locked until saved |
 | `/admin/courses/$courseId/edit` | `CourseEditPage` | Admin only | Course Builder: Basics + Curriculum tabs. Bad id or RLS-hidden row renders "Course not found", not a crash. A **View course** button in the page header opens `/courses/$courseId` in a new tab |
@@ -170,6 +170,25 @@ bounced off the guard a moment later.
 On sign-out the cached session is removed before navigating, otherwise
 `/login`'s own guard could read a stale admin session and bounce straight
 back to `/admin`.
+
+## Database functions callable by admins (PostgREST RPC)
+
+Migration 021, both behind `/admin/users/$userId`. `EXECUTE` is granted to
+`authenticated` and the admin check runs **inside** each `SECURITY DEFINER`
+body, so a non-admin reaching them directly is refused, not merely hidden from
+the button. Verified by calling both with a non-admin JWT under
+`set local role authenticated` (both raised `not_authorized`, and nothing was
+deleted); `anon` has no `EXECUTE` at all.
+
+| Function | Who may call | Refusal |
+|---|---|---|
+| `fn_admin_course_progress_summary(p_user_id, p_course_id)` | Admin | `not_authorized` |
+| `fn_admin_reset_course_progress(p_user_id, p_course_id)` | Admin | `not_authorized` |
+
+Restore access is deliberately NOT an RPC: it is a plain `enrollments` insert
+through `enrollments_admin_insert`, the same direct-RLS path manual enroll
+already uses (`rules.md` on why account actions need an Edge Function and
+enrollment writes do not).
 
 ## Database functions callable by students (PostgREST RPC)
 

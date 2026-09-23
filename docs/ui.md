@@ -521,6 +521,32 @@ add the mapping instead.
 
 Established by Courses; follow these for the next admin domain.
 
+**Enrollment row actions** (`UserDetailPage`, Enrollments section). Each row
+carries its status pill plus, contextually: **Revoke** (active rows only),
+**Restore access** (revoked rows only, AND only when no active enrollment
+exists for that course — a second active row is refused by the partial index,
+so the button never offers something the database would reject), and **Reset
+progress** (every row, whatever its status: progress outlives an enrollment, so
+a revoked or expired one can still have something worth clearing). Restore and
+Reset are independent — restoring never touches progress, resetting never
+touches the enrollment.
+
+- **Restore access** is a `Dialog` with two `<input type="date">` fields
+  (enrollment date, defaulting to today; expiry, defaulting to the same
+  *duration* the revoked row granted). Editing the start date moves the expiry
+  with it until the admin edits the expiry by hand, after which their value
+  stands. An empty expiry means lifetime, and the helper text says which case
+  the row is in. No calendar dependency was added; a native date input is the
+  right control for a desktop admin form.
+- **Reset progress** is a destructive `AlertDialog` that states the real
+  numbers before confirming — completed lessons (and total progress records,
+  when they differ), quiz attempts, and XP to be clawed back — read from
+  `fn_admin_course_progress_summary`, the same SQL the reset acts on. The
+  confirm button stays disabled while those counts load, and reads "Nothing to
+  reset" (still disabled) when all three are zero, so an admin never confirms a
+  blank or pointless action. Both dialogs disable their submit while the
+  mutation is in flight, the same double-submit guard `AwardXpForm` uses.
+
 - **Dedicated routes for create and edit**, not modals —
   `/admin/<thing>/new` and `/admin/<thing>/$id/edit`. Both return to the list
   on success with a toast. Forms are long enough that a dialog would fight

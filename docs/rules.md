@@ -346,6 +346,37 @@ belongs in `context.md` or `state.md`, not here.
   used as a check: the Finish action is enabled only from a server reply
   (`time_met`), the completion sheet's XP is the `xp_awarded` the server returned, and
   the server re-checks time and quiz on `fn_complete_lesson`.
+- **A course progress reset happens only through
+  `fn_admin_reset_course_progress`, never as client-side deletes.** Clients have
+  no write path to `lesson_progress`, `quiz_attempts` or non-`'manual'`
+  `xp_transactions` at all (migrations 017 and 004), so a multi-step reset is not
+  merely discouraged, it is impossible without widening those grants — which
+  would reopen the hole those migrations closed. The function is the ONE
+  sanctioned place lesson XP rows are deleted, and it must stay atomic: a
+  half-applied reset leaves `user_stats.total_xp` disagreeing with the ledger,
+  which nothing detects or repairs.
+- **A reset caps its clawback at the user's current `total_xp` and restores the
+  streak snapshot it took.** `fn_process_xp_transaction` neither clamps at zero
+  nor leaves streaks alone — it recomputes `total_xp + amount` and advances
+  `current_streak` / `longest_streak` / `last_activity_date` on every insert,
+  negative ones included. Any future reversal path onto `xp_transactions` must
+  handle both, or it will silently drive a balance negative and inflate a streak
+  for a day the student did nothing.
+- **At most one `'active'` enrollment per (user, course); revoked and expired
+  rows are history and must never be edited in place.** The partial index
+  `uq_enrollments_user_course_active` (migration 021) is what enforces the first
+  half; the second half is an application invariant — "Restore access" inserts
+  a new row precisely so the revoked one survives as the record of what
+  happened. Anything that reads "the enrollment" for a (user, course) must pick
+  a row deliberately (the active one, or the newest) rather than assuming one
+  exists.
+- **A restored enrollment's expiry carries the REVOKED row's own duration, not
+  the course's current `access_duration_days`.** This is a third `expires_at`
+  rule alongside the two above, with a deliberately different input: a course
+  whose duration changed since must not silently re-price access the student
+  already paid for. `deriveRestoreExpiry` (`useUserDetail.ts`) is the only
+  implementation, the admin can override its result before confirming, and a
+  lifetime enrollment stays lifetime.
 - **A view must not be writable by clients.** Supabase grants `ALL` on every new
   public table and view to `anon` and `authenticated`; an auto-updatable
   single-table view then lets a client write around the base table's RLS

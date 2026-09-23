@@ -175,12 +175,29 @@ orientation a game is meant to be played in. The lesson player reads it and show
 ### 3. Learner activity
 
 **`enrollments`** — access is a row here, not a flag on `profiles`. `id`,
-`user_id`, `course_id` (unique together), `status`
+`user_id`, `course_id` (**at most one `'active'` row per pair — see below**), `status`
 (`'active'|'expired'|'revoked'`), `source` (`'purchase'|'manual'|'free'`),
 `payment_id` (FK, nullable), `enrolled_at`, `expires_at` (nullable — **must
 be computed at insert time** from `courses.access_duration_days`, never read
 live, so a later course-duration change doesn't retroactively affect existing
 learners; this is a calling-convention rule, not schema-enforced).
+
+**One ACTIVE enrollment per (user, course); history is unconstrained**
+(migration 021). The original `uq_enrollments_user_course` was a plain
+`UNIQUE (user_id, course_id)`, which made a (user, course) pair a single row
+forever: a revoked student could not be re-enrolled OR re-ordered by any path
+(— `fn_create_manual_order` catches the `unique_violation` and refuses).
+It is now the partial index `uq_enrollments_user_course_active ... WHERE
+status = 'active'`, so revoked and expired rows accumulate as history while a
+second *active* row is still refused. Consequences worth knowing:
+- Admin "Restore access" inserts a NEW active row and leaves the revoked one
+  untouched (`routes-permissions.md`, `ui.md`).
+- A read of "this user's enrollment for course X" can now return more than one
+  row and must pick, not assume one — `useEnrollmentStatus` (kid side) orders
+  and takes the first rather than `.maybeSingle()`.
+- `courses.total_students` stays correct without new logic: the existing
+  `fn_update_course_student_count` trigger counts INSERTs of active rows, and
+  the revoked row it sits beside was already uncounted.
 
 **`lesson_progress`** — per-user, per-lesson state. `id`, `user_id`,
 `lesson_id` (unique together), `course_id` (denormalised), `status`
@@ -587,6 +604,43 @@ question's `explanation` to a graded result and, optionally, carry the sub-secon
 remainder in the heartbeat**; the live schema is through 019 until it is approved
 (`state.md`).
 
+---
+
+## Admin progress reset (migration 021)
+
+Two `SECURITY DEFINER`, `search_path = ''` functions behind
+`/admin/users/$userId`. Both are `EXECUTE`-granted to `authenticated` and
+check `fn_is_admin()` **inside the body** — the gate is the function, not the
+UI (verified by calling both with a non-admin JWT: `not_authorized`).
+
+| Function | Does |
+|---|---|
+| `fn_admin_course_progress_summary(p_user_id, p_course_id)` — `lessons_completed`, `progress_rows`, `quiz_attempts`, `xp_to_claw_back` | Read-only preview of exactly what a reset would remove. The confirmation dialog reads this rather than re-deriving the numbers client-side, so what it promises and what the reset does cannot drift |
+| `fn_admin_reset_course_progress(p_user_id, p_course_id)` — `lessons_removed`, `quiz_attempts_removed`, `xp_clawed_back` | One transaction: deletes this course's `lesson_progress` and `quiz_attempts`, deletes the course's `('lesson', lesson_id)` `xp_transactions` rows, then writes ONE compensating negative `'manual'` row |
+
+**Why the original XP rows are deleted rather than offset.** The once-only
+guard is `uq_xp_transactions_dedupe` — `UNIQUE (user_id, source_type,
+source_id) WHERE source_id IS NOT NULL` — and `fn_award_lesson_xp` inserts
+`ON CONFLICT DO NOTHING`. Keeping the positives would both block a negative row
+on the same key AND silently award 0 XP when the lesson is completed again.
+Deleting them is what lets a reset student re-earn, without touching the guard.
+The cost, accepted deliberately: the audit trail is the aggregate negative row
+(course title, amount), not a per-lesson reversal.
+
+**What it does NOT touch.** Streaks are snapshotted before the compensating
+insert and restored after it, because `fn_process_xp_transaction` advances
+`current_streak` / `longest_streak` / `last_activity_date` on *every* insert,
+negative ones included. Badges are never revoked (`fn_evaluate_badges` only
+inserts). Manual awards and other courses' XP are untouched (the delete is
+keyed on this course's lesson ids). `total_xp` and `level` are recomputed by
+that same trigger via `fn_compute_level` — that math is reused, never
+duplicated — and the clawback is capped at the current balance so XP can
+never go negative. `user_stats.lessons_completed` IS decremented (floored at
+0) by the number of completed rows removed, because its trigger only ever
+increments and it feeds badge evaluation.
+
+---
+
 **Known cost.** `quiz_questions_public` and `fn_caller_lesson_unlocked` recompute a
 course's states per question row (`STABLE`, no caching) — fine at present sizes;
 revisit if a quiz has hundreds of questions.
@@ -884,6 +938,7 @@ table.
 | 017 | `20260920183703_017_lesson_engine.sql` | 2026-09-20 18:37:03 | The lesson engine: `lesson_progress.active_seconds`/`first_opened_at`/`last_heartbeat_at`; student write policies on `lesson_progress` dropped and write privileges revoked on `lesson_progress` and `quiz_attempts`; `fn_lesson_heartbeat`, `fn_complete_lesson`, `fn_submit_quiz`, `fn_course_lesson_states` plus internal helpers; `quiz_questions_public` recreated without `explanation`; `lesson_effective_xp` gated. **Its two view definitions were broken for every signed-in user** (permission denied for the helper functions) — fixed by 018 |
 | 018 | `20260920184704_018_engine_view_helpers.sql` | 2026-09-20 18:47:04 | `fn_caller_enrolled` / `fn_caller_lesson_unlocked` (caller-only, executable by `authenticated`) and re-created `quiz_questions_public` / `lesson_effective_xp` on top of them |
 | 019 | `20260920185147_019_lock_evaluate_badges.sql` | 2026-09-20 18:51:47 | `EXECUTE` on `fn_evaluate_badges(uuid)` revoked from `public`/`anon`/`authenticated` |
+| 021 | `20260924000000_021_admin_enrollment_restore_and_reset.sql` | 2026-09-24 | `uq_enrollments_user_course` replaced by the partial `uq_enrollments_user_course_active` (`WHERE status = 'active'`); `fn_admin_course_progress_summary` and `fn_admin_reset_course_progress` added (both admin-gated inside the body). 020 is still unapplied and unrelated — see `state.md` |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named

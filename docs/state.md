@@ -47,7 +47,9 @@ nav entry is a real route):
   create dialog, multi-select with bulk Move to trash, a CSV Export menu and an
   Import dialog) and the
   `/admin/users/$userId` detail page (account actions incl. Move to trash,
-  stats, enrollments with manual enroll/revoke, per-course progress, badges,
+  stats, enrollments with manual enroll/revoke/restore and a per-course
+  progress reset that claws back that course's XP (migration 021),
+  per-course progress, badges,
   manual XP award). There is no separate Students page.
 - Courses: the `/admin/courses` list (archive and Move to trash, multi-select)
   and the Course Builder (`/admin/courses/new`, `/admin/courses/$courseId/edit`;
@@ -82,7 +84,8 @@ nav entry is a real route):
   (`lib/lessonEngine.ts`, `hooks/useLessonEngine.ts`) are now exercised through
   the course roadmap, both directly (real JWTs against the REST API) and via
   the real UI (Chromium) — see the changelog.
-- Schema through migration 019 (`schema.md`), RLS on every table, the
+- Schema through migration 021 (`schema.md`; 020 is written but deliberately
+  unapplied, see below), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
   false`), and an admin-editable level curve.
