@@ -13,6 +13,7 @@ import { queryClient } from '@/lib/queryClient'
 import { requireStudentSession } from '@/lib/studentSession'
 import { CoursePage } from '@/pages/CoursePage'
 import { LessonPlayerPage } from '@/pages/LessonPlayerPage'
+import { LessonPlayerGallery } from '@/pages/dev/LessonPlayerGallery'
 import { HomePage } from '@/pages/HomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
@@ -91,6 +92,22 @@ const lessonRoute = createRoute({
   path: 'courses/$courseId/lessons/$lessonId',
   component: LessonPlayerPage,
 })
+
+/**
+ * DEV ONLY: every lesson-player state with fixture data, for screenshotting
+ * (UI/UX spec Part C1). `import.meta.env.DEV` is replaced with `false` in a
+ * production build, so Rollup drops both this route and its dynamic import
+ * entirely — verified against `dist/` after a real build (`state.md`).
+ */
+const devRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: '/dev/lesson-player-gallery',
+        component: LessonPlayerGallery,
+      }),
+    ]
+  : []
 
 /**
  * Everything under /admin is gated here rather than per-child, so a new
@@ -235,6 +252,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   signupRoute,
+  ...devRoutes,
   studentRoute.addChildren([courseRoute, lessonRoute]),
   adminRoute.addChildren([
     adminIndexRoute,
