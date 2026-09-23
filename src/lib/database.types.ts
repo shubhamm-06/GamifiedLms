@@ -1085,6 +1085,28 @@ export type Database = {
       }
     }
     Functions: {
+      fn_admin_course_progress_summary: {
+        Args: { p_course_id: string; p_user_id: string }
+        Returns: {
+          lessons_completed: number
+          progress_rows: number
+          quiz_attempts: number
+          xp_to_claw_back: number
+        }[]
+      }
+      fn_admin_reset_course_progress: {
+        Args: { p_course_id: string; p_user_id: string }
+        Returns: {
+          lessons_removed: number
+          quiz_attempts_removed: number
+          xp_clawed_back: number
+        }[]
+      }
+      fn_caller_enrolled: { Args: { p_course_id: string }; Returns: boolean }
+      fn_caller_lesson_unlocked: {
+        Args: { p_lesson_id: string }
+        Returns: boolean
+      }
       fn_complete_lesson: {
         Args: { p_lesson_id: string }
         Returns: {
