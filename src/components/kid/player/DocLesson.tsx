@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { BookOpen } from 'lucide-react'
 import { buildDocSrcDoc, type DocTheme } from '@/lib/lessonPlayer'
-import { LessonMessage } from './LessonMessage'
+import { playerCopy } from '@/lib/playerCopy'
+import { PlayerError } from './PlayerError'
 
 /** Reads the palette from the root CSS tokens at run time, so no colour is hardcoded here. */
 function readTheme(): DocTheme {
@@ -26,7 +28,7 @@ function readTheme(): DocTheme {
  * size it; it cannot help scripts, because none can run. Links inside are inert
  * (no popups are allowed).
  */
-export function DocLesson({ html, title }: { html: string | null; title: string }) {
+export function DocLesson({ html, title, courseId }: { html: string | null; title: string; courseId: string }) {
   const frame = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(280)
   const srcDoc = useMemo(() => (html?.trim() ? buildDocSrcDoc(html, readTheme()) : null), [html])
@@ -55,16 +57,28 @@ export function DocLesson({ html, title }: { html: string | null; title: string 
     }
   }, [srcDoc])
 
-  if (!srcDoc) return <LessonMessage testId="doc-empty">There&rsquo;s nothing to read here yet. Please check back soon.</LessonMessage>
+  if (!srcDoc) {
+    return (
+      <PlayerError
+        heading={playerCopy.doc.empty.heading}
+        body={playerCopy.doc.empty.body}
+        icon={<BookOpen className="size-7" />}
+        action={{ kind: 'back', courseId }}
+        testId="doc-empty"
+      />
+    )
+  }
   return (
-    <iframe
-      ref={frame}
-      className="lp-doc"
-      title={title}
-      sandbox="allow-same-origin"
-      srcDoc={srcDoc}
-      style={{ height }}
-      data-testid="doc-frame"
-    />
+    <div className="lp-col">
+      <iframe
+        ref={frame}
+        className="lp-doc"
+        title={title}
+        sandbox="allow-same-origin"
+        srcDoc={srcDoc}
+        style={{ height }}
+        data-testid="doc-frame"
+      />
+    </div>
   )
 }

@@ -142,7 +142,7 @@ export function buildDocSrcDoc(html: string, theme: DocTheme): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 html,body{margin:0;padding:0;background:${theme.surface};color:${theme.ink};}
-body{padding:16px;font-family:${theme.fontFamily};font-size:17px;line-height:1.55;overflow-wrap:anywhere;}
+body{padding:20px;font-family:${theme.fontFamily};font-size:18px;line-height:1.56;overflow-wrap:anywhere;}
 h1,h2,h3,h4{line-height:1.25;margin:1em 0 .4em;}
 h1{font-size:1.5em}h2{font-size:1.3em}h3{font-size:1.15em}
 p,ul,ol,blockquote{margin:.7em 0}
