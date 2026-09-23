@@ -1,58 +1,63 @@
-import { Check, X } from 'lucide-react'
-import type { QuizResult } from '@/lib/lessonEngine'
-import type { QuizQuestionView } from '@/lib/lessonPlayer'
+import { Check } from 'lucide-react'
+import { playerCopy } from '@/lib/playerCopy'
 
 /**
- * The graded attempt: pass or fail, the score, and for each question whether it
- * was right, what the child chose and (when the server sent one) the explanation.
- * Everything here comes from the server reply. The correct answer is never shown
- * because the server never sends it.
+ * The results screen after the review (spec Part B7). Never a percentage:
+ * always "X of Y". A replay's practice attempt shows neither pass nor fail,
+ * just the score, since it changed nothing.
  */
 export function QuizResultView({
-  result,
-  questions,
-  answers,
+  score,
+  maxScore,
+  passed,
+  passPercentage,
+  practice,
 }: {
-  result: QuizResult
-  questions: QuizQuestionView[]
-  answers: Record<string, string>
+  score: number
+  maxScore: number
+  passed: boolean
+  /** The lesson's pass mark (percent), used only to say it in words. */
+  passPercentage: number
+  /** True in replay: no pass/fail language, no XP context. */
+  practice: boolean
 }) {
-  const byId = new Map(questions.map((q) => [q.id, q]))
+  const needed = Math.ceil((passPercentage / 100) * maxScore)
   return (
-    <section data-testid="quiz-result" data-passed={result.passed ? 'true' : 'false'}>
-      <h2 className="lp-result-head" tabIndex={-1} data-testid="result-heading">
-        {result.passed ? 'You passed!' : 'Not quite yet'}
-      </h2>
-      <p className="mt-1 text-lg font-bold" data-testid="result-score">
-        You got {result.score} of {result.maxScore} right
-      </p>
-      <ol className="mt-3 list-none p-0">
-        {result.results.map((r, i) => {
-          const q = byId.get(r.questionId)
-          const chosen = q?.options.find((o) => o.id === answers[r.questionId])
-          return (
-            <li key={r.questionId} className="lp-result-item" data-testid="result-item" data-correct={r.correct}>
-              <span className="lp-result-mark" data-correct={r.correct ? 'true' : 'false'} aria-hidden="true">
-                {r.correct ? <Check className="size-5" strokeWidth={3.5} /> : <X className="size-5" strokeWidth={3.5} />}
-              </span>
-              <div className="min-w-0">
-                <p className="font-bold [overflow-wrap:anywhere]">
-                  {i + 1}. {q?.prompt ?? 'Question'}
-                </p>
-                <p className="text-base">
-                  <span className="font-extrabold">{r.correct ? 'Right!' : 'Not quite.'}</span>
-                  {chosen ? ` You chose: ${chosen.text}` : ''}
-                </p>
-                {r.explanation ? (
-                  <p className="lp-explain" data-testid="explanation">
-                    {r.explanation}
-                  </p>
-                ) : null}
-              </div>
-            </li>
-          )
-        })}
-      </ol>
+    <section data-testid="quiz-result" data-passed={practice ? undefined : passed ? 'true' : 'false'}>
+      {practice ? (
+        <>
+          <p className="lp-question-count" data-testid="practice-chip">
+            {playerCopy.quiz.practiceRound}
+          </p>
+          <h2 className="lp-result-head mt-1" tabIndex={-1} data-testid="result-heading">
+            {playerCopy.quiz.practiceScore(score, maxScore)}
+          </h2>
+        </>
+      ) : passed ? (
+        <>
+          <span className="lp-result-badge" aria-hidden="true">
+            <Check className="size-7" strokeWidth={3} />
+          </span>
+          <h2 className="lp-result-head mt-3 text-center" tabIndex={-1} data-testid="result-heading">
+            {playerCopy.quiz.resultsPassedHeading}
+          </h2>
+          <p className="lp-result-score mt-1 text-center kid-num" data-testid="result-score">
+            {playerCopy.quiz.scoreLine(score, maxScore)}
+          </p>
+        </>
+      ) : (
+        <>
+          <h2 className="lp-result-head" tabIndex={-1} data-testid="result-heading">
+            {playerCopy.quiz.resultsFailedHeading}
+          </h2>
+          <p className="lp-result-score mt-1 kid-num" data-testid="result-score">
+            {playerCopy.quiz.scoreLine(score, maxScore)}
+          </p>
+          <p className="lp-pass-mark mt-1" data-testid="pass-mark">
+            {playerCopy.quiz.passMark(needed, maxScore)}
+          </p>
+        </>
+      )}
     </section>
   )
 }
