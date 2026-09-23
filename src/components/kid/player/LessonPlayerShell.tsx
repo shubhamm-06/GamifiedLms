@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Clock, RotateCcw, Sparkles } from 'lucide-react'
+import { Check, Clock, Sparkles } from 'lucide-react'
 import { useKidHeader, useKidRightSlot } from '@/components/kid/kidHeader'
 import { LESSON_TYPE_META } from '@/components/kid/roadmap/lessonTypeMeta'
 import type { ClockPause } from '@/hooks/useLessonClock'
 import { clockText, type LessonContent } from '@/lib/lessonPlayer'
+import { playerCopy } from '@/lib/playerCopy'
 import { ActiveTimeRing } from './ActiveTimeRing'
 import { PausedNotice } from './PausedNotice'
 
@@ -22,12 +23,12 @@ interface Props {
 }
 
 /**
- * The frame every lesson type plays in. It puts the lesson title in the top bar
- * and the active-time ring at its right end, shows why the timer is paused, the
- * lesson's type / XP / minimum-time chips (XP only while it can still be earned:
- * never in replay, never when the course awards none), and a replay note for a
- * lesson already completed. It holds no rules: the clock, the XP and the
- * completion all come from the server.
+ * The frame every lesson type plays in. It puts the lesson title in the top
+ * bar and the active-time ring at its right end (a full, static teal ring in
+ * replay, since that lesson is already done), the offline/reconnecting strip
+ * when there is one, the lesson's type/XP/minimum-time chips (XP only while
+ * it can still be earned) and a small "Completed" chip in replay. It holds no
+ * rules: the clock, the XP and the completion all come from the server.
  */
 export function LessonPlayerShell({ lesson, courseId, mode, clock, children, bar }: Props) {
   useKidHeader(lesson.title, `/courses/${courseId}`)
@@ -37,20 +38,14 @@ export function LessonPlayerShell({ lesson, courseId, mode, clock, children, bar
 
   return (
     <div className="lp" data-testid="lesson-player" data-mode={mode} data-type={lesson.type}>
-      {slot && mode !== 'done'
+      {slot && mode !== 'done' && clock.minTimeSeconds > 0
         ? createPortal(
-            mode === 'play' ? (
-              <ActiveTimeRing
-                seconds={clock.displaySeconds}
-                minSeconds={clock.minTimeSeconds}
-                timeMet={clock.timeMet}
-                pause={clock.pause}
-              />
-            ) : (
-              <span className="lp-replay-pill" data-testid="replay-pill">
-                Replay
-              </span>
-            ),
+            <ActiveTimeRing
+              seconds={mode === 'replay' ? clock.minTimeSeconds : clock.displaySeconds}
+              minSeconds={clock.minTimeSeconds}
+              timeMet={mode === 'replay' || clock.timeMet}
+              pause={mode === 'play' ? clock.pause : null}
+            />,
             slot,
           )
         : null}
@@ -73,16 +68,15 @@ export function LessonPlayerShell({ lesson, courseId, mode, clock, children, bar
             At least {clockText(clock.minTimeSeconds)}
           </span>
         ) : null}
+        {mode === 'replay' ? (
+          <span className="lp-chip-completed" data-testid="completed-chip">
+            <Check className="size-3.5" aria-hidden strokeWidth={3} />
+            {playerCopy.replay.chip}
+          </span>
+        ) : null}
       </div>
 
-      {mode === 'replay' ? (
-        <p className="lp-replay" data-testid="replay-note">
-          <RotateCcw className="size-5 flex-none" aria-hidden />
-          You finished this lesson. Replay it any time. There is no XP this time.
-        </p>
-      ) : null}
-
-      {lesson.summary ? <p className="lp-summary">{lesson.summary}</p> : null}
+      {lesson.summary ? <p className="kid-text-body">{lesson.summary}</p> : null}
 
       <div className="lp-body">{children}</div>
       {bar}
