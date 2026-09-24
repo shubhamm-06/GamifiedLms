@@ -103,10 +103,8 @@
     padding-top: env(safe-area-inset-top);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
-    background: color-mix(in srgb, var(--cream) 94%, transparent);
+    background: var(--cream);
     border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
   }
 
   .kid-topbar-row {
@@ -114,7 +112,7 @@
     align-items: center;
     gap: 0.25rem;
     height: var(--kid-topbar-h);
-    padding-inline: 0.5rem 1rem;
+    padding-inline: 0.25rem 1rem;
   }
 
   .kid-back {
@@ -122,8 +120,8 @@
     align-items: center;
     justify-content: center;
     flex: none;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 3.5rem;
+    height: 3.5rem;
     border: 0;
     border-radius: 999px;
     background: transparent;
@@ -149,7 +147,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 1.0625rem;
+    font-size: var(--kid-text-body);
     font-weight: 700;
   }
 
@@ -681,8 +679,8 @@
   .lp-offline-banner,
   .lp-notice,
   .lp-message {
-    font-size: var(--kid-text-label);
-    line-height: var(--kid-leading-label);
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
     font-weight: 600;
   }
 
@@ -801,34 +799,8 @@
     padding-inline: 0.25rem;
   }
 
-  /* The play button sits over the poster/black frame until the child taps it,
-     so the video (and its audio) never starts before they are ready. */
-  .lp-play-overlay {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    border: 0;
-    background: color-mix(in srgb, var(--ink) 35%, transparent);
-    cursor: pointer;
-  }
 
-  .lp-play-button {
-    display: grid;
-    place-items: center;
-    width: 4.5rem;
-    height: 4.5rem;
-    border-radius: 999px;
-    background: var(--gold);
-    color: var(--ink);
-    box-shadow: 0 6px 0 var(--gold-d);
-    transition: transform var(--motion-fast) var(--ease-standard);
-  }
 
-  .lp-play-overlay:active .lp-play-button {
-    transform: translateY(4px);
-    box-shadow: 0 2px 0 var(--gold-d);
-  }
 
   .lp-game {
     aspect-ratio: auto;
@@ -841,34 +813,8 @@
     .lp-game { border-radius: 20px; }
   }
 
-  /* The "Play" start card: shown before the game's iframe is even created, so a
-     game cannot grab audio or focus before the child is ready. */
-  .lp-game-start {
-    display: flex;
-    flex: 1;
-    min-height: min(70dvh, 34rem);
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.75rem;
-    padding: 2rem 1.25rem;
-    border-radius: 20px;
-    background: var(--surface);
-    box-shadow: var(--kid-shadow);
-    text-align: center;
-  }
 
-  .lp-game-start-title {
-    font-size: var(--kid-text-title);
-    line-height: var(--kid-leading-title);
-    font-weight: 700;
-    overflow-wrap: anywhere;
-  }
 
-  .lp-game-start-hint {
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-  }
 
   .lp-doc {
     display: block;
@@ -1298,10 +1244,7 @@
     .lp-confetti-piece,
     .lp-feedback,
     .lp-option[data-chosen='true'][data-correct='false'],
-    .lp-play-button {
-      animation: none !important;
-      transition: none !important;
-    }
+
     .lp-confetti-piece { display: none; }
     .lp-ring-fill { transition: none; }
     .lp-primary { transition: none; }
@@ -1312,435 +1255,290 @@
     .lp-option:has(input:checked):hover { box-shadow: inset 0 0 0 3px var(--plum); }
   }
 
-  /* ---------------------------------------------------- lesson page: hero, path */
+  /* ------------------------------------------------ lesson page (ages 5 to 7) */
 
-  /* Colour roles here: --gold only on the hero wash, the Up next accent and the
-     one main action; the path ring, active row, section marker and video chrome
-     are --teal; pills are plum or teal tints made with color-mix into white. */
+  /* One column at every size, the same content everywhere: hero, activity card,
+     the module's lesson list, then (only once the lesson is done) one Next
+     button. From lg the list becomes a sticky left column beside the card.
+     Gold is only the Play button, the Next button and the "next" row's accent;
+     everything else is teal or neutral. No uppercase, letter-spaced labels. */
 
   .lp-hero {
     position: relative;
     overflow: hidden;
     margin: -1rem calc(-1 * max(1rem, env(safe-area-inset-right))) 0 calc(-1 * max(1rem, env(safe-area-inset-left)));
-    padding: 1.5rem 1rem 3.5rem;
-    background: linear-gradient(160deg, var(--cream) 0%, color-mix(in srgb, var(--gold) 30%, var(--cream)) 100%);
+    padding: 1.5rem 1.25rem 2.5rem;
+    background: color-mix(in srgb, var(--teal) 8%, var(--cream));
   }
 
-  /* The curved bottom edge: a cream ellipse cut into the wash. */
+  /* The curved bottom edge: a cream ellipse cut into the soft teal wash. */
   .lp-hero::after {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
     bottom: -1px;
-    height: 2.5rem;
+    height: 1.5rem;
     background: var(--cream);
     border-radius: 50% 50% 0 0 / 100% 100% 0 0;
   }
 
   .lp-hero-copy {
     position: relative;
-    z-index: 2;
+    z-index: 1;
     max-width: 51rem;
     margin-inline: auto;
     text-align: center;
   }
 
-  .lp-eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--plum) 14%, white);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--plum) 24%, transparent);
-    color: var(--plum-d);
-    font-size: var(--kid-text-label);
-    line-height: var(--kid-leading-label);
-    font-weight: 800;
-  }
-
-  .lp-eyebrow-dot {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 999px;
-    background: var(--teal);
-  }
-
   .lp-hero-title {
-    margin: 1rem 0 0.25rem;
-    font-size: clamp(1.75rem, 6.5vw, 3.25rem);
-    line-height: 1.08;
+    margin: 0;
+    font-size: clamp(1.75rem, 7vw, 3rem);
+    line-height: 1.1;
     font-weight: 800;
-    letter-spacing: -0.02em;
     overflow-wrap: anywhere;
   }
 
   .lp-hero-sub {
-    margin: 0;
+    margin: 0.5rem 0 0;
     min-height: var(--kid-leading-body);
     font-size: var(--kid-text-body);
     line-height: var(--kid-leading-body);
-    font-weight: 600;
+    font-weight: 400;
   }
 
-  /* Decoration, md and up only. None of it moves. */
-  .lp-lantern,
-  .lp-squiggle {
-    display: none;
-    position: absolute;
-    z-index: 1;
-    pointer-events: none;
-  }
+  /* Decoration, md and up only; teal and plum outlines, never gold. Nothing moves. */
+  .lp-shape { display: none; }
 
   @media (min-width: 768px) {
     .lp-hero {
       margin: 0;
-      padding: 2.5rem 1.5rem 5rem;
+      padding: 2.5rem 1.5rem 3.5rem;
       border-radius: 26px;
     }
-    .lp-lantern,
-    .lp-squiggle { display: block; }
-    .lp-lantern {
-      width: 3rem;
-      height: 3.75rem;
-      border: 4px solid var(--gold-d);
-      border-radius: 16px 16px 20px 20px;
-      background: color-mix(in srgb, var(--gold) 40%, white);
+    .lp-shape {
+      display: block;
+      position: absolute;
+      z-index: 0;
+      border-radius: 999px;
+      pointer-events: none;
     }
-    .lp-lantern-a { top: 2.5rem; left: 8%; transform: rotate(-11deg); }
-    .lp-lantern-b { top: 4rem; right: 8%; width: 2.5rem; height: 3rem; opacity: 0.8; transform: rotate(12deg); }
-    .lp-squiggle { width: 10rem; height: 4rem; border-radius: 50%; }
-    .lp-squiggle-a { left: 14%; bottom: 4rem; border-top: 5px dashed color-mix(in srgb, var(--teal) 36%, transparent); transform: rotate(-17deg); }
-    .lp-squiggle-b { right: 13%; bottom: 5rem; border-top: 5px dashed color-mix(in srgb, var(--plum) 32%, transparent); transform: rotate(19deg) scale(0.7); }
+    .lp-shape-a { top: 1.5rem; left: 7%; width: 3.5rem; height: 3.5rem; border: 5px solid color-mix(in srgb, var(--teal) 45%, transparent); }
+    .lp-shape-b { bottom: 2rem; right: 8%; width: 2.5rem; height: 2.5rem; border: 5px dashed color-mix(in srgb, var(--plum) 40%, transparent); }
   }
 
   .lp-layout {
     display: flex;
     flex: 1;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 1.5rem;
   }
 
   .lp-main {
     display: flex;
-    flex: 1;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.75rem;
     min-width: 0;
   }
 
-  .lp-body-wrap {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
+  /* display: contents, so the sticky bar's containing block is the whole page
+     column, not a wrapper exactly its own size (it would never stick). */
+  .lp-bar-slot { display: contents; }
 
   @media (min-width: 1024px) {
     .lp-layout {
       display: grid;
-      grid-template-columns: 252px minmax(0, 1fr);
-      gap: 2rem;
+      grid-template-columns: 20rem minmax(0, 1fr);
+      grid-template-areas: 'side main' 'side bar';
+      grid-template-rows: auto 1fr;
+      align-items: start;
+      gap: 1.5rem 2rem;
     }
+    .lp-main { grid-area: main; }
+    .lp-side {
+      grid-area: side;
+      position: sticky;
+      top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + 1rem);
+    }
+    .lp-bar-slot > .lp-bar { grid-area: bar; align-self: end; margin-inline: 0; border-radius: 26px 26px 0 0; }
   }
 
-  /* Step label: a short teal bar, then the words. */
-  .lp-section-label {
+  /* The activity card: the card surface, radius and shadow come from .kid-card. */
+  .lp-activity {
+    position: relative;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
-    margin: 0;
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .lp-section-label::before {
-    content: '';
-    width: 2rem;
-    height: 0.25rem;
-    border-radius: 999px;
-    background: var(--teal);
-  }
-
-  /* Overview card. The card surface, radius and shadow come from .kid-card. */
-  .lp-overview {
-    display: grid;
     gap: 1rem;
-    padding: 1.25rem;
-  }
-
-  .lp-breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-width: 0;
-    margin: 0 0 0.25rem;
-    color: var(--teal-d);
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .lp-overview-title {
-    margin: 0;
-    font-size: var(--kid-text-heading);
-    line-height: var(--kid-leading-heading);
-    font-weight: 700;
-  }
-
-  .lp-overview-text {
-    margin: 0.5rem 0 0;
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-  }
-
-  .lp-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    padding: 1rem;
+    text-align: center;
   }
 
   @media (min-width: 768px) {
-    .lp-overview { grid-template-columns: minmax(0, 1fr) auto; align-items: end; padding: 1.5rem; }
-    .lp-pills { justify-content: flex-end; }
+    .lp-activity { padding: 1.5rem; }
   }
 
-  .lp-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 999px;
-    color: var(--ink);
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-    font-weight: 800;
-    white-space: nowrap;
-  }
+  .lp-activity > .lp-frame,
+  .lp-activity > [data-testid='game-lesson'],
+  .lp-activity > .lp-col,
+  .lp-activity > .lp-error { width: 100%; }
 
-  .lp-pill[data-tone='plum'] { background: color-mix(in srgb, var(--plum) 14%, white); color: var(--plum-d); }
-  .lp-pill[data-tone='teal'] { background: color-mix(in srgb, var(--teal) 16%, white); color: var(--teal-d); }
-  .lp-pill[data-tone='neutral'] { background: color-mix(in srgb, var(--ink) 8%, white); }
+  /* Inside the card, media drop their own card look (no card in a card). */
+  .lp-activity .lp-doc { box-shadow: none; }
+  .lp-activity .lp-game { border-radius: 20px; }
 
-  /* Course path: the strip below lg, the sidebar from lg. */
-  .lp-path-strip {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    min-height: 4rem;
-    padding: 0.5rem 1rem;
-    border: 0;
-    border-radius: 26px;
-    background: var(--surface);
-    box-shadow: var(--kid-shadow);
-    color: var(--ink);
-    font-family: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .lp-path-strip-text {
+  .lp-activity-bare {
     display: flex;
     flex: 1;
     flex-direction: column;
-    min-width: 0;
+    gap: 1rem;
   }
 
-  .lp-path-strip-text b {
-    font-size: var(--kid-text-label);
-    line-height: var(--kid-leading-label);
-    font-weight: 700;
-  }
-
-  .lp-path-strip-text span {
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-    font-weight: 600;
-  }
-
-  /* A conic-gradient ring: the one place plain Tailwind cannot do the job. Teal fill. */
-  .lp-path-ring {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 3rem;
-    height: 3rem;
-    border-radius: 999px;
-    background: conic-gradient(var(--teal) calc(var(--p, 0) * 1%), color-mix(in srgb, var(--ink) 10%, var(--cream)) 0);
-  }
-
-  .lp-path-ring span {
+  /* Before Play: a big friendly icon tile in a teal tint. */
+  .lp-activity-art {
     display: grid;
     place-items: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 999px;
-    background: var(--surface);
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 14rem;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--teal) 16%, white);
     color: var(--teal-d);
-    font-size: var(--kid-text-caption);
-    font-weight: 800;
   }
 
-  .lp-sidebar {
-    position: sticky;
-    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + 1.5rem);
-    align-self: start;
-    max-height: calc(100dvh - var(--kid-topbar-h) - 3rem);
-    overflow-y: auto;
+  .lp-activity-text {
+    margin: 0;
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 400;
   }
 
-  .lp-sidebar-head {
-    padding: 1.25rem 1.25rem 1rem;
+  /* One teal "Done" badge; ink on --teal is 4.50:1 at 18px bold. */
+  .lp-done {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.25rem 1rem 0.25rem 0.75rem;
+    border-radius: 999px;
     background: var(--teal);
     color: var(--ink);
-  }
-
-  .lp-sidebar-head span {
-    display: block;
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
     font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
 
-  .lp-sidebar-head strong {
-    display: block;
-    margin-top: 0.25rem;
+  /* The module's lesson list. */
+  .lp-list { padding: 1rem; }
+
+  .lp-list-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .lp-list-title {
+    margin: 0;
+    min-width: 0;
     font-size: var(--kid-text-heading);
     line-height: var(--kid-leading-heading);
     font-weight: 800;
     overflow-wrap: anywhere;
   }
 
-  .lp-sidebar-progress {
-    display: flex;
+  .lp-list-count {
+    display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+    gap: 0.5rem;
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 800;
   }
 
-  .lp-path-list {
+  /* A small conic-gradient ring: the one thing here Tailwind cannot draw. */
+  .lp-ring {
+    display: block;
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    background: conic-gradient(var(--teal-d) calc(var(--p, 0) * 1%), color-mix(in srgb, var(--ink) 12%, var(--cream)) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), var(--ink) calc(100% - 5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 6px), var(--ink) calc(100% - 5px));
+  }
+
+  .lp-rows {
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.5rem;
     margin: 0;
-    padding: 0.5rem;
+    padding: 0;
     list-style: none;
   }
 
-  .lp-path-hint {
-    margin: 0;
-    padding: 1rem;
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-  }
-
-  .lp-path-row {
+  .lp-row {
     display: flex;
     align-items: center;
     gap: 0.75rem;
     width: 100%;
-    min-height: 3rem;
-    padding: 0.5rem;
-    border-radius: 16px;
+    min-height: 3.5rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 18px;
     color: var(--ink);
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .lp-row-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--ink) 8%, white);
+  }
+
+  .lp-row-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+  .lp-row[data-kind='done'] .lp-row-icon { background: color-mix(in srgb, var(--teal) 22%, white); color: var(--teal-d); }
+
+  .lp-row[data-kind='current'] {
+    background: color-mix(in srgb, var(--teal) 12%, white);
+    box-shadow: inset 0 0 0 3px var(--teal-d);
+  }
+
+  .lp-row[data-kind='current'] .lp-row-icon { background: var(--teal); }
+
+  /* Next: the gold accent (the next-up item) and a "Next" tag, plus an arrow icon. */
+  .lp-row[data-kind='next'] {
+    background: color-mix(in srgb, var(--gold) 16%, white);
+    box-shadow: inset 0 0 0 3px var(--gold-d);
+  }
+
+  .lp-row[data-kind='next'] .lp-row-icon { background: var(--gold); }
+
+  .lp-row-tag {
+    flex: none;
+    padding: 0.125rem 0.75rem;
+    border-radius: 999px;
+    background: var(--gold);
     font-size: var(--kid-text-label);
     line-height: var(--kid-leading-label);
-    font-weight: 700;
-    text-decoration: none;
-  }
-
-  .lp-path-num {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 12px;
-    background: color-mix(in srgb, var(--ink) 8%, white);
-    font-size: var(--kid-text-caption);
     font-weight: 800;
   }
 
-  .lp-path-title { min-width: 0; overflow-wrap: anywhere; }
-
-  .lp-path-row[data-state='completed'] .lp-path-num { background: color-mix(in srgb, var(--teal) 24%, white); color: var(--teal-d); }
-
-  .lp-path-row[data-active='true'] {
-    background: color-mix(in srgb, var(--teal) 14%, white);
-    box-shadow: inset 0 0 0 2px var(--teal-d);
-  }
-
-  .lp-path-row[data-active='true'] .lp-path-num { background: var(--teal); color: var(--ink); }
-
-  .lp-path-row[data-state='locked'] { color: var(--kid-muted-fg); cursor: not-allowed; }
+  .lp-row[data-kind='locked'] { color: var(--kid-muted-fg); cursor: default; }
+  .lp-row[data-kind='locked'] .lp-row-icon { color: var(--kid-muted-fg); }
 
   @media (hover: hover) {
-    .lp-path-row:not([data-state='locked'], [data-active='true']):hover { background: color-mix(in srgb, var(--ink) 6%, white); }
-  }
-
-  /* Up next: a dashed card with a gold accent (the next-up item). */
-  .lp-upnext {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem 1.25rem;
-    border: 2px dashed color-mix(in srgb, var(--gold) 55%, var(--cream));
-    border-radius: 26px;
-    background: color-mix(in srgb, var(--gold) 10%, var(--surface));
-    color: var(--ink);
-    text-decoration: none;
-  }
-
-  .lp-upnext > .lp-pill { margin-left: auto; }
-
-  .lp-upnext-icon {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 3.75rem;
-    height: 3.75rem;
-    border-radius: 16px;
-    background: color-mix(in srgb, var(--gold) 30%, white);
-    color: var(--ink);
-  }
-
-  .lp-upnext-over {
-    display: block;
-    color: var(--kid-muted-fg);
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .lp-upnext-title {
-    display: block;
-    font-size: var(--kid-text-heading);
-    line-height: var(--kid-leading-heading);
-    font-weight: 700;
-    overflow-wrap: anywhere;
-  }
-
-  /* The video card: a thick surface border, 26px radius, a large soft shadow, teal chrome. */
-  .lp-video-card {
-    border: 6px solid var(--surface);
-    border-radius: 26px;
-    background: var(--teal-d);
-    box-shadow:
-      0 24px 48px -16px color-mix(in srgb, var(--ink) 30%, transparent),
-      0 2px 10px color-mix(in srgb, var(--ink) 8%, transparent);
+    a.lp-row:not([data-kind='current'], [data-kind='next']):hover { background: color-mix(in srgb, var(--ink) 6%, white); }
   }
 
   /* Locked-lesson sheet: a lock illustration and a "steps to go" hint. */

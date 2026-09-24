@@ -1,25 +1,32 @@
 import { useState } from 'react'
-import { Play } from 'lucide-react'
 import { videoSource } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 import { PlayerError } from './PlayerError'
 
+
+/** Adds `autoplay=1` to a normalized YouTube/Vimeo embed URL: the child already tapped Play. */
+function withAutoplay(url: string): string {
+  const u = new URL(url)
+  u.searchParams.set('autoplay', '1')
+  return u.toString()
+}
+
 /**
- * A video lesson. A normalized YouTube or Vimeo embed goes in a frame (a
- * different origin, so letting it run scripts and keep its own storage does
- * not touch ours); anything else that is a plain https file or stream goes in
- * a native video element, behind a tap-to-play overlay so it (and its audio)
- * never starts before the child is ready (spec Part B4). Watching is not
- * tracked: the minimum time is counted by the heartbeat, not by playback.
+ * A video lesson, mounted only after the child taps Play on the activity card,
+ * so it starts right away: a normalized YouTube or Vimeo embed (a different
+ * origin, so its scripts and storage do not touch ours) gets `autoplay=1`, and
+ * a plain https file plays in a native video element with its controls. Where
+ * a browser still blocks autoplay with sound (some iOS versions), the visible
+ * controls are the fallback. Watching is not tracked: the minimum time is
+ * counted by the heartbeat, not by playback.
  */
 export function VideoLesson({ url, title, courseId }: { url: string | null; title: string; courseId: string }) {
   const source = videoSource(url, import.meta.env.DEV)
-  const [started, setStarted] = useState(false)
   const [failed, setFailed] = useState(false)
 
   if (!source) {
     return (
-      <div className="lp-frame lp-video-card">
+      <div className="lp-frame">
         <PlayerError
           heading={playerCopy.video.unavailable.heading}
           body={playerCopy.video.unavailable.body}
@@ -32,7 +39,7 @@ export function VideoLesson({ url, title, courseId }: { url: string | null; titl
 
   if (failed) {
     return (
-      <div className="lp-frame lp-video-card">
+      <div className="lp-frame">
         <PlayerError
           heading={playerCopy.video.failed.heading}
           body={playerCopy.video.failed.body}
@@ -45,48 +52,34 @@ export function VideoLesson({ url, title, courseId }: { url: string | null; titl
 
   if (source.kind === 'embed') {
     return (
-      <div className="lp-frame lp-video-card" data-testid="video-embed">
+      <div className="lp-frame" data-testid="video-embed">
         <iframe
-          src={source.url}
+          src={withAutoplay(source.url)}
           title={title}
           sandbox="allow-scripts allow-same-origin allow-presentation"
-          allow="fullscreen; picture-in-picture; encrypted-media"
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
           allowFullScreen
           referrerPolicy="strict-origin-when-cross-origin"
-          loading="lazy"
         />
       </div>
     )
   }
 
   return (
-    <div className="lp-frame lp-video-card" data-testid="video-file">
+    <div className="lp-frame" data-testid="video-file">
       <video
-        controls={started}
+        controls
         controlsList="nodownload noremoteplayback"
         disablePictureInPicture
         playsInline
+        autoPlay
         preload="metadata"
         src={source.url}
         aria-label={title}
-        autoPlay={started}
         onError={() => setFailed(true)}
       >
         Your device can&rsquo;t play this video.
       </video>
-      {!started ? (
-        <button
-          type="button"
-          className="lp-play-overlay kid-tap"
-          aria-label={playerCopy.button.playVideo}
-          onClick={() => setStarted(true)}
-          data-testid="video-play"
-        >
-          <span className="lp-play-button">
-            <Play className="size-8" fill="currentColor" strokeWidth={0} />
-          </span>
-        </button>
-      ) : null}
     </div>
   )
 }

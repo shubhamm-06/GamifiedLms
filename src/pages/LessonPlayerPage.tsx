@@ -1,5 +1,6 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useParams } from '@tanstack/react-router'
+import { ActivityCard } from '@/components/kid/player/ActivityCard'
 import { DocLesson } from '@/components/kid/player/DocLesson'
 import { GameLesson } from '@/components/kid/player/GameLesson'
 import { LessonCompleteSheet } from '@/components/kid/player/LessonCompleteSheet'
@@ -20,13 +21,14 @@ import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { useCompleteLesson, useCourseLessonStates } from '@/hooks/useLessonEngine'
 import { useLessonClock } from '@/hooks/useLessonClock'
 import { useEnrollmentStatus, useLessonContent, type LoadedLesson } from '@/hooks/useLessonContent'
+import { useModulePath } from '@/hooks/useModulePath'
 import {
   LessonEngineError,
   describeEngineError,
   type LessonEngineErrorCode,
   type LessonStateRow,
 } from '@/lib/lessonEngine'
-import { clockText, nextOpenLesson } from '@/lib/lessonPlayer'
+import { gameIsPlayable, nextOpenLesson, videoIsPlayable } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 
 /**
@@ -45,7 +47,7 @@ export function LessonPlayerPage() {
   const content = useLessonContent(lessonId, !!row && row.state !== 'locked')
   const notEnrolled = states.error?.code === 'not_enrolled'
   const enrollment = useEnrollmentStatus(courseId, notEnrolled)
-  // A?loading skeleton only after 200ms, so a fast load never flashes one (spec Part A7).
+  // A loading skeleton only after 200ms, so a fast load never flashes one.
   const showSkeleton = useDelayedFlag(!states.data || content.isPending, 200)
 
   const frame = (child: ReactNode) => <PlayerFrame courseId={courseId}>{child}</PlayerFrame>
@@ -113,12 +115,14 @@ function PlayerLesson({
   // Latched when the lesson opens: finishing it flips the refreshed state to
   // "completed", which must not turn the play screen into a replay under the child.
   const [mode, setMode] = useState<PlayerMode>(() => (row.state === 'completed' ? 'replay' : 'play'))
+  const [played, setPlayed] = useState(false)
   const [xpAwarded, setXpAwarded] = useState(0)
   const [alreadyDone, setAlreadyDone] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [refusal, setRefusal] = useState<LessonEngineErrorCode | null>(null)
   const [finishError, setFinishError] = useState<string | null>(null)
   const complete = useCompleteLesson(courseId)
+  const path = useModulePath(courseId, states, lesson.id)
 
   const clock = useLessonClock({
     lessonId: lesson.id,
@@ -129,8 +133,13 @@ function PlayerLesson({
   // Completed somewhere else (another tab): show it as a replay, with no XP promised.
   const shownMode: PlayerMode = mode === 'play' && clock.completedRemotely ? 'replay' : mode
   const fatal = refusal ?? clock.fatal
-
   const nextLessonId = nextOpenLesson(states, lesson.id)?.lessonId ?? null
+
+  // A video or game waits for the child's Play tap. One that cannot load at all
+  // shows its error straight away instead of offering a Play that leads nowhere.
+  const playable =
+    lesson.type === 'video' ? videoIsPlayable(lesson.videoUrl) : lesson.type === 'game' ? gameIsPlayable(game) : false
+  const needsPlay = playable && !played
 
   function celebrate(xp: number, already: boolean) {
     setXpAwarded(xp)
@@ -144,18 +153,33 @@ function PlayerLesson({
   }
 
   async function finish() {
-    setFinishError(null)
     try {
       const r = await complete.mutateAsync(lesson.id)
+      setFinishError(null)
       celebrate(r.xpAwarded, r.alreadyCompleted)
     } catch (e) {
       const code = e instanceof LessonEngineError ? e.code : 'unknown'
       if (REFUSALS.has(code)) refuse(code)
-      else if (code === 'too_early') setFinishError('Almost there. Keep going for a few more seconds.')
-      else if (code === 'quiz_not_passed') setFinishError('Pass the quiz first, then you can finish.')
       else setFinishError(describeEngineError(code))
     }
   }
+
+  // AUTO-FINISH (decided 2026-09-24, replacing the Finish button). Once the
+  // server says the minimum time is met, and for a video or game once the child
+  // has tapped Play, the page itself asks the existing fn_complete_lesson. Only
+  // the trigger moved: the server still checks enrollment, unlock and time.
+  // Quizzes keep their own flow. One automatic attempt per open; a failure shows
+  // a Try again button, so a refused call is never retried in a loop.
+  const autoTried = useRef(false)
+  const readyToFinish =
+    shownMode === 'play' && !fatal && lesson.type !== 'quiz' && clock.timeMet && (played || !playable)
+  useEffect(() => {
+    if (!readyToFinish || autoTried.current) return
+    autoTried.current = true
+    void finish()
+    // `finish` is re-created on every render; the ref makes this fire once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyToFinish])
 
   if (fatal === 'locked') {
     return <Navigate to="/courses/$courseId" params={{ courseId }} search={{ open: lesson.id }} replace />
@@ -175,18 +199,16 @@ function PlayerLesson({
     )
   }
 
-  const secondsLeft = Math.max(0, clock.minTimeSeconds - clock.displaySeconds)
-
-  let body: ReactNode
+  let media: ReactNode
   switch (lesson.type) {
     case 'video':
-      body = <VideoLesson url={lesson.videoUrl} title={lesson.title} courseId={courseId} />
+      media = <VideoLesson url={lesson.videoUrl} title={lesson.title} courseId={courseId} />
       break
     case 'game':
-      body = <GameLesson game={game} courseId={courseId} />
+      media = <GameLesson game={game} courseId={courseId} />
       break
     case 'quiz':
-      body = (
+      media = (
         <QuizLesson
           lesson={lesson}
           courseId={courseId}
@@ -201,65 +223,52 @@ function PlayerLesson({
       )
       break
     default:
-      body = <DocLesson html={lesson.contentHtml} title={lesson.title} courseId={courseId} />
+      media = <DocLesson html={lesson.contentHtml} title={lesson.title} courseId={courseId} />
   }
 
-  // The quiz owns its own bar while it is being played; every other lesson type,
-  // and every finished lesson, uses this one.
+  const lessonDone = shownMode !== 'play'
+  // The one bottom button, only once this lesson is completed: "Next: <title>"
+  // for the next lesson in this module, "Back to roadmap" after the module's last.
+  // A quiz in replay keeps its own bar, so it gets none here. Otherwise there is
+  // no bottom button, except Try again if the automatic finish failed.
   let bar: ReactNode = null
-  if (shownMode === 'done') {
+  if (lessonDone && !(lesson.type === 'quiz' && shownMode === 'replay')) {
+    const following = path.following
     bar = (
       <PlayerBar>
-        {nextLessonId ? (
+        {following && following.state !== 'locked' ? (
           <PrimaryLink
             variant="candy"
             to="/courses/$courseId/lessons/$lessonId"
-            params={{ courseId, lessonId: nextLessonId }}
+            params={{ courseId, lessonId: following.id }}
             replace
             testId="next-lesson-bar"
           >
-            {playerCopy.button.nextLesson}
+            <span className="truncate px-4">{playerCopy.page.nextLesson(following.title)}</span>
           </PrimaryLink>
         ) : (
-          <PrimaryLink variant="candy" to="/courses/$courseId" params={{ courseId }}>
+          <PrimaryLink variant="candy" to="/courses/$courseId" params={{ courseId }} testId="back-to-path">
             {playerCopy.button.backToRoadmap}
           </PrimaryLink>
         )}
       </PlayerBar>
     )
-  } else if (lesson.type !== 'quiz') {
-    bar =
-      shownMode === 'replay' ? (
-        <PlayerBar>
-          <PrimaryLink variant="candy" to="/courses/$courseId" params={{ courseId }} testId="back-to-path">
-            {playerCopy.button.backToRoadmap}
-          </PrimaryLink>
-        </PlayerBar>
-      ) : (
-        <PlayerBar hint={finishError ?? undefined}>
-          <PrimaryButton
-            variant={clock.timeMet ? 'candy' : 'muted'}
-            loading={complete.isPending}
-            onClick={() => void finish()}
-            testId="finish-lesson"
-          >
-            {complete.isPending
-              ? playerCopy.button.finishing
-              : clock.timeMet
-                ? playerCopy.button.finishLesson
-                : playerCopy.button.keepLearning(clockText(secondsLeft))}
-          </PrimaryButton>
-        </PlayerBar>
-      )
+  } else if (finishError && lesson.type !== 'quiz') {
+    bar = (
+      <PlayerBar hint={finishError}>
+        <PrimaryButton variant="candy" loading={complete.isPending} onClick={() => void finish()} testId="finish-retry">
+          {playerCopy.button.tryAgain}
+        </PrimaryButton>
+      </PlayerBar>
+    )
   }
 
   return (
     <>
-      <p role="status" className="sr-only" data-testid="time-announce">
-        {shownMode === 'play' && clock.timeMet && clock.minTimeSeconds > 0 ? playerCopy.ring.doneLabel : ''}
-      </p>
-      <LessonPlayerShell lesson={lesson} courseId={courseId} states={states} mode={shownMode} clock={clock} bar={bar}>
-        {body}
+      <LessonPlayerShell lesson={lesson} courseId={courseId} path={path} mode={shownMode} pause={clock.pause} bar={bar}>
+        <ActivityCard lesson={lesson} done={lessonDone} needsPlay={needsPlay} onPlay={() => setPlayed(true)}>
+          {media}
+        </ActivityCard>
       </LessonPlayerShell>
       <LessonCompleteSheet
         open={sheetOpen && !statesRefreshing}

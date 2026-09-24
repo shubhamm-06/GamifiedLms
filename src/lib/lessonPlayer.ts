@@ -151,3 +151,13 @@ a{color:${theme.teal};font-weight:700}
 blockquote{border-left:4px solid ${theme.cream};padding-left:12px;margin-left:0}
 </style></head><body>${html}</body></html>`
 }
+
+/** True when a video lesson's URL is something the player will load (so the activity card knows whether to offer Play). */
+export function videoIsPlayable(url: string | null): boolean {
+  return videoSource(url, import.meta.env.DEV) !== null
+}
+
+/** True when a game lesson's bundle can be put in a frame at all. */
+export function gameIsPlayable(game: GameInfo | null): boolean {
+  return !!game && !!safeMediaUrl(game.bundleUrl, import.meta.env.DEV)
+}
