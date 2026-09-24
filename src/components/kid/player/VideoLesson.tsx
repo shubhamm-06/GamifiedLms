@@ -19,7 +19,7 @@ export function VideoLesson({ url, title, courseId }: { url: string | null; titl
 
   if (!source) {
     return (
-      <div className="lp-frame">
+      <div className="lp-frame lp-video-card">
         <PlayerError
           heading={playerCopy.video.unavailable.heading}
           body={playerCopy.video.unavailable.body}
@@ -32,7 +32,7 @@ export function VideoLesson({ url, title, courseId }: { url: string | null; titl
 
   if (failed) {
     return (
-      <div className="lp-frame">
+      <div className="lp-frame lp-video-card">
         <PlayerError
           heading={playerCopy.video.failed.heading}
           body={playerCopy.video.failed.body}
@@ -45,7 +45,7 @@ export function VideoLesson({ url, title, courseId }: { url: string | null; titl
 
   if (source.kind === 'embed') {
     return (
-      <div className="lp-frame" data-testid="video-embed">
+      <div className="lp-frame lp-video-card" data-testid="video-embed">
         <iframe
           src={source.url}
           title={title}
@@ -60,7 +60,7 @@ export function VideoLesson({ url, title, courseId }: { url: string | null; titl
   }
 
   return (
-    <div className="lp-frame" data-testid="video-file">
+    <div className="lp-frame lp-video-card" data-testid="video-file">
       <video
         controls={started}
         controlsList="nodownload noremoteplayback"

@@ -258,7 +258,7 @@ function PlayerLesson({
       <p role="status" className="sr-only" data-testid="time-announce">
         {shownMode === 'play' && clock.timeMet && clock.minTimeSeconds > 0 ? playerCopy.ring.doneLabel : ''}
       </p>
-      <LessonPlayerShell lesson={lesson} courseId={courseId} mode={shownMode} clock={clock} bar={bar}>
+      <LessonPlayerShell lesson={lesson} courseId={courseId} states={states} mode={shownMode} clock={clock} bar={bar}>
         {body}
       </LessonPlayerShell>
       <LessonCompleteSheet

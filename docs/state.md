@@ -35,7 +35,8 @@ nav entry is a real route):
   measured colour contrast, a per-question quiz review, a teal completion
   medallion with confetti, tap-to-play video/game, a dev-only state gallery
   at `/dev/lesson-player-gallery`; details and the deliberate spec deviations
-  are in `ui.md`). Verified in Chromium against the live project; not yet on
+  are in `ui.md`). On 2026-09-24 the page also gained a hero, a course path
+  (strip + sheet, sidebar from lg), an overview card and an Up next card (`ui.md`). Verified in Chromium against the live project; not yet on
   a device or in the Capacitor webview.
 - A pathless student layout route (`KidLayout`) gates both on a signed-in
   session only — no role check; RLS and the engine decide what a signed-in

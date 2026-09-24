@@ -1202,3 +1202,46 @@ not implemented.**
    camera or push feature — can only be tested on `localhost` or over HTTPS.
 5. `localhost` on the phone means the phone itself; always use the computer's
    LAN IP. Not yet exercised: a real phone, the Capacitor webview and iOS Safari.
+
+### Lesson page layout: hero, course path, overview (2026-09-24)
+
+`LessonPlayerShell` now frames every lesson type in a page laid out from
+`docs/reference/lms.html` (the mock; visuals only, none of its code, CSS or content
+copied). Top to bottom: `LessonHero`, then a two-column `.lp-layout` (from lg: a sticky
+252px `CoursePathSidebar` beside `.lp-main`; below lg: one column with a
+`CoursePathStrip` at its top), and in `.lp-main`: the offline strip, the strip,
+`LessonOverviewCard`, a "Step 1" label over the lesson itself, `UpNextCard` and the bottom
+bar. The top bar (title, time ring) and every rule of the player are unchanged.
+
+- **Hero**: a cream-to-gold wash (`color-mix` of `--gold` into `--cream`) with a curved cream
+  bottom edge, a plum-tint episode eyebrow ("Episode X of N", from `fn_course_lesson_states`, so
+  published lessons only), the lesson title (`clamp(1.75rem, 6.5vw, 3.25rem)`) and the course
+  name. It bleeds to the screen edges on phones and is a 26px card from md. Lanterns and
+  squiggles show from md up only; nothing moves (no parallax). No age band: the schema has none.
+- **Course path**: one data component, `CoursePathList`, used by both. Below lg the strip (a teal
+  conic-gradient ring plus "X of N episodes") opens a bottom `Sheet` (rendered outside `.kid-app`,
+  so its content carries `.kid-font`); from lg the sidebar has a solid `--teal` header. The active row
+  is a teal tint with a `--teal-d` outline and a teal number tile; locked rows are muted and inert;
+  completed rows show a check. State is never colour alone (a check, a lock or the number, plus a
+  spoken state word). Titles come from `useCourseRoadmap` (shared with the course page); counts and
+  the episode number come from the states, so they show before titles load.
+- **Overview card**: breadcrumb (course, Episode N), the heading "About this episode" (the lesson
+  title is already the hero title), the lesson's `summary` and pills: episode X of N (plum), lesson
+  type (teal), `+N XP` while it can still be earned (plum, coral sparkle), about N min while playing,
+  and a teal "Completed" pill in replay. The old chip row under the top bar is gone.
+- **Step label**: a short teal bar and "Step 1 · Watch / Read / Play / Take" by lesson type. A lesson
+  is exactly one type, so there is never a "Step 2".
+- **Video card**: `.lp-video-card`, a 6px `--surface` border, 26px radius, a large soft shadow and a
+  `--teal-d` frame. The play button on it stays gold (the one main action there).
+- **Up next**: a dashed card with a gold accent (border tint, icon tile) and a status pill; it links
+  only when the engine already shows that lesson open. Hidden while a quiz is being played (the quiz
+  owns its own sticky bar and a card after it would sit under it).
+- **Gold**: hero wash and lanterns, the Up next accent, the primary button and the video play button.
+  Everything else is teal or plum. Framer Motion `Reveal` rises blocks once on scroll and renders a
+  plain element under `useReducedMotion`.
+- **Not built**: the mock's "Step 2, Activity" game card. A game is its own lesson type here (the
+  player's Play card), so no lesson has a video plus a linked game to offer, and the launch modal is
+  out of scope.
+
+Checked at 390px and 1280px in Chromium against the live project: no horizontal scroll, sidebar only at
+1280 and strip only at 390, the sheet lists the episodes.

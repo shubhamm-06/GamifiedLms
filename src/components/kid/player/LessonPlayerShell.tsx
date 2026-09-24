@@ -1,19 +1,26 @@
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Clock, Sparkles } from 'lucide-react'
 import { useKidHeader, useKidRightSlot } from '@/components/kid/kidHeader'
-import { LESSON_TYPE_META } from '@/components/kid/roadmap/lessonTypeMeta'
 import type { ClockPause } from '@/hooks/useLessonClock'
-import { clockText, type LessonContent } from '@/lib/lessonPlayer'
+import { useCoursePath } from '@/hooks/useCoursePath'
+import type { LessonStateRow } from '@/lib/lessonEngine'
+import type { LessonContent } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 import { ActiveTimeRing } from './ActiveTimeRing'
+import { CoursePathSidebar, CoursePathStrip } from './CoursePathNav'
+import { LessonHero } from './LessonHero'
+import { LessonOverviewCard } from './LessonOverviewCard'
 import { PausedNotice } from './PausedNotice'
+import { Reveal } from './Reveal'
+import { UpNextCard } from './UpNextCard'
 
 export type PlayerMode = 'play' | 'replay' | 'done'
 
 interface Props {
   lesson: LessonContent
   courseId: string
+  /** The course's lesson states (published lessons only), already loaded by the page. */
+  states: LessonStateRow[]
   mode: PlayerMode
   clock: { displaySeconds: number; minTimeSeconds: number; timeMet: boolean; pause: ClockPause | null }
   /** The lesson's content (video, document, game or quiz). */
@@ -23,18 +30,17 @@ interface Props {
 }
 
 /**
- * The frame every lesson type plays in. It puts the lesson title in the top
- * bar and the active-time ring at its right end (a full, static teal ring in
- * replay, since that lesson is already done), the offline/reconnecting strip
- * when there is one, the lesson's type/XP/minimum-time chips (XP only while
- * it can still be earned) and a small "Completed" chip in replay. It holds no
- * rules: the clock, the XP and the completion all come from the server.
+ * The frame every lesson type plays in: a hero, the course path (a strip and
+ * bottom sheet below lg, a sticky sidebar from lg), an overview card, the
+ * lesson itself under a "Step 1" label, an Up next card and the bottom bar.
+ * The lesson title and the active-time ring stay in the top bar. It holds no
+ * rules: the clock, the XP, the unlock state and the completion all come from
+ * the server.
  */
-export function LessonPlayerShell({ lesson, courseId, mode, clock, children, bar }: Props) {
+export function LessonPlayerShell({ lesson, courseId, states, mode, clock, children, bar }: Props) {
   useKidHeader(lesson.title, `/courses/${courseId}`)
   const slot = useKidRightSlot()
-  const { label, Icon } = LESSON_TYPE_META[lesson.type]
-  const earnable = mode === 'play' && lesson.gamificationEnabled && lesson.xp !== null && lesson.xp > 0
+  const path = useCoursePath(courseId, states, lesson.id)
 
   return (
     <div className="lp" data-testid="lesson-player" data-mode={mode} data-type={lesson.type}>
@@ -50,36 +56,29 @@ export function LessonPlayerShell({ lesson, courseId, mode, clock, children, bar
           )
         : null}
 
-      <PausedNotice reason={mode === 'play' ? clock.pause : null} />
+      <LessonHero number={path.number} total={path.total} title={lesson.title} courseTitle={path.courseTitle} />
 
-      <div className="lp-meta">
-        <span className="rm-chip">
-          <Icon className="size-4" aria-hidden />
-          {label}
-        </span>
-        {earnable ? (
-          <span className="rm-chip" data-testid="xp-chip">
-            <Sparkles className="size-3.5" aria-hidden />+{lesson.xp} XP
-          </span>
-        ) : null}
-        {mode === 'play' && clock.minTimeSeconds > 0 ? (
-          <span className="rm-chip">
-            <Clock className="size-3.5" aria-hidden />
-            At least {clockText(clock.minTimeSeconds)}
-          </span>
-        ) : null}
-        {mode === 'replay' ? (
-          <span className="lp-chip-completed" data-testid="completed-chip">
-            <Check className="size-3.5" aria-hidden strokeWidth={3} />
-            {playerCopy.replay.chip}
-          </span>
-        ) : null}
+      <div className="lp-layout">
+        <CoursePathSidebar path={path} courseId={courseId} lessonId={lesson.id} />
+        <div className="lp-main">
+          <PausedNotice reason={mode === 'play' ? clock.pause : null} />
+          <CoursePathStrip path={path} courseId={courseId} lessonId={lesson.id} />
+          <Reveal>
+            <LessonOverviewCard lesson={lesson} path={path} mode={mode} minTimeSeconds={clock.minTimeSeconds} />
+          </Reveal>
+          <Reveal className="lp-body-wrap">
+            <p className="lp-section-label">{playerCopy.page.step[lesson.type]}</p>
+            <div className="lp-body">{children}</div>
+          </Reveal>
+          {/* The quiz owns its own sticky bar while it is played; a card after it would sit under that bar. */}
+          {bar && path.next ? (
+            <Reveal>
+              <UpNextCard next={path.next} courseId={courseId} />
+            </Reveal>
+          ) : null}
+          {bar}
+        </div>
       </div>
-
-      {lesson.summary ? <p className="kid-text-body">{lesson.summary}</p> : null}
-
-      <div className="lp-body">{children}</div>
-      {bar}
     </div>
   )
 }
