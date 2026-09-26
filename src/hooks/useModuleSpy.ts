@@ -1,5 +1,5 @@
 import { useEffect, useState, type RefObject } from 'react'
-import { stickyTopEdge } from '@/lib/stickyTop'
+import { stuckModuleBarBottom } from '@/lib/stickyTop'
 
 export interface SpyPosition {
   /** The module (`data-module-key`) the row under the reading line belongs to. */
@@ -46,7 +46,7 @@ export function useModuleSpy(
       // the child is "looking at" is 40% of the way down from there, so the bar
       // also changes for a last module that never scrolls all the way up.
       const bar = root.querySelector<HTMLElement>('[data-module-bar]')
-      const stuck = stickyTopEdge() + (bar?.offsetHeight ?? 0)
+      const stuck = stuckModuleBarBottom(bar)
       const visible = window.innerHeight - stuck
       // The line eases to the stuck edge at the very top of the page and to the
       // bottom of the screen at the very bottom, so the first lesson reads as

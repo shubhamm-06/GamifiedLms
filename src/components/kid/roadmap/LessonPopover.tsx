@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from 
 import { Link } from '@tanstack/react-router'
 import { Sparkles } from 'lucide-react'
 import type { RoadmapLesson } from '@/lib/roadmap'
-import { stickyTopEdge } from '@/lib/stickyTop'
+import { stuckModuleBarBottom } from '@/lib/stickyTop'
 
 /** Gap between the node and the card, which the tail spans. */
 const GAP = 14
@@ -72,7 +72,7 @@ export function LessonPopover({
 
     // What covers the top of the viewport: the top bar, Home's stat bar and the sticky module bar.
     const bar = root.querySelector<HTMLElement>('[data-module-bar]')
-    const topLimit = stickyTopEdge() + (bar?.offsetHeight ?? 0)
+    const topLimit = stuckModuleBarBottom(bar)
     // The bottom nav (when shown) covers the bottom of the viewport too.
     const navTop = document.querySelector('.kid-nav')?.getBoundingClientRect().top ?? window.innerHeight
     const below = Math.min(window.innerHeight, navTop) - a.bottom - EDGE

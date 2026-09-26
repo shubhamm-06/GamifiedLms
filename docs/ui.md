@@ -152,7 +152,13 @@ sheet with "steps to go" is gone).
 **Module bar (2026-09-26, replaces the boxed module banners).** There are no per-module
 containers, headings, dots or borders on the path any more: the lessons of every module are
 one continuous road. A single slim bar (`ModuleBar`, `.rm-modbar`) is sticky under the top
-bar, full width on phones, and names whichever module is in view. It is scroll-spy
+bar (and Home's stat bar) and names whichever module is in view. Since 2026-09-26 it floats
+as a card: 18px radius on all four corners, inset from both screen edges by the page gutter
+(1rem, cream showing either side), a soft shadow on every side (`0 8px 20px -6px` ink at 45%
+plus a 1px ink 8% ring; no colour, gradient or icon added) and `--rm-bar-gap` (0.5rem) of cream
+above it both at rest and when stuck (its sticky `top` adds the gap). Scroll-spy and the popover
+measure its stuck bottom edge through `stuckModuleBarBottom` (`lib/stickyTop.ts`: its computed
+sticky `top` plus its height), so the gap is included. It is scroll-spy
 (`useModuleSpy`): every lesson row carries `data-module-key` and `data-unit`, and the active
 row is the topmost one whose centre is below a reading line 40% of the way down the visible area
 under the stuck bar; the module is that row's module, so the title changes only at a module

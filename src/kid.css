@@ -88,9 +88,9 @@
 
   .kid-home { --kid-top-inset: var(--kid-statbar-h); display: flex; flex: 1; flex-direction: column; }
 
-  /* Home: the stat bar is the first thing under the top bar, so it takes the
-     flush-to-the-top margin and the module bar no longer needs it. */
-  .kid-home .rm-modbar { margin-top: 0; }
+  /* Home: the stat bar is the first thing under the top bar, so the module bar
+     has no top bar to tuck under: it just keeps its small gap below the stat bar. */
+  .kid-home .rm-modbar { margin-top: var(--rm-bar-gap); }
 
   .kid-app {
     display: flex;
@@ -272,29 +272,33 @@
      hover state. Cream on --teal-d for a module a child can work in (6.2:1;
      cream on plain --teal would be 2.88:1); a dimmer neutral (with a lock icon in
      the markup) when every lesson in it is locked. Never gold: gold is the
-     next-up node and its popover. It sits flush under the top bar, so the
-     screen starts at this bar. */
+     next-up node and its popover. It floats: rounded on all four corners, inset
+     from both screen edges (the page's own gutter), lifted by a soft shadow on
+     every side, and it keeps --rm-bar-gap of cream above it both at rest and
+     when stuck under the bar(s) above. */
   .rm-modbar {
+    --rm-bar-gap: 0.5rem;
     position: sticky;
-    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + var(--kid-top-inset));
+    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + var(--kid-top-inset) + var(--rm-bar-gap));
     z-index: 20;
     display: flex;
     align-items: center;
     gap: 0.75rem;
     min-height: 2.75rem;
-    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
-    padding: 0.5rem max(1rem, env(safe-area-inset-right)) 0.5rem max(1rem, env(safe-area-inset-left));
-    margin-top: -1rem;
+    margin-top: calc(var(--rm-bar-gap) - 1rem);
+    padding: 0.5rem 1rem;
+    border-radius: 18px;
     background: var(--teal-d);
     color: var(--cream);
-    box-shadow: 0 3px 0 color-mix(in srgb, var(--teal-d) 70%, var(--ink));
+    box-shadow:
+      0 8px 20px -6px color-mix(in srgb, var(--ink) 45%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent);
     cursor: default;
   }
 
   .rm-modbar[data-locked='true'] {
     background: var(--kid-muted);
     color: var(--kid-muted-fg);
-    box-shadow: 0 3px 0 var(--kid-muted-d);
   }
 
   .rm-modbar-text {
@@ -324,10 +328,6 @@
     line-height: var(--kid-leading-body);
     font-weight: 800;
     overflow-wrap: anywhere;
-  }
-
-  @media (min-width: 768px) {
-    .rm-modbar { margin: 0; border-radius: 14px; }
   }
 
   .rm-path {
