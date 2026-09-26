@@ -79,6 +79,13 @@
 
   .kid-app[data-nav] { --kid-bottom-inset: var(--kid-nav-h); }
 
+  /* Home: no top bar row (its stat bar is the first thing on screen). Only the
+     safe-area padding stays, and --kid-topbar-h drops to 0 so every sticky offset
+     built from it (stat bar, module bar) follows without a new constant. */
+  .kid-app[data-home] { --kid-topbar-h: 0px; }
+  .kid-app[data-home] .kid-topbar { border-bottom: 0; }
+  .kid-app[data-home] .kid-topbar-row { display: none; }
+
   .kid-home { --kid-top-inset: var(--kid-statbar-h); display: flex; flex: 1; flex-direction: column; }
 
   /* Home: the stat bar is the first thing under the top bar, so it takes the

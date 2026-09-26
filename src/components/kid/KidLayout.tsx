@@ -12,6 +12,8 @@ import { tabForPath } from './kidTabs'
  * the sticky roadmap banners behave. On the four top-level screens (Home, Badges,
  * Courses, Profile) it also shows the bottom nav (`KidNav`) and reports its height
  * through `--kid-bottom-inset` (`data-nav`, kid.css), so the page never sits under it.
+ * On Home (`data-home`) the bar's row collapses, leaving only the safe-area padding: Home's own
+ * stat bar is the first thing on screen and everything sticky measures from what remains.
  */
 export function KidLayout({ children }: { children?: ReactNode }) {
   const router = useRouter()
@@ -35,7 +37,7 @@ export function KidLayout({ children }: { children?: ReactNode }) {
 
   return (
     <KidHeaderContext.Provider value={value}>
-      <div className="kid-app" data-nav={tab ? 'true' : undefined}>
+      <div className="kid-app" data-nav={tab ? 'true' : undefined} data-home={tab?.to === '/' ? 'true' : undefined}>
         <header className="kid-topbar">
           <div className="kid-topbar-row">
             {tab ? (

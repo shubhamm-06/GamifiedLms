@@ -202,8 +202,8 @@ covers the connector for its height, which reads as a break in the road. Not int
 `pointer-events: none`, no tab stop, `role="separator"` with an `aria-label`. It appears at every
 boundary, including before a module that is still fully locked.
 
-**Stat bar** (`StatBar`, `.kid-statbar`; Home only, 2026-09-26). A slim 3rem row, sticky directly
-under the kid top bar and above the module bar, full-bleed on the cream page with a hairline bottom
+**Stat bar** (`StatBar`, `.kid-statbar`; Home only, 2026-09-26). A slim 3rem row, sticky at the very top of the screen
+(below the safe-area inset only) and above the module bar, full-bleed on the cream page with a hairline bottom
 border. Left: two `--surface` pills with the inset ring the XP chips use, a flame (`--coral-d`) with
 the current streak and a spark (`--plum-d`) with lifetime XP (`user_stats.total_xp`, never
 level-relative), ink numbers at weight 500; gold is not used. Right: the course name as a link to
@@ -212,13 +212,17 @@ truncated with an ellipsis, a 44px tall hit target. Numbers come from `useKidPro
 screen's query; no second fetch of `user_stats`); a student with no stats row shows 0 and 0, and a
 dash stands in only while loading or on error. The course name is read from the roadmap's own cached
 content query (`useQuery` with `enabled: false`, never fetches) for the `fn_home_course` id; the
-link is absent while there is no course. The top bar's title is empty on Home (the course name
-lives here instead; `CourseRoadmapView`'s `showTitle` is false), and the `/courses/$courseId` deep
-link is unchanged: title, no stat bar. **Sticky stack:** `.kid-home` sets `--kid-top-inset` to
+link is absent while there is no course. On Home the kid top bar collapses
+(`.kid-app[data-home]`, set by `KidLayout`): its row (Back spacer, title, right slot) is
+`display: none`, its bottom border is dropped and `--kid-topbar-h` becomes `0px`, so only the
+safe-area padding is left and the stat bar sits flush at the top; `CourseRoadmapView`'s `showTitle`
+is false there. The `/courses/$courseId` deep link and every other route keep the full top bar
+(verified pixel-identical before and after at 360, 390 and 430px). **Sticky stack:** `.kid-home` sets `--kid-top-inset` to
 `--kid-statbar-h`, the module bar's `top` adds it (default `0px` off Home, same pattern as
 `--kid-bottom-inset`), and scroll-spy and the popover measure the stack through
 `lib/stickyTop.ts` (`stickyTopEdge`: the lower of the top bar's and stat bar's bottom edges) instead
-of hardcoding anything. Gems and hearts/energy are still deferred, with no placeholders.
+of hardcoding anything. Nothing needed a new constant when the top bar collapsed: the stat bar's and
+module bar's `top` are built from `--kid-topbar-h`, and the measuring code reads the live rects. Gems and hearts/energy are still deferred, with no placeholders.
 
 **Path spec.** (One connector for the whole course since 2026-09-26; the sway below is continuous across modules.) The connector is an SVG behind the nodes, generated from the
 measured centres of the real node elements (`useNodeCenters` reads
