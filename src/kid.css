@@ -2237,6 +2237,11 @@
   }
 
   .vp-seek { flex: 1; min-width: 3rem; }
+
+  /* Room is tight on the narrowest phones: show only the current time there. */
+  @media (max-width: 399px) {
+    .vp-time-total { display: none; }
+  }
   .vp-volume { flex: none; width: 4rem; }
 
   @media (max-width: 399px) {
@@ -2254,13 +2259,6 @@
     gap: 0.5rem;
   }
 
-  .lp-vinfo-status {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 0.75rem;
-  }
-
   .lp-vdesc {
     margin: 0;
     font-size: var(--kid-text-body);
@@ -2269,28 +2267,23 @@
     overflow-wrap: anywhere;
   }
 
-  /* A modest replay control: text and icon, no pill, ink on cream. */
-  .lp-replay {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    min-height: 2.75rem;
-    padding: 0 0.5rem;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--ink);
-    font-family: inherit;
-    font-size: var(--kid-text-label);
-    line-height: var(--kid-leading-label);
-    font-weight: 700;
-    text-decoration: underline;
-    text-decoration-thickness: 2px;
-    text-underline-offset: 4px;
-    cursor: pointer;
-  }
+  /* The status marker sits inside the title, glued to its last word (nowrap), so a title that
+     fills the line wraps that word and the marker together. */
+  .lp-vtitle-tail { white-space: nowrap; }
+  .lp-vtitle-tail .rm-chip { margin-left: 0.75rem; vertical-align: middle; }
 
-  .lp-replay:active { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+  /* A finished lesson: a small check badge, cream on --teal-d (6.20:1). A marker, not a control. */
+  .lp-done-mark {
+    display: inline-grid;
+    place-items: center;
+    margin-left: 0.75rem;
+    vertical-align: middle;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    background: var(--teal-d);
+    color: var(--cream);
+  }
 
   /* A video lesson has no list beside it: one centred column at every size. */
   @media (min-width: 1024px) {

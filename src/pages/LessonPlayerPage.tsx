@@ -135,7 +135,6 @@ function PlayerLesson({
   const [videoPlaying, setVideoPlaying] = useState(false)
   const [videoEnded, setVideoEnded] = useState(false)
   const onVideoEnded = useCallback(() => setVideoEnded(true), [])
-  const [replayToken, setReplayToken] = useState(0)
 
   const clock = useLessonClock({
     lessonId: lesson.id,
@@ -227,7 +226,6 @@ function PlayerLesson({
           courseId={courseId}
           onPlayingChange={setVideoPlaying}
           onEnded={onVideoEnded}
-          replayToken={replayToken}
         />
       )
       break
@@ -306,7 +304,6 @@ function PlayerLesson({
             <VideoInfo
               title={lesson.title}
               description={lesson.summary?.trim() || null}
-              onReplay={() => setReplayToken((n) => n + 1)}
               xp={shownMode === 'play' && lesson.gamificationEnabled ? lesson.xp : null}
               done={lessonDone}
               seconds={clock.displaySeconds}

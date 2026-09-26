@@ -1351,21 +1351,33 @@ game lessons changed, apart from two shared fixes listed at the end.
   edge to edge right under the top bar (`.lp-video-bleed` cancels the page gutter; from md it sits
   in its column with 20px corners). The top bar carries only Back (no title, since the title is
   under the player). Simplified 2026-09-26 to a YouTube-style page, top to bottom: the player, the
-  title (`.lp-hero-title`, the app's existing lesson title style), one slim status row, the
-  description as a normal paragraph (`lessons.summary`; none is shown when it is empty; the module
-  name is no longer on the page), and the minimum-time bar. **No module list and no Next / Back
-  bar**: the completion sheet's one button is the only next-step action, and Back in the top bar
-  leaves. The status row (`.lp-vinfo-status`) is plain inline content: the roadmap's `.rm-chip` XP
-  pill (`+10 XP`) and, for a finished lesson, the Done badge and a small **Play again** control
-  (`.lp-replay`: an icon and underlined text, no pill; it rewinds the player to 0:00 and plays,
-  earning nothing). Nothing on the page is floating or positioned, so nothing can sit under the top
-  bar (checked: the badge's top is 375px at 390 wide against a 57px top bar, and a hit test on it
-  lands on the badge). No bottom nav (the nav only shows on Home, Badges, Courses and Profile).
+  title (`.lp-hero-title`, the app's existing lesson title style) with its status marker on the same
+  line, the description as a normal paragraph (`lessons.summary`; none is shown when it is empty; the
+  module name is no longer on the page), and the minimum-time bar. There is no status row and nothing
+  between the title and the description. **No module list and no Next / Back bar**: the completion
+  sheet's one button is the only next-step action, and Back in the top bar leaves. The marker sits
+  inside the `h1`, glued to the title's last word (`.lp-vtitle-tail`, nowrap), so a title that fills the
+  line wraps that word and the marker together, and it is one of two things, never both: the roadmap's
+  `.rm-chip` XP pill (`+10 XP`) while there is XP to earn, or, for a finished lesson, a small check
+  badge (`.lp-done-mark`, cream on `--teal-d`, 1.75rem, `role="img"` labelled "Done"; a status, not a
+  control). Replaying lives in the player's control strip (below), not in the content. Nothing on the
+  page is floating or positioned, so nothing can sit under the top bar. No bottom nav (the nav only
+  shows on Home, Badges, Courses and Profile).
 - **Player** (`VideoLesson`, `VideoEngines`, `lib/videoPlayback.ts`). A chromeless stage over our
   own control strip: play or pause, a scrubber that seeks freely in both directions, mute plus a
-  volume slider (the slider hides below 400px; the mute button stays), and full screen (shown only
-  where the Fullscreen API exists; it fullscreens the whole player, strip included). No speed
-  control. Cream on `--ink`; the big centre Play is the one gold thing. Three engines report the
+  volume slider (the slider hides below 400px, where the strip also shows only the current time; the
+  mute button stays), a **replay** button next to play (rewinds to 0:00 and plays; earns nothing extra,
+  active time still counts only as playing), and full screen. No speed control.
+
+  **Full screen.** Where the Fullscreen API exists (desktop, Android, iPad) the whole player, strip
+  included, goes fullscreen, and on entering it the page calls `screen.orientation.lock('landscape')`;
+  on leaving (including Esc or the system back gesture, since it is driven by `fullscreenchange`) it
+  calls `unlock()`. Both are wrapped in try/catch and never touch playback: a browser without the API,
+  or one that refuses the lock, just stays as it was. On **iOS** (iPhone, iPad, or an iPad reporting
+  as a Mac) a file goes to the OS's own player through the video element's `webkitEnterFullscreen`,
+  which rotates by itself and never uses the lock; the button shows there even though the iPhone has
+  no Fullscreen API. A YouTube or Vimeo embed on iOS has no native path (its video is in another
+  origin's frame): the button shows only where the Fullscreen API does (iPad), else it is hidden. Cream on `--ink`; the big centre Play is the one gold thing. Three engines report the
   same state (`ready`, `playing`, `ended`, `current`, `duration`, `volume`, `muted`, `failed`) and
   register the same controls: a plain https file (`<video>`; dev/test only, see `video.ts`), a
   YouTube embed (`controls=0`, driven over its postMessage API: the `listening` handshake, then
@@ -1391,8 +1403,9 @@ game lessons changed, apart from two shared fixes listed at the end.
 - **Completion card**: the existing `LessonCompleteSheet` (teal check medallion, "Lesson done!",
   the `+N XP` count-up, confetti). It now has ONE button: "Continue to next lesson" when the next
   lesson is open, else "Back to roadmap" (the secondary link is gone for every lesson type).
-- **Revisiting a completed lesson** opens in replay: the Done badge and Play again (no XP pill, no
-  time bar), no clock, no XP, no celebration, however much of the video is played.
+- **Revisiting a completed lesson** opens in replay: the check badge instead of the XP pill (no time
+  bar), no clock, no XP, no celebration, however much of the video is played, including after the
+  replay button.
 - **Back** returns to Home at the node the child left from: the player records its lesson
   (`lib/roadmapReturn.ts`) and the roadmap, on its next mount, scrolls that node to the middle
   through the same code path as the locked-lesson redirect (`focusLessonId`). If it is the next-up

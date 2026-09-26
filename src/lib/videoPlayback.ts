@@ -38,6 +38,11 @@ export interface PlaybackControls {
   seek: (seconds: number) => void
   setVolume: (volume: number) => void
   setMuted: (muted: boolean) => void
+  /**
+   * Hand the video to the OS's own player (iOS Safari's `webkitEnterFullscreen`), which rotates
+   * on its own. Only a native file has it; an embed's video is in another origin's frame.
+   */
+  nativeFullscreen?: () => void
 }
 
 export interface EngineProps {

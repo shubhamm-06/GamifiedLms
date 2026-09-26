@@ -119,7 +119,8 @@ The schema or docs anticipate each of these; no working code exists for any.
   active time, ends-then-completes, one-button completion card). Doc, quiz and game lessons still use
   the earlier flow (time only, plus their own quiz/game handling); they can take an `active` signal into
   `useLessonClock` and the single-button completion sheet as they are reworked. Vimeo playback was not
-  exercised end to end (see `ui.md`); YouTube and a file were.
+  exercised end to end (see `ui.md`); YouTube and a file were. Fullscreen landscape lock (Android) and the
+  iOS native fullscreen path have not been run on a real device.
 - **Gems and hearts/energy** in Home's stat bar. Streak and lifetime XP shipped there on
   2026-09-26; the other two are still deferred and have no placeholders.
 - **A real design for Badges and Profile.** Both shipped 2026-09-26 as minimal functional

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from 'lucide-react'
+import { Maximize, Minimize, Pause, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react'
 import { videoSource } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 import {
@@ -12,6 +12,25 @@ import {
 import { PlayerError } from './PlayerError'
 import { NativeEngine, VimeoEngine, YouTubeEngine } from './VideoEngines'
 
+type LockableOrientation = ScreenOrientation & { lock?: (o: string) => Promise<void> }
+
+/** Landscape in, released out. Throws are swallowed: an unsupported browser or a page not yet fullscreen. */
+async function orientate(fullscreen: boolean): Promise<void> {
+  try {
+    const o = window.screen?.orientation as LockableOrientation | undefined
+    if (fullscreen) await o?.lock?.('landscape')
+    else o?.unlock?.()
+  } catch {
+    /* no orientation control here: playback is unaffected */
+  }
+}
+
+/** iPhone and iPad, including an iPad that reports itself as a Mac. */
+function isIOS(): boolean {
+  const ua = navigator.userAgent
+  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
 interface Props {
   url: string | null
   title: string
@@ -20,8 +39,6 @@ interface Props {
   onPlayingChange: (playing: boolean) => void
   /** The video played to its end (at least once). */
   onEnded: () => void
-  /** Bumped by the page's Play again: rewind to the start and play. */
-  replayToken?: number
 }
 
 /**
@@ -33,7 +50,7 @@ interface Props {
  * (the active-time clock only counts then) and whether it has reached its end
  * (completion needs both that and the minimum time; the server checks the time).
  */
-export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded, replayToken = 0 }: Props) {
+export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded }: Props) {
   const source = videoSource(url, import.meta.env.DEV)
   const [state, setState] = useState<PlaybackState>(INITIAL_PLAYBACK)
   const [attempt, setAttempt] = useState(0)
@@ -60,16 +77,20 @@ export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded, re
     if (state.ended) onEnded()
   }, [state.ended, onEnded])
 
+  // Fullscreen (the custom overlay path): landscape on the way in, released on the way out,
+  // driven by the event so Esc and the system back gesture are covered too. Best effort: the
+  // lock throws where the API is missing, and must never touch playback.
   useEffect(() => {
-    if (replayToken === 0) return
-    controls.current?.seek(0)
-    controls.current?.play()
-  }, [replayToken])
-
-  useEffect(() => {
-    const change = () => setFullscreen(document.fullscreenElement === frame.current)
+    const change = () => {
+      const on = document.fullscreenElement === frame.current
+      setFullscreen(on)
+      void orientate(on)
+    }
     document.addEventListener('fullscreenchange', change)
-    return () => document.removeEventListener('fullscreenchange', change)
+    return () => {
+      document.removeEventListener('fullscreenchange', change)
+      void orientate(false)
+    }
   }, [])
 
   if (!source) {
@@ -107,10 +128,18 @@ export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded, re
   const embed = source.kind === 'embed' ? parseEmbed(source.url) : null
   const engineProps = { url: source.url, title, onState, register }
   const copy = playerCopy.video.controls
-  const canFullscreen = typeof document !== 'undefined' && document.fullscreenEnabled === true
+  // iOS Safari cannot lock orientation for a custom player, so a file there goes to the OS's own
+  // player (`webkitEnterFullscreen`), which rotates by itself. An embed has no such path on iOS.
+  const nativeOnly = isIOS() && source.kind === 'file'
+  const canFullscreen = nativeOnly || document.fullscreenEnabled === true
   const togglePlay = () => (state.playing ? controls.current?.pause() : controls.current?.play())
+  const replay = () => {
+    controls.current?.seek(0)
+    controls.current?.play()
+  }
   const toggleFullscreen = () => {
-    if (document.fullscreenElement) void document.exitFullscreen()
+    if (nativeOnly) controls.current?.nativeFullscreen?.()
+    else if (document.fullscreenElement) void document.exitFullscreen()
     else void frame.current?.requestFullscreen()
   }
   const shownVolume = state.muted ? 0 : state.volume
@@ -137,8 +166,12 @@ export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded, re
         <button type="button" className="vp-btn kid-tap" onClick={togglePlay} aria-label={state.playing ? copy.pause : copy.play} data-testid="video-play">
           {state.playing ? <Pause className="size-6" fill="currentColor" strokeWidth={0} /> : <Play className="size-6" fill="currentColor" strokeWidth={0} />}
         </button>
+        <button type="button" className="vp-btn kid-tap" onClick={replay} aria-label={copy.replay} data-testid="video-replay">
+          <RotateCcw className="size-6" strokeWidth={2.5} />
+        </button>
         <span className="vp-time kid-num" data-testid="video-time">
-          {playbackClock(state.current)} / {playbackClock(state.duration)}
+          {playbackClock(state.current)}
+          <span className="vp-time-total"> / {playbackClock(state.duration)}</span>
         </span>
         <input
           type="range"

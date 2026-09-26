@@ -1,22 +1,22 @@
-import { Check, RotateCcw, Sparkles } from 'lucide-react'
+import { Check, Sparkles } from 'lucide-react'
 import { clockText } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 
 /**
- * What sits under a video lesson's player, top to bottom: the title, one slim
- * status row (the XP pill, the Done badge once finished, and a small Play again
- * for a finished lesson), the description as a normal paragraph and, while the
- * lesson can still be completed, a slim bar for the minimum active time. Plain
- * inline content: nothing floats or is positioned, so nothing can sit under the
- * top bar. The bar counts time the video was actually playing and is not the
- * scrubber. A finished lesson shows no XP pill and no bar: replaying earns nothing.
+ * What sits under a video lesson's player, top to bottom: the title with its
+ * status marker on the same line, the description as a normal paragraph and,
+ * while the lesson can still be completed, a slim bar for the minimum active
+ * time. The marker is either the XP pill (still to earn) or a small check badge
+ * (finished): a status, not a control, and never both. Plain inline content:
+ * nothing floats, so nothing can sit under the top bar. The bar counts time the
+ * video was actually playing and is not the scrubber. Replaying lives in the
+ * player's own controls.
  */
 export function VideoInfo({
   title,
   description,
   xp,
   done,
-  onReplay,
   seconds,
   minSeconds,
   timeMet,
@@ -26,38 +26,34 @@ export function VideoInfo({
   /** XP still to earn, or null for none (replay, gamification off, unknown). */
   xp: number | null
   done: boolean
-  onReplay: () => void
   seconds: number
   minSeconds: number
   timeMet: boolean
 }) {
   const shown = timeMet ? minSeconds : Math.min(seconds, minSeconds)
   const percent = minSeconds > 0 ? Math.round((shown / minSeconds) * 100) : 100
-  const showXp = xp !== null && xp > 0
+  // The marker is glued to the title's last word, so a title that fills the line wraps that word
+  // and the marker together instead of leaving the marker alone on the next line.
+  const words = title.trim().split(/\s+/)
+  const last = words.pop() ?? ''
+  const lead = words.length ? `${words.join(' ')} ` : ''
   return (
     <section className="lp-vinfo" data-testid="video-info">
-      <h1 className="lp-hero-title">{title}</h1>
-      {showXp || done ? (
-        <div className="lp-vinfo-status" data-testid="video-status">
-          {showXp ? (
+      <h1 className="lp-hero-title" data-testid="video-title-row">
+        {lead}
+        <span className="lp-vtitle-tail">
+          {last}
+          {done ? (
+            <span className="lp-done-mark" role="img" aria-label={playerCopy.page.done} data-testid="done-badge">
+              <Check className="size-4" strokeWidth={3.5} aria-hidden />
+            </span>
+          ) : xp !== null && xp > 0 ? (
             <span className="rm-chip" data-testid="video-xp">
               <Sparkles className="size-3.5" aria-hidden />+{xp} XP
             </span>
           ) : null}
-          {done ? (
-            <>
-              <span className="lp-done" data-testid="done-badge">
-                <Check className="size-5" strokeWidth={3.5} aria-hidden />
-                {playerCopy.page.done}
-              </span>
-              <button type="button" className="lp-replay kid-tap" onClick={onReplay} data-testid="replay-button">
-                <RotateCcw className="size-4" strokeWidth={2.75} aria-hidden />
-                {playerCopy.page.playAgain}
-              </button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
+        </span>
+      </h1>
       {description ? (
         <p className="lp-vdesc" data-testid="video-description">
           {description}

@@ -63,6 +63,7 @@ export const playerCopy = {
       group: 'Video controls',
       play: 'Play',
       pause: 'Pause',
+      replay: 'Replay from the start',
       seek: 'Seek',
       mute: 'Mute',
       unmute: 'Unmute',

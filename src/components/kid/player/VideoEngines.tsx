@@ -30,6 +30,7 @@ export function NativeEngine({ url, title, onState, register }: EngineProps) {
       setMuted: (m) => {
         v.muted = m
       },
+      nativeFullscreen: () => (v as HTMLVideoElement & { webkitEnterFullscreen?: () => void }).webkitEnterFullscreen?.(),
     })
     return () => register(null)
   }, [register])
