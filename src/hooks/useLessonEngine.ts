@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LessonEngineError,
   checkQuizAnswer,
+  completeGame,
   completeLesson,
   fetchCourseLessonStates,
   heartbeatLesson,
@@ -73,6 +74,18 @@ export function useCompleteLesson(courseId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation<Awaited<ReturnType<typeof completeLesson>>, LessonEngineError, string>({
     mutationFn: completeLesson,
+    retry: retryTransient,
+    onSuccess: () => {
+      if (courseId) queryClient.invalidateQueries({ queryKey: lessonEngineKeys.states(courseId) })
+    },
+  })
+}
+
+/** Not retried on a refusal; a transient failure is (a second call after success is a no-op with 0 XP). */
+export function useCompleteGame(courseId: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation<Awaited<ReturnType<typeof completeGame>>, LessonEngineError, { lessonId: string; score: number }>({
+    mutationFn: ({ lessonId, score }) => completeGame(lessonId, score),
     retry: retryTransient,
     onSuccess: () => {
       if (courseId) queryClient.invalidateQueries({ queryKey: lessonEngineKeys.states(courseId) })

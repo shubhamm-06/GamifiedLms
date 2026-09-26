@@ -21,7 +21,7 @@ import { VideoInfo } from '@/components/kid/player/VideoInfo'
 import { VideoLesson } from '@/components/kid/player/VideoLesson'
 import { NotEnrolledScreen } from '@/components/kid/roadmap/StateScreens'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
-import { useCompleteLesson, useCourseLessonStates } from '@/hooks/useLessonEngine'
+import { useCompleteGame, useCompleteLesson, useCourseLessonStates } from '@/hooks/useLessonEngine'
 import { useLessonClock } from '@/hooks/useLessonClock'
 import { useEnrollmentStatus, useLessonContent, type LoadedLesson } from '@/hooks/useLessonContent'
 import { useLessonBlocks } from '@/hooks/useLessonBlocks'
@@ -127,6 +127,7 @@ function PlayerLesson({
   const [refusal, setRefusal] = useState<LessonEngineErrorCode | null>(null)
   const [finishError, setFinishError] = useState<string | null>(null)
   const complete = useCompleteLesson(courseId)
+  const completeGame = useCompleteGame(courseId)
   const path = useModulePath(courseId, states, lesson.id)
 
   // A video lesson counts active time only while the video is really playing, and
@@ -141,7 +142,14 @@ function PlayerLesson({
   const blocksPending = isDoc && blocks.isPending
   const hasBlocks = isDoc && (blocks.data?.length ?? 0) > 0
   const isQuiz = lesson.type === 'quiz'
-  const singleColumn = isVideo || hasBlocks || isQuiz
+  const isGame = lesson.type === 'game'
+  const singleColumn = isVideo || hasBlocks || isQuiz || isGame
+  // A game lesson completes through the game: its first valid completion message (the score) is
+  // held here, sent to the server once the minimum time is met, and the server decides the XP.
+  const [gameScore, setGameScore] = useState<number | null>(null)
+  const [replayAck, setReplayAck] = useState<string | null>(null)
+  const ackTimer = useRef<number | undefined>(undefined)
+  useEffect(() => () => window.clearTimeout(ackTimer.current), [])
   const videoPlayable = isVideo && videoIsPlayable(lesson.videoUrl)
   const [videoPlaying, setVideoPlaying] = useState(false)
   const [videoEnded, setVideoEnded] = useState(false)
@@ -163,7 +171,7 @@ function PlayerLesson({
   // shows its error straight away instead of offering a Play that leads nowhere.
   const playable =
     lesson.type === 'video' ? videoIsPlayable(lesson.videoUrl) : lesson.type === 'game' ? gameIsPlayable(game) : false
-  const needsPlay = playable && !played && !isVideo
+  const needsPlay = playable && !played && !isVideo && lesson.type !== 'game'
 
   function celebrate(xp: number, already: boolean) {
     setXpAwarded(xp)
@@ -176,9 +184,22 @@ function PlayerLesson({
     if (REFUSALS.has(code)) setRefusal(code)
   }
 
+  function onGameComplete(score: number) {
+    if (shownMode === 'play') {
+      setGameScore((prev) => prev ?? score)
+      return
+    }
+    // A finished lesson replayed for fun: nothing to send, nothing to award.
+    setReplayAck(playerCopy.game.replayAck)
+    window.clearTimeout(ackTimer.current)
+    ackTimer.current = window.setTimeout(() => setReplayAck(null), 5000)
+  }
+
   async function finish() {
     try {
-      const r = await complete.mutateAsync(lesson.id)
+      const r = isGame
+        ? await completeGame.mutateAsync({ lessonId: lesson.id, score: gameScore ?? 0 })
+        : await complete.mutateAsync(lesson.id)
       setFinishError(null)
       celebrate(r.xpAwarded, r.alreadyCompleted)
     } catch (e) {
@@ -195,11 +216,20 @@ function PlayerLesson({
   // Quizzes keep their own flow. One automatic attempt per open; a failure shows
   // a Try again button, so a refused call is never retried in a loop.
   const autoTried = useRef(false)
+  const gameReady = isGame && shownMode === 'play' && !fatal && gameScore !== null && clock.timeMet
+  useEffect(() => {
+    if (!gameReady || autoTried.current) return
+    autoTried.current = true
+    void finish()
+    // Once per visit, like the other lesson types; `finish` is re-created every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameReady])
   const readyToFinish =
     shownMode === 'play' &&
     !fatal &&
     !blocksPending &&
     lesson.type !== 'quiz' &&
+    !isGame &&
     clock.timeMet &&
     (videoPlayable ? videoEnded : played || !playable)
   useEffect(() => {
@@ -251,7 +281,7 @@ function PlayerLesson({
       )
       break
     case 'game':
-      media = <GameLesson game={game} courseId={courseId} />
+      media = <GameLesson game={game} courseId={courseId} onComplete={onGameComplete} ack={replayAck} />
       break
     case 'quiz':
       media = (
@@ -324,7 +354,7 @@ function PlayerLesson({
         mode={shownMode}
         pause={clock.pause}
         bar={bar}
-        variant={isVideo ? 'video' : hasBlocks ? 'doc' : isQuiz ? 'quiz' : undefined}
+        variant={isVideo ? 'video' : hasBlocks ? 'doc' : isQuiz ? 'quiz' : isGame ? 'game' : undefined}
         info={
           hasBlocks ? (
             <DocInfo
@@ -348,7 +378,7 @@ function PlayerLesson({
           ) : undefined
         }
       >
-        {isVideo || hasBlocks || isQuiz ? (
+        {isVideo || hasBlocks || isQuiz || isGame ? (
           media
         ) : (
           <ActivityCard lesson={lesson} done={lessonDone} needsPlay={needsPlay} onPlay={() => setPlayed(true)}>

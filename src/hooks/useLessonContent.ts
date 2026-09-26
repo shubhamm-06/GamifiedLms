@@ -63,7 +63,7 @@ async function fetchLesson(lessonId: string): Promise<LoadedLesson | null> {
   if (lesson.type === 'game' && row.game_id) {
     const g = await supabase
       .from('games')
-      .select('id, title, bundle_url, orientation')
+      .select('id, title, bundle_url, bundle_version, orientation')
       .eq('id', row.game_id)
       .maybeSingle()
     if (g.error) throw toEngineError(g.error)
@@ -73,6 +73,7 @@ async function fetchLesson(lessonId: string): Promise<LoadedLesson | null> {
         id: g.data.id,
         title: g.data.title,
         bundleUrl: g.data.bundle_url,
+        bundleVersion: g.data.bundle_version,
         orientation: o === 'portrait' || o === 'landscape' ? o : 'any',
       }
     }

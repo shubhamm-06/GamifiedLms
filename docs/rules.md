@@ -331,6 +331,11 @@ belongs in `context.md` or `state.md`, not here.
   repeated `fn_complete_lesson` returns success with 0 XP, and
   `uq_xp_transactions_dedupe` backs it. The effective-XP hint in the lesson dialog
   is display-only: the amount awarded is decided by `fn_award_lesson_xp`.
+  **A game lesson is the exception in amount, not in rule:** its XP is
+  `least(floor(score), games.max_xp)`, decided only inside `fn_complete_game`; a score a
+  game page reports is never credited as it arrives and never above the stored cap, and the
+  lesson-XP trigger and `fn_complete_lesson` must never also pay a game lesson that has a
+  live game (migration 025).
 - **Lesson content that can run code is only ever shown in a sandboxed frame.**
   A game (`games.bundle_url`) loads in an iframe with `sandbox="allow-scripts"` and
   nothing else, never `allow-same-origin` (scripts plus same-origin would let admin-

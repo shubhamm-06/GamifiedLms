@@ -506,7 +506,8 @@ a tablet. **Game**: a "Play" start card is shown first, so the iframe is not
 even created (and cannot grab audio or focus) until tapped; still treated as
 time-based (no protocol exists for a game to report anything) and
 `sandbox="allow-scripts"` only; a 10s load timeout shows the error pattern; the
-rotate hint still never locks the orientation.
+rotate hint still never locks the orientation. **Superseded on 2026-09-26** by the
+game lesson host below (no start card, completion by message, native orientation lock).
 
 ### The error/empty pattern (`PlayerError`, spec Part A7)
 
@@ -1340,6 +1341,63 @@ course name never appears. Same content at every size.
 5. **Finish action**: once the lesson is completed, one sticky gold button,
    "Next: <title>" (the next lesson in this module) or "Back to roadmap" after the module's
    last. Otherwise no bottom button.
+
+### Game lessons (2026-09-26)
+
+A game lesson hosts a page the admin registered in `games` (`bundle_url`); there is no content to build.
+`LessonPlayerShell` variant `game`: the game fills the screen below the top bar (`.lp-game-bleed`, edge to
+edge, cancelling the page gutter and bottom padding), the top bar carries Back and nothing else (no title),
+there is no hero, module list, Next bar or bottom nav. The old "Play" start card is gone (the game loads on
+entry). `GameLesson` is the host.
+
+- **Loading and failure.** A `role="status"` overlay ("Getting your game ready.", a teal-d spinner on cream)
+  covers the frame until it fires `load`; a frame that has not loaded within 10 s becomes the shared
+  `PlayerError` with Try again (the same pattern and tone as the video failure), and a lesson whose game or
+  URL is unusable shows "This game isn't ready". Known limit (unchanged): a cross-origin frame fires `load`
+  for an error page too, so a URL that answers with a broken page cannot be told from a game.
+- **The frame.** A live load is `src` with `sandbox="allow-scripts allow-same-origin"` (safe: the game is on
+  another origin, so it still cannot reach this app, and it keeps its own storage); a stored or freshly
+  fetched entry page is `srcdoc` with `sandbox="allow-scripts"` only (no same-origin, or a `srcdoc` frame
+  would share this app's origin) and a `<base>` for the game's folder so its relative links still load. No
+  referrer; `allow="autoplay"` only.
+- **Best-effort entry-page cache** (`lib/gameCache.ts`, Capacitor Filesystem: real files on iOS and Android,
+  IndexedDB in a browser). The first successful `fetch` of `bundle_url` stores the entry document and a small
+  meta file (`bundle_version`, `bundle_url`); later visits show the stored copy unless the version or URL
+  changed, in which case it is fetched again and replaced. **This caches the entry document only. It is not
+  offline support**, and no user-facing copy claims it: whatever the page pulls in (scripts, images, audio)
+  still comes from the game's host through that host's own cache headers and the WebView's HTTP cache, and a
+  cross-origin frame's subresources cannot be intercepted or kept by this app. Any failure (the host sends no
+  CORS headers to a browser, offline, storage full) falls back to loading straight from the URL; on a native
+  shell `CapacitorHttp` is enabled in `capacitor.config.json` so the fetch does not depend on CORS.
+- **Orientation.** For `orientation` of `portrait` or `landscape` (not `any`) the device is locked while the
+  game is mounted and unlocked on exit, through `@capacitor/screen-orientation` (`lib/gameOrientation.ts`),
+  never throwing. In a plain browser the plugin falls back to the web Screen Orientation API, and the old
+  "turn your phone" hint shows only when not native.
+- **Completion contract (for whoever builds or uploads a game bundle).** The game reports that the child
+  finished with one message to its parent:
+
+  ```js
+  window.parent.postMessage({ type: 'game:complete', score: 12 }, '*')
+  ```
+
+  `score` must be a finite number, zero or more, and is the XP the game thinks was earned: the server floors
+  it and clamps it to the game's `max_xp` (`games.max_xp`, set by the admin), so a game can never award more
+  than that, and a huge number is simply capped. A message with another `type`, a missing, non-number,
+  non-finite or negative `score`, or that comes from any window but this game's own frame is ignored. The app
+  never credits XP from the message: it holds the first valid score, waits for the lesson's minimum time, and
+  sends it to `fn_complete_game` (`schema.md`). The game may send the message every time it is finished; only
+  the first, on an incomplete lesson, awards XP, and the game itself can be replayed freely. A game should not
+  rely on its own origin's storage when the entry page is served from the stored copy (opaque origin).
+- **Only this game can speak.** A `message` counts only if `event.source` is this frame's own window AND its
+  origin equals the origin of `bundle_url`; a message from the app window, another frame or a popup never
+  matches. The one variant: when the entry page comes from a stored or fetched copy (opaque-origin `srcdoc`),
+  the origin is the string `null`, and the frame-window check alone identifies the sender.
+- **Celebration and replay.** A first completion opens the shared gold completion sheet (`+N XP`, one
+  "Continue to next lesson", exactly as video, doc and quiz); XP is the server's clamped score, once. A
+  finished lesson replayed (its message arrives while the lesson is completed) shows a small pill over the
+  game ("Nice replay! No XP this time.", 5 s) and calls nothing.
+- **Verified** in Chromium against the live project with real JWTs and a local test game: see `changelog.md`.
+  The native plugins were exercised only through their browser fallbacks (see `state.md`).
 
 ### Doc lessons with content blocks (2026-09-26)
 

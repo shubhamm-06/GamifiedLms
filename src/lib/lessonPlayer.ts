@@ -30,6 +30,8 @@ export interface GameInfo {
   id: string
   title: string
   bundleUrl: string
+  /** `games.bundle_version`: the key the stored copy of the entry page is valid for. */
+  bundleVersion: string
   orientation: 'portrait' | 'landscape' | 'any'
 }
 

@@ -25,7 +25,7 @@ interface Props {
    * content blocks. `quiz`: just the question flow (its own progress bar, no hero, no module
    * list; the top bar keeps the quiz title and Back). Absent: the default layout.
    */
-  variant?: 'video' | 'doc' | 'quiz'
+  variant?: 'video' | 'doc' | 'quiz' | 'game'
   /** The Next / Back to roadmap bar, only once the lesson is completed. */
   bar?: ReactNode
 }
@@ -46,6 +46,7 @@ interface Props {
 export function LessonPlayerShell({ lesson, courseId, path, mode, pause, children, info, variant, bar }: Props) {
   const isVideo = variant === 'video'
   const single = variant !== undefined
+  // A game is immersive: the top bar carries Back and nothing else (no title).
   const titled = variant === 'quiz' || !single
   useKidHeader(titled ? lesson.title : '', single && !titled ? '/' : `/courses/${courseId}`)
 
@@ -60,6 +61,8 @@ export function LessonPlayerShell({ lesson, courseId, path, mode, pause, childre
               <div className="lp-video-bleed">{children}</div>
               {info}
             </>
+          ) : variant === 'game' ? (
+            <div className="lp-game-bleed">{children}</div>
           ) : variant === 'doc' || variant === 'quiz' ? (
             <>
               {info}

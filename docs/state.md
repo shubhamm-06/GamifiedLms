@@ -92,7 +92,7 @@ nav entry is a real route):
   (`lib/lessonEngine.ts`, `hooks/useLessonEngine.ts`) are now exercised through
   the course roadmap, both directly (real JWTs against the REST API) and via
   the real UI (Chromium) — see the changelog.
-- Schema through migration 024 (`schema.md`; 020 is written but deliberately
+- Schema through migration 025 (`schema.md`; 020 is written but deliberately
   unapplied, see below), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
@@ -151,12 +151,21 @@ The schema or docs anticipate each of these; no working code exists for any.
   `https://example.com/...` URLs, so a game lesson shows a blank frame; a
   cross-origin frame fires `load` even for a page that is not a game, so the
   player cannot detect it. Replace the URLs with real bundles.
-- **A game protocol.** The player loads a game's `bundle_url` in a sandboxed
-  frame and completes it on the timer. Nothing reads `games.bundle_size_bytes`,
-  `games.checksum` or `games.max_xp`, no message contract lets a game report a
-  score, and both games in the live database have placeholder `example.com` bundle
-  URLs, so no real game has been loaded. A game that needs storage or network
-  identity will not work inside `sandbox="allow-scripts"`.
+- **Game hosting, partly verified.** Built 2026-09-26 (`ui.md`, migration 025): a full-bleed host,
+  the `game:complete` postMessage contract, server-clamped score XP (`fn_complete_game`), a best-effort
+  entry-page cache and a native orientation lock. Verified in Chromium with a local game; **not run on a
+  device or in the Capacitor shell**: `@capacitor/screen-orientation` and `@capacitor/filesystem` (newly
+  installed) were only seen through their browser fallbacks (the web Screen Orientation API and
+  IndexedDB), and `CapacitorHttp` (enabled in `capacitor.config.json` so the entry fetch ignores CORS) has
+  never run. The cache holds the entry page only, not the game's other files. Still unread: `bundle_size_bytes`
+  and `checksum`. **Two consequences to know:** (1) both games in the live database have placeholder
+  `example.com` URLs that never send `game:complete`, so their three lessons (Number Pop, Balloon Addition,
+  Shape Match) can no longer be completed by waiting out the timer (`fn_complete_lesson` refuses a game
+  lesson with a live game), which blocks the rest of the demo course for a student until real bundles
+  replace them; (2) a game lesson's XP is now the reported score capped at `max_xp`, not the lesson's XP,
+  so the "+N XP" the roadmap shows for a game lesson (the lesson effective XP) can differ from what is
+  awarded. Both are product calls if you want them changed. A game that needs its origin's storage will not
+  have it when served from the stored copy (opaque origin, `ui.md`).
 - **File uploads.** No Storage bucket exists (`storage.buckets` is empty), so
   `courses.thumbnail_url` and a lesson's `video_url` are paste-a-URL fields.
 - **Native builds, hosting, CI.** Capacitor is installed but `npx cap add

@@ -25,6 +25,7 @@ export type LessonEngineErrorCode =
   | 'quiz_not_passed' // a quiz lesson has no passed attempt yet
   | 'lesson_unavailable' // missing, trashed, unpublished, in a draft/trashed course, wrong type, or no questions
   | 'invalid_answers' // quiz answers don't match the lesson's questions/options
+  | 'invalid_score' // a game's reported score is not a number, is NaN or is negative
   | 'internal_error'
   | 'network' // client-side: the request never got an answer
   | 'unknown' // anything else (e.g. an expired session)
@@ -36,6 +37,7 @@ const SERVER_CODES: ReadonlySet<string> = new Set<LessonEngineErrorCode>([
   'quiz_not_passed',
   'lesson_unavailable',
   'invalid_answers',
+  'invalid_score',
   'internal_error',
 ])
 
@@ -76,6 +78,8 @@ export function describeEngineError(code: LessonEngineErrorCode): string {
       return "This lesson isn't available."
     case 'invalid_answers':
       return "Those answers don't match this quiz."
+    case 'invalid_score':
+      return "That game's score didn't look right. Please play again."
     case 'network':
       return "Couldn't reach the server. Check your connection and try again."
     case 'internal_error':
@@ -165,6 +169,24 @@ export interface LessonCompletion {
 /** Safe to retry: a second call after success returns `alreadyCompleted` with 0 XP. */
 export async function completeLesson(lessonId: string): Promise<LessonCompletion> {
   const { data, error } = await supabase.rpc('fn_complete_lesson', { p_lesson_id: lessonId })
+  if (error) throw toEngineError(error)
+  const r = firstRow(data)
+  return {
+    completed: true,
+    alreadyCompleted: r.already_completed,
+    completedAt: r.completed_at ?? null,
+    xpAwarded: r.xp_awarded,
+  }
+}
+
+/**
+ * `fn_complete_game` (migration 025): completes a game lesson from the score the
+ * game reported. The server floors the score and clamps it to the game's `max_xp`,
+ * awards that as the lesson's XP once, and returns 0 for a lesson already completed.
+ * Nothing the game said is trusted beyond "it was a non-negative number".
+ */
+export async function completeGame(lessonId: string, score: number): Promise<LessonCompletion> {
+  const { data, error } = await supabase.rpc('fn_complete_game', { p_lesson_id: lessonId, p_score: score })
   if (error) throw toEngineError(error)
   const r = firstRow(data)
   return {

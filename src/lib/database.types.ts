@@ -1171,6 +1171,15 @@ export type Database = {
         Args: { p_lesson_id: string; p_option_id: string; p_question_id: string }
         Returns: { correct: boolean; correct_option: string }[]
       }
+      fn_complete_game: {
+        Args: { p_lesson_id: string; p_score: number }
+        Returns: {
+          already_completed: boolean
+          completed: boolean
+          completed_at: string
+          xp_awarded: number
+        }[]
+      }
       fn_complete_lesson: {
         Args: { p_lesson_id: string }
         Returns: {

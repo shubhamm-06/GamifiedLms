@@ -89,6 +89,8 @@ export const playerCopy = {
     },
   },
   game: {
+    loading: 'Getting your game ready.',
+    replayAck: 'Nice replay! No XP this time.',
     playHint: 'Tap play to start the game.',
     unavailable: {
       heading: "This game isn't ready",
