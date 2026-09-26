@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+doc
+docs
 
 # Env files — real credentials never get committed, .env.example is the
 # only tracked template. doc/.env is a personal-reference copy, not a
