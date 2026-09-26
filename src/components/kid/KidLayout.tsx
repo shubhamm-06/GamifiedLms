@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Outlet, useRouter } from '@tanstack/react-router'
+import { Outlet, useRouter, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { KidHeaderContext } from './kidHeader'
 
@@ -12,6 +12,8 @@ import { KidHeaderContext } from './kidHeader'
  */
 export function KidLayout({ children }: { children?: ReactNode }) {
   const router = useRouter()
+  // Home has nowhere to go back to (the arrow would only leave the app).
+  const onHome = useRouterState({ select: (st) => st.location.pathname === '/' })
   const [title, setTitle] = useState('')
   const [fallbackPath, setFallbackPath] = useState('/')
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null)
@@ -32,9 +34,13 @@ export function KidLayout({ children }: { children?: ReactNode }) {
       <div className="kid-app">
         <header className="kid-topbar">
           <div className="kid-topbar-row">
-            <button type="button" className="kid-back kid-tap" onClick={goBack} aria-label="Back">
-              <ArrowLeft className="size-6" aria-hidden />
-            </button>
+            {onHome ? (
+              <span className="kid-back-spacer" aria-hidden="true" />
+            ) : (
+              <button type="button" className="kid-back kid-tap" onClick={goBack} aria-label="Back">
+                <ArrowLeft className="size-6" aria-hidden />
+              </button>
+            )}
             <p className="kid-topbar-title" data-testid="kid-title">
               {title}
             </p>

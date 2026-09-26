@@ -128,6 +128,9 @@
     color: var(--ink);
   }
 
+  /* Home has no Back: keep the title where it sits on the other screens. */
+  .kid-back-spacer { flex: none; width: 0.75rem; }
+
   .kid-back:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
 
   @media (hover: hover) {
@@ -251,16 +254,16 @@
     --rm-node: 4rem;
     --rm-node-active: 4.75rem;
     --rm-node-locked: 3.5rem;
-    --rm-amp: clamp(1rem, 12vw, 3.25rem);
+    --rm-amp: clamp(1rem, 16vw, 4.5rem);
     --rm-row-h: 10.75rem;
   }
 
-  /* The module banner is a heading, not a control: a soft neutral tint, a flat
-     bottom edge (no candy lip), no pressed or hover state, default cursor. That
-     is the difference from Continue, the only candy-pressable element. It
-     sticks under the top bar while this module's lessons scroll past; the
-     section is its containing block, so it lets go when the module ends. */
-  .rm-banner {
+  /* The slim module bar: a full-width sticky strip under the top bar that names
+     whichever module is in view (scroll-spy). Flat, not a control: no press or
+     hover state. Teal for a module a child can work in; a dimmer neutral (with a
+     lock icon in the markup) when every lesson in it is locked. Gold stays with
+     the next-up node and Continue. Ink on --teal is 4.5:1, used at 18px bold. */
+  .rm-modbar {
     position: sticky;
     top: calc(var(--kid-topbar-h) + env(safe-area-inset-top));
     z-index: 20;
@@ -268,58 +271,94 @@
     align-items: center;
     gap: 0.75rem;
     min-height: 2.75rem;
-    padding: 0.5rem 1rem;
-    border-radius: 14px;
-    background: color-mix(in srgb, var(--ink) 8%, var(--cream));
+    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
+    padding: 0.5rem max(1rem, env(safe-area-inset-right)) 0.5rem max(1rem, env(safe-area-inset-left));
+    background: var(--teal);
     color: var(--ink);
-    box-shadow: none;
+    box-shadow: 0 3px 0 var(--teal-d);
     cursor: default;
   }
 
-  .rm-banner[data-locked='true'] {
+  .rm-modbar[data-locked='true'] {
     background: var(--kid-muted);
+    color: var(--kid-muted-fg);
+    box-shadow: 0 3px 0 var(--kid-muted-d);
   }
 
-  .rm-banner-title {
+  .rm-modbar-title {
     flex: 1;
     min-width: 0;
-    font-size: 1.0625rem;
+    margin: 0;
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
     font-weight: 800;
-    line-height: 1.2;
     overflow-wrap: anywhere;
   }
 
-  /* One dot per lesson: solid = done, ring = the current one, faint = still to
-     come. Decorative; the text equivalent ("2 of 4 lessons done") is visually
-     hidden text beside it. */
-  .rm-dots {
-    display: flex;
-    flex: none;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 4px;
-    max-width: 45%;
-  }
-
-  .rm-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--ink) 18%, transparent);
-  }
-
-  .rm-dot[data-s='done'] { background: var(--ink); }
-
-  .rm-dot[data-s='current'] {
-    background: transparent;
-    box-shadow: inset 0 0 0 2.5px var(--ink);
+  @media (min-width: 768px) {
+    .rm-modbar { margin-inline: 0; border-radius: 14px; }
   }
 
   .rm-path {
     position: relative;
-    margin-top: 1.25rem;
+    margin-top: 0.5rem;
     margin-bottom: 1.5rem;
   }
+
+  /* Decorative background: soft procedural shapes from the colour tokens, one per
+     row, on the side opposite the node. Behind the connector and the nodes. */
+  .rm-decor {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .rm-decor-item {
+    position: absolute;
+    top: calc(var(--rm-row-h) * var(--i) + var(--rm-row-h) * 0.2);
+    display: block;
+    width: calc(3rem + var(--v) * 1rem);
+    height: calc(3rem + var(--v) * 1rem);
+  }
+
+  .rm-decor-item[data-side='left'] { left: 0.75rem; }
+  .rm-decor-item[data-side='right'] { right: 0.75rem; }
+
+  .rm-decor-blob {
+    width: calc(4rem + var(--v) * 1.5rem);
+    height: calc(3.5rem + var(--v) * 1rem);
+    border-radius: 58% 42% 55% 45% / 48% 56% 44% 52%;
+    background: color-mix(in srgb, var(--teal) 10%, transparent);
+  }
+
+  .rm-decor-item[data-side='right'].rm-decor-blob { border-radius: 42% 58% 45% 55% / 56% 48% 52% 44%; }
+
+  .rm-decor-dots {
+    width: 3.5rem;
+    height: 2rem;
+    background:
+      radial-gradient(circle, color-mix(in srgb, var(--plum) 24%, transparent) 0 0.25rem, transparent 0.3rem) 0 0 / 1.25rem 1rem;
+  }
+
+  .rm-decor-squiggle { width: 5rem; height: 1.5rem; }
+  .rm-decor-squiggle svg path {
+    fill: none;
+    stroke: color-mix(in srgb, var(--teal) 26%, transparent);
+    stroke-width: 3.5;
+    stroke-linecap: round;
+  }
+
+  .rm-decor-ring {
+    width: calc(2.5rem + var(--v) * 0.75rem);
+    height: calc(2.5rem + var(--v) * 0.75rem);
+    border-radius: 999px;
+    border: 5px solid color-mix(in srgb, var(--plum) 16%, transparent);
+  }
+
+  .rm-decor-sparkle { width: 2rem; height: 2rem; }
+  .rm-decor-sparkle svg path { fill: color-mix(in srgb, var(--coral) 22%, transparent); }
 
   /* The winding connector: an SVG sized to the path box and drawn from the
      measured node centres (RoadmapConnector), so it follows the nodes at any
@@ -427,9 +466,9 @@
   /* Locked: smaller and softer than everything else, still readable. */
   .rm-node[data-state='locked'] {
     --size: var(--rm-node-locked);
-    background: color-mix(in srgb, var(--ink) 8%, var(--cream));
+    background: color-mix(in srgb, var(--ink) 20%, var(--cream));
     color: var(--kid-muted-fg);
-    box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 14%, var(--cream));
+    box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 30%, var(--cream));
   }
 
   .rm-node[data-state='locked']:active {

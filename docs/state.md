@@ -17,6 +17,7 @@ nav entry is a real route):
 
 **Student app** (routes and access rules: `routes-permissions.md`; visuals:
 `ui.md`):
+- `/` — the kid Home: the roadmap of the most recently used course (migration 022; `fn_home_course`, `fn_touch_enrollment`), with a "No courses yet" state. The roadmap is one continuous winding path with a sticky scroll-spy module bar and a procedural background (`ui.md`).
 - `/courses/$courseId` — the course roadmap: modules and lessons as a
   learning path with lock state (from `fn_course_lesson_states`), a progress
   bar, a sticky Continue bar, a tap sheet per lesson (a friendlier one for
@@ -110,9 +111,9 @@ nav entry is a real route):
 
 The schema or docs anticipate each of these; no working code exists for any.
 
-- **A home/dashboard screen for students.** `/` is still a scaffold landing
-  page and does not link to `/courses/$courseId` — the roadmap is reachable
-  only by typing or being sent its URL.
+- **A course switcher.** Home shows only the most recently used course; a student
+  enrolled in several has no in-app way to pick another except a deep link (and the
+  stat bar the brief deferred: streak, gems, hearts, energy).
 - **A bottom tab bar** for the student app. `--kid-bottom-inset` (kid.css) is
   reserved for it so adding one later needs no re-layout, but it doesn't exist.
 - **Native back-button handling and a Capacitor session audit** for the

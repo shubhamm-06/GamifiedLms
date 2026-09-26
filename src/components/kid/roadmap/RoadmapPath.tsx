@@ -1,51 +1,19 @@
-import { useRef } from 'react'
-import type { Roadmap, RoadmapSection } from '@/lib/roadmap'
+import { useMemo, useRef } from 'react'
+import type { Roadmap } from '@/lib/roadmap'
+import { useModuleSpy } from '@/hooks/useModuleSpy'
 import { useNodeCenters } from '@/hooks/useNodeCenters'
-import { ModuleBanner } from './ModuleBanner'
+import { ModuleBar } from './ModuleBar'
+import { PathDecor } from './PathDecor'
 import { RoadmapConnector } from './RoadmapConnector'
 import { RoadmapNode } from './RoadmapNode'
 
-/** How many lessons at the front of the section are completed (they always form a prefix). */
-function leadingCompleted(section: RoadmapSection): number {
-  let n = 0
-  for (const l of section.lessons) {
-    if (l.state !== 'completed') break
-    n += 1
-  }
-  return n
-}
-
-function SectionPath({
-  section,
-  currentLessonId,
-  onOpenLesson,
-}: {
-  section: RoadmapSection
-  currentLessonId: string | null
-  onOpenLesson: (lessonId: string) => void
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const measure = useNodeCenters(ref, section.lessons.map((l) => l.id).join(','))
-  return (
-    <div className="rm-path" ref={ref}>
-      <RoadmapConnector measure={measure} completedCount={leadingCompleted(section)} />
-      {section.lessons.map((lesson, i) => (
-        <RoadmapNode
-          key={lesson.id}
-          lesson={lesson}
-          index={i}
-          isCurrent={lesson.id === currentLessonId}
-          onOpen={onOpenLesson}
-        />
-      ))}
-    </div>
-  )
-}
-
 /**
- * The learning path: one section per module (banner + winding path of nodes),
- * then "More to explore" for ungrouped lessons. Order is the states function's,
- * untouched.
+ * The learning path: ONE continuous winding road through every lesson in the
+ * states function's order, with no per-module boxes. Module boundaries are
+ * invisible on the road itself; the slim sticky `ModuleBar` names whichever
+ * module is in view (scroll-spy over each row's module key). The connector is
+ * one SVG through all node centres, teal up to the next-up node, and the decor
+ * layer sits behind it.
  */
 export function RoadmapPath({
   roadmap,
@@ -54,14 +22,41 @@ export function RoadmapPath({
   roadmap: Roadmap
   onOpenLesson: (lessonId: string) => void
 }) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const pathRef = useRef<HTMLDivElement>(null)
+  const rows = useMemo(
+    () => roadmap.sections.flatMap((s) => s.lessons.map((lesson) => ({ lesson, section: s }))),
+    [roadmap],
+  )
+  const idKey = rows.map((r) => r.lesson.id).join(',')
+  const measure = useNodeCenters(pathRef, idKey)
+  const activeKey = useModuleSpy(rootRef, roadmap.sections[0]?.key ?? '', idKey)
+  const active = roadmap.sections.find((s) => s.key === activeKey) ?? roadmap.sections[0]
+
+  // Completed lessons always form a prefix of the course order.
+  let completed = 0
+  for (const { lesson } of rows) {
+    if (lesson.state !== 'completed') break
+    completed += 1
+  }
+
   return (
-    <div className="rm" data-testid="roadmap">
-      {roadmap.sections.map((section) => (
-        <section key={section.key} className="mb-2" data-testid="roadmap-section">
-          <ModuleBanner section={section} currentLessonId={roadmap.currentLessonId} />
-          <SectionPath section={section} currentLessonId={roadmap.currentLessonId} onOpenLesson={onOpenLesson} />
-        </section>
-      ))}
+    <div className="rm" data-testid="roadmap" ref={rootRef}>
+      {active ? <ModuleBar section={active} /> : null}
+      <div className="rm-path" ref={pathRef}>
+        <PathDecor rows={rows.length} />
+        <RoadmapConnector measure={measure} completedCount={completed} />
+        {rows.map(({ lesson, section }, i) => (
+          <RoadmapNode
+            key={lesson.id}
+            lesson={lesson}
+            index={i}
+            moduleKey={section.key}
+            isCurrent={lesson.id === roadmap.currentLessonId}
+            onOpen={onOpenLesson}
+          />
+        ))}
+      </div>
     </div>
   )
 }

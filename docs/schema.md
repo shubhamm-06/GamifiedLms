@@ -182,6 +182,13 @@ be computed at insert time** from `courses.access_duration_days`, never read
 live, so a later course-duration change doesn't retroactively affect existing
 learners; this is a calling-convention rule, not schema-enforced).
 
+**`last_accessed_at timestamptz` (nullable, migration 022)** is when the student last opened
+the course on the kid app; NULL means never opened and is not backfilled. It is written only by
+`fn_touch_enrollment` and read only through `fn_home_course` (see `routes-permissions.md`),
+which ranks by `COALESCE(last_accessed_at, enrolled_at)` so a course never opened yet ranks by
+when access began. Updating it changes no `status`, so `courses.total_students` does not move
+(verified: unchanged after a touch).
+
 **One ACTIVE enrollment per (user, course); history is unconstrained**
 (migration 021). The original `uq_enrollments_user_course` was a plain
 `UNIQUE (user_id, course_id)`, which made a (user, course) pair a single row
@@ -938,6 +945,7 @@ table.
 | 017 | `20260920183703_017_lesson_engine.sql` | 2026-09-20 18:37:03 | The lesson engine: `lesson_progress.active_seconds`/`first_opened_at`/`last_heartbeat_at`; student write policies on `lesson_progress` dropped and write privileges revoked on `lesson_progress` and `quiz_attempts`; `fn_lesson_heartbeat`, `fn_complete_lesson`, `fn_submit_quiz`, `fn_course_lesson_states` plus internal helpers; `quiz_questions_public` recreated without `explanation`; `lesson_effective_xp` gated. **Its two view definitions were broken for every signed-in user** (permission denied for the helper functions) — fixed by 018 |
 | 018 | `20260920184704_018_engine_view_helpers.sql` | 2026-09-20 18:47:04 | `fn_caller_enrolled` / `fn_caller_lesson_unlocked` (caller-only, executable by `authenticated`) and re-created `quiz_questions_public` / `lesson_effective_xp` on top of them |
 | 019 | `20260920185147_019_lock_evaluate_badges.sql` | 2026-09-20 18:51:47 | `EXECUTE` on `fn_evaluate_badges(uuid)` revoked from `public`/`anon`/`authenticated` |
+| 022 | `20260926000000_022_home_course_last_accessed.sql` | 2026-09-26 | `enrollments.last_accessed_at` (nullable); `fn_touch_enrollment(uuid)` and `fn_home_course()` (both `SECURITY DEFINER`, `search_path = ''`, `authenticated` only) |
 | 021 | `20260924000000_021_admin_enrollment_restore_and_reset.sql` | 2026-09-24 | `uq_enrollments_user_course` replaced by the partial `uq_enrollments_user_course_active` (`WHERE status = 'active'`); `fn_admin_course_progress_summary` and `fn_admin_reset_course_progress` added (both admin-gated inside the body). 020 is still unapplied and unrelated — see `state.md` |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations

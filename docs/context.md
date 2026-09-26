@@ -90,7 +90,7 @@ src/
                folder holds the CSV import dialog), courses/,
                games/, orders/, settings/, gamification/; plus selection/
                (the shared multi-select kit) and trash/ (Trash page table + dialogs)
-  pages/       route-level components: HomePage, LoginPage, SignupPage,
+  pages/       route-level components: KidHomePage (`/`, the kid Home), LoginPage, SignupPage,
                CoursePage (the kid-facing course roadmap), LessonPlayerPage
                (the kid-facing lesson player);
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,

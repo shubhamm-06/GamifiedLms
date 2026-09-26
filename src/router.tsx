@@ -14,7 +14,7 @@ import { requireStudentSession } from '@/lib/studentSession'
 import { CoursePage } from '@/pages/CoursePage'
 import { LessonPlayerPage } from '@/pages/LessonPlayerPage'
 import { LessonPlayerGallery } from '@/pages/dev/LessonPlayerGallery'
-import { HomePage } from '@/pages/HomePage'
+import { KidHomePage } from '@/pages/KidHomePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
 import type { CourseTab } from '@/components/admin/courses/CourseBuilder'
@@ -35,12 +35,6 @@ interface RouterContext {
 }
 
 const rootRoute = createRootRouteWithContext<RouterContext>()()
-
-const indexRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/',
-  component: HomePage,
-})
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -75,6 +69,17 @@ const studentRoute = createRoute({
   id: 'student',
   beforeLoad: ({ location }) => requireStudentSession(location.href),
   component: KidLayout,
+})
+
+/**
+ * `/` is the kid Home: the roadmap of the most recently used course. It lives
+ * under the student layout, so a signed-out visitor is sent to /login and
+ * brought back here (the old scaffold page that used to sit here is gone).
+ */
+const indexRoute = createRoute({
+  getParentRoute: () => studentRoute,
+  path: '/',
+  component: KidHomePage,
 })
 
 const courseRoute = createRoute({
@@ -249,11 +254,10 @@ const adminCourseEditRoute = createRoute({
 })
 
 const routeTree = rootRoute.addChildren([
-  indexRoute,
   loginRoute,
   signupRoute,
   ...devRoutes,
-  studentRoute.addChildren([courseRoute, lessonRoute]),
+  studentRoute.addChildren([indexRoute, courseRoute, lessonRoute]),
   adminRoute.addChildren([
     adminIndexRoute,
     adminUsersRoute,

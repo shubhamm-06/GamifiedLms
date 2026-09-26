@@ -377,6 +377,11 @@ belongs in `context.md` or `state.md`, not here.
   already paid for. `deriveRestoreExpiry` (`useUserDetail.ts`) is the only
   implementation, the admin can override its result before confirming, and a
   lifetime enrollment stays lifetime.
+- **`enrollments.last_accessed_at` is written only by `fn_touch_enrollment`, and Home's
+  course is chosen only by `fn_home_course`.** Students have no `UPDATE` on `enrollments`
+  and must not get one to make this convenient: a column-level grant would let a student
+  edit `status` or `expires_at`. Keep the two functions the only path, taking the user from
+  `auth.uid()` and never from a parameter.
 - **A view must not be writable by clients.** Supabase grants `ALL` on every new
   public table and view to `anon` and `authenticated`; an auto-updatable
   single-table view then lets a client write around the base table's RLS

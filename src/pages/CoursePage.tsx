@@ -14,19 +14,31 @@ import {
 } from '@/components/kid/roadmap/StateScreens'
 import { SummaryCard } from '@/components/kid/roadmap/SummaryCard'
 import { useCourseRoadmap } from '@/hooks/useCourseRoadmap'
+import { useTouchEnrollment } from '@/hooks/useHomeCourse'
 import { prefersReducedMotion } from '@/hooks/useMediaQuery'
 import type { Roadmap } from '@/lib/roadmap'
 
 /**
- * /courses/$courseId — the learning path. Reachable by URL only for now (there
- * is no home screen to link from). Everything shown comes from one content query
- * plus `fn_course_lesson_states`; nothing here decides what is locked.
+ * /courses/$courseId: the same roadmap as Home, kept as a deep link (the
+ * locked-lesson redirect and the player's Back land here). Home renders it too,
+ * for the most recently used course.
  */
 export function CoursePage() {
   const { courseId } = useParams({ strict: false }) as { courseId: string }
   const { open } = useSearch({ strict: false }) as { open?: string }
+  return <CourseRoadmapView courseId={courseId} openLessonId={open ?? null} />
+}
+
+/**
+ * The learning path for one course. Everything shown comes from one content
+ * query plus `fn_course_lesson_states`; nothing here decides what is locked.
+ * Opening it for an enrolled student stamps `enrollments.last_accessed_at`
+ * (what Home uses to pick the course), once per open.
+ */
+export function CourseRoadmapView({ courseId, openLessonId }: { courseId: string; openLessonId: string | null }) {
   const screen = useCourseRoadmap(courseId)
   useKidHeader(screen.kind === 'ready' || screen.kind === 'empty' ? screen.title : '')
+  useTouchEnrollment(courseId, screen.kind === 'ready' || screen.kind === 'empty')
 
   switch (screen.kind) {
     case 'loading':
@@ -46,7 +58,7 @@ export function CoursePage() {
           title={screen.title}
           thumbnailUrl={screen.thumbnailUrl}
           roadmap={screen.roadmap}
-          openLessonId={open ?? null}
+          openLessonId={openLessonId}
         />
       )
   }

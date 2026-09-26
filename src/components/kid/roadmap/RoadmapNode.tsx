@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Check, Clock, Lock, Sparkles, Star } from 'lucide-react'
 import { formatClock } from '@/lib/lessonSettings'
+import { weaveOffset } from '@/lib/roadmapWeave'
 import type { RoadmapLesson } from '@/lib/roadmap'
 import { LESSON_TYPE_META, STATE_WORD } from './lessonTypeMeta'
 
-/** Gentle left / centre / right / centre weave, repeating. */
-const OFFSETS = [0, -1, 0, 1] as const
-
 interface Props {
   lesson: RoadmapLesson
-  /** Position within its section, for the weave. */
+  /** Position in the whole course path, for the weave. */
   index: number
+  /** The module this lesson belongs to (a key, not shown), for the module bar's scroll-spy. */
+  moduleKey: string
   isCurrent: boolean
   onOpen: (lessonId: string) => void
 }
@@ -23,8 +23,8 @@ interface Props {
  * child can see what is coming. XP / time chips show only on active and
  * completed nodes; a locked node shows its title only.
  */
-export function RoadmapNode({ lesson, index, isCurrent, onOpen }: Props) {
-  const off = OFFSETS[index % OFFSETS.length]
+export function RoadmapNode({ lesson, index, moduleKey, isCurrent, onOpen }: Props) {
+  const off = weaveOffset(index)
   const { label: typeLabel, Icon: TypeIcon } = LESSON_TYPE_META[lesson.type]
   const locked = lesson.state === 'locked'
   const active = lesson.state === 'available' || lesson.state === 'in_progress'
@@ -46,7 +46,13 @@ export function RoadmapNode({ lesson, index, isCurrent, onOpen }: Props) {
   }
 
   return (
-    <div className="rm-row" data-off={off} style={{ '--off': off } as CSSProperties} data-testid="lesson-row">
+    <div
+      className="rm-row"
+      data-off={off}
+      data-module-key={moduleKey}
+      style={{ '--off': off } as CSSProperties}
+      data-testid="lesson-row"
+    >
       <div className="rm-slot">
         <div
           className="rm-node-box"

@@ -137,15 +137,17 @@ and returns to the tapped node on close (a custom `onOpenAutoFocus`/
 `onCloseAutoFocus` pair, because neither primitive has a trigger element here
 to return focus to automatically).
 
-**Module banner spec.** A heading, not a control: title only (no "MODULE N"
-eyebrow), a soft `--gold` tint (`color-mix` of the token with `--cream`), flat
-with no press lip, `cursor: default`, no hover, pressed or focus behavior, a
-plain `div` with nothing focusable inside, 44 px high with a 14 px radius, so it
-is lower and quieter than Continue (52 px, candy). Right side: one dot per
-lesson (10 px; solid ink = done, ring = the current lesson, faint = still to
-come), `aria-hidden`, with the text "N of M lessons done" as visually hidden text
-beside it. A module whose lessons are all locked uses the muted tint and shows a
-lock icon. It stays sticky under the top bar while its lessons scroll past.
+**Module bar (2026-09-26, replaces the boxed module banners).** There are no per-module
+containers, headings, dots or borders on the path any more: the lessons of every module are
+one continuous road. A single slim bar (`ModuleBar`, `.rm-modbar`) is sticky under the top
+bar, full width on phones, and names whichever module is in view. It is scroll-spy
+(`useModuleSpy`): every lesson row carries `data-module-key`, and the active module owns the
+topmost row whose centre is below a reading line 40% of the way down the visible area under
+the stuck bar (so the last module also gets its turn on a page that cannot scroll further).
+Teal with a `--teal-d` lip for a module a child can work in; a dimmer neutral with a lock
+icon when every lesson in it is locked. It is flat, not a control, and never gold: gold stays
+with the next-up node and Continue. It announces changes politely (`aria-live`). Module
+boundaries are otherwise invisible on the road, by design.
 
 **Continue bar.** Continue is the only candy-pressable element on the screen. Below
 `lg` it lives in `.rm-bar`: a real bar, sticky at the bottom of the roadmap
@@ -157,7 +159,7 @@ last node instead of over it (checked at 360, 390 and 430 px). `.kid-app` and
 `.kid-main` are flex columns that fill the screen, so on a one-lesson course the bar
 still rests at the bottom edge.
 
-**Path spec.** The connector is an SVG behind the nodes, generated from the
+**Path spec.** (One connector for the whole course since 2026-09-26; the sway below is continuous across modules.) The connector is an SVG behind the nodes, generated from the
 measured centres of the real node elements (`useNodeCenters` reads
 `[data-rm-anchor]` boxes with a `ResizeObserver`, `lib/roadmapPath.ts` builds the
 path), never from hardcoded coordinates: a smooth solid S-curve (cubic segments
@@ -174,7 +176,7 @@ resizing the viewport). It does not animate, so there is nothing for
 **Node hierarchy.** The active node (available or in progress) is the strongest
 thing on the path: 76 px (84 px at `md`), with a gentle idle bounce. Completed
 nodes are 64 px with a check and a star. Locked nodes are 56 px (still above the
-44 px tap minimum), a pale fill, a small lock, and a softer title. The
+44 px tap minimum), a real grey fill (`--ink` 20% into `--cream`, so it reads as grey and not as another colour) with the lock icon kept on top, and a softer title. The
 bounce and the tap wiggle animate a wrapper inside a static fixed-size box, so the
 measured anchor never moves. The lesson-type badge (video, game, quiz, reading) is
 30 px, cream icon on ink (12.9:1), and shows on locked and completed nodes; the
@@ -190,6 +192,27 @@ nodes say "locked"). Tapping a locked node wiggles it for 0.6 s. Idle bounce, wi
 and the pulse are all disabled under `prefers-reduced-motion`. This kid-facing
 motion allowance is separate from the admin `@dnd-kit` no-animation rule, which is
 unchanged.
+
+**Home and the winding path (2026-09-26).** `/` is the roadmap of the most recently used
+course (`KidHomePage` > `CourseRoadmapView`, shared with the `/courses/$courseId` deep link;
+the top bar has no Back arrow on Home). The path is one road: nodes sway left and right on a
+sine-like rhythm (`lib/roadmapWeave.ts`, eight nodes per period, never restarting per module,
+amplitude `clamp(1rem, 16vw, 4.5rem)`, chosen so a title still fits inside a 320px screen)
+and one SVG connector runs through all node centres (teal for the way travelled).
+`PathDecor` is the background: procedural shapes only, no artwork (soft teal blobs, plum dot
+clusters and rings, a teal squiggle, a coral sparkle), each a low-opacity `color-mix` of a
+token, one per row on the side opposite that row's node, absolutely placed from the row index
+(rows are a fixed height) inside an `overflow: hidden` layer, `aria-hidden`, no motion, so it
+cannot cause horizontal scroll. Titles stay under every node.
+
+Verified in Chromium against the live project: no horizontal scroll at 360/390/430, one
+connector path and no per-module sections, ten decor shapes for ten lessons, the locked node's
+computed fill grey with its icon, the bar switching across three modules with the locked
+variant, and signed-out, zero-enrollment, single-enrollment and multi-enrollment Home.
+**Follow-up flagged**: the zigzag geometry was checked at three phone widths and on one
+ten-lesson course only; a course with dozens of lessons, tablet and desktop widths (where the
+sway amplitude is fixed at 5.5rem) and the reference screenshot's exact rhythm still want a
+visual pass. The Home course header (art, title, progress) still sits above the path.
 
 **Locked lesson sheet** (`LockedLessonSheet`): a lock illustration at the top, the
 type, XP and minimum-time chips, the lesson title, one friendly line naming the

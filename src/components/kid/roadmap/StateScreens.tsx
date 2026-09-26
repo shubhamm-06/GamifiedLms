@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useRouter } from '@tanstack/react-router'
-import { Compass, LockKeyhole, Sprout, WifiOff } from 'lucide-react'
+import { BookOpen, Compass, LockKeyhole, Sprout, WifiOff } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
 /**
@@ -56,6 +56,18 @@ export function NotEnrolledScreen() {
     >
       <BackButton />
     </Screen>
+  )
+}
+
+/** Home with nothing to show: not enrolled anywhere a student can read. */
+export function NoCoursesScreen() {
+  return (
+    <Screen
+      testId="state-no-courses"
+      icon={<BookOpen className="size-8" aria-hidden />}
+      title="No courses yet"
+      body="Ask a grown-up to help you get started."
+    />
   )
 }
 

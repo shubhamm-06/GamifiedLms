@@ -8,8 +8,8 @@ file-based — new routes are added there, not by creating files under a
 
 | Route | Component | Access | Notes |
 |---|---|---|---|
-| `/` | `HomePage` | Public | Placeholder landing page; the destination for students and any non-admin bounced off `/admin` |
-| `/courses/$courseId` | `CoursePage` | Signed-in (student route group, below) | The course roadmap — modules and lessons as a learning path with lock state, progress and a Continue button. **Not linked from anywhere yet** (no home/dashboard screen exists) — reachable only by typing or being sent the URL. Takes an optional `?open=<lessonId>` search param (`validateSearch` keeps a non-empty string, else nothing): the page opens that lesson's sheet once on arrival, then clears the param with a replace navigation so Back and refresh do not reopen it. The lesson player sends a locked lesson here this way |
+| `/` | `KidHomePage` | Signed-in (student route group) | **The kid Home**: the roadmap of the student's most recently used course, chosen by `fn_home_course()` (migration 022): active enrollments in a live, published course, newest `COALESCE(last_accessed_at, enrolled_at)` first. No such course is a friendly "No courses yet" state, exactly one is simply the newest. A signed-out visitor is sent to `/login?redirect=/`. Opening it stamps `enrollments.last_accessed_at` through `fn_touch_enrollment`. The old scaffold page that used to sit here is gone |
+| `/courses/$courseId` | `CoursePage` | Signed-in (student route group, below) | The course roadmap — modules and lessons as a learning path with lock state, progress and a Continue button. The same roadmap Home shows, kept as a deep link (the locked-lesson redirect and the player's Back land here); it stamps `last_accessed_at` too. Takes an optional `?open=<lessonId>` search param (`validateSearch` keeps a non-empty string, else nothing): the page opens that lesson's sheet once on arrival, then clears the param with a replace navigation so Back and refresh do not reopen it. The lesson player sends a locked lesson here this way |
 | `/courses/$courseId/lessons/$lessonId` | `LessonPlayerPage` | Signed-in (student route group) | The kid-facing lesson player: video, reading (`text`), game and quiz lessons, with a server-driven active-time ring, a server-graded quiz and a completion sheet. Access is decided by the engine, not by role (see "The lesson player route" below): not enrolled, expired or an unenrolled admin sees the not-enrolled screen; a locked lesson is sent to the roadmap with `?open=`; a missing, unpublished or wrong-course lesson sees an unavailable screen. A completed lesson opens in replay mode (no timer, no XP) |
 | `/login` | `LoginPage` | Public, but redirects signed-in admins | Accepts a `redirect` search param; see the login guard below |
 | `/signup` | `SignupPage` | Public | On success: session present → `/`; no session (email confirmation required) → "check your email" copy |
@@ -170,6 +170,16 @@ bounced off the guard a moment later.
 On sign-out the cached session is removed before navigating, otherwise
 `/login`'s own guard could read a stale admin session and bounce straight
 back to `/admin`.
+
+## Database functions callable by students for Home (migration 022)
+
+| Function | Who may call | Does |
+|---|---|---|
+| `fn_home_course()` | Signed-in | Returns the course id Home should show, or `NULL`; user from `auth.uid()`, a trashed user gets `NULL` |
+| `fn_touch_enrollment(p_course_id)` | Signed-in | Stamps `last_accessed_at = now()` on the caller's ACTIVE enrollment in that course; a no-op for any other course, a non-active row or a trashed user |
+
+`anon` is refused (401 over REST). Students have no `UPDATE` policy on `enrollments`, so a direct
+`PATCH` of the column matches zero rows; these functions are the only path.
 
 ## Database functions callable by admins (PostgREST RPC)
 
