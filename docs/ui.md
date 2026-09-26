@@ -153,14 +153,30 @@ sheet with "steps to go" is gone).
 containers, headings, dots or borders on the path any more: the lessons of every module are
 one continuous road. A single slim bar (`ModuleBar`, `.rm-modbar`) is sticky under the top
 bar, full width on phones, and names whichever module is in view. It is scroll-spy
-(`useModuleSpy`): every lesson row carries `data-module-key`, and the active module owns the
-topmost row whose centre is below a reading line 40% of the way down the visible area under
-the stuck bar (so the last module also gets its turn on a page that cannot scroll further).
+(`useModuleSpy`): every lesson row carries `data-module-key` and `data-unit`, and the active
+row is the topmost one whose centre is below a reading line 40% of the way down the visible area
+under the stuck bar; the module is that row's module, so the title changes only at a module
+boundary while the unit changes lesson by lesson (one detection, not two). The line eases to the
+bar's bottom edge at the very top of the page (over the first 40% of the visible height of
+scrolling) and to the bottom of the screen at the very bottom (over the last 60%), so the first
+lesson reads as Unit 1 before any scrolling and a short last module is reachable; a hand scroll
+(wheel, touch, key, pointer) is what releases the initial pin described below.
 Cream text on `--teal-d` for a module a child can work in (changed 2026-09-26 from ink on
 `--teal`, 4.50:1: cream on plain `--teal` would have been 2.88:1, so the fill was darkened
 rather than only the text lightened); a dimmer neutral with a lock icon when every lesson in it
 is locked. It is flat, not a control, and never gold: gold stays
-with the next-up node and its popover. It announces changes politely (`aria-live`). Where the
+with the next-up node and its popover. A small caption sits above the title (`.rm-modbar-caption`, 2026-09-26):
+"SECTION N, UNIT M", uppercase, letter-spaced, weight 600 at the caption size, in cream mixed 12% toward
+`--teal-d` (5.22:1 measured; the title is 6.20:1; on the locked neutral it inherits the title's
+colour). Our module is the Section (its 1-based place among the course's modules, in path order;
+ungrouped lessons form a last "More to explore" section) and our lesson is the Unit (its 1-based place
+within that module, restarting at 1 in every module); no new grouping level, nothing new in the
+schema. A one-lesson module reads Unit 1 for its whole range. Until the child first scrolls by hand
+the bar is pinned to the position the page is auto-scrolling to (the next-up lesson, the last lesson of
+a finished course), so it is right from the first paint and matches the auto-opened popover even where
+the end of the page keeps that lesson off the reading line. The title announces changes politely
+(`aria-live`); the caption, which changes lesson by lesson, does not. The bar is about 62px tall now;
+everything that measures it reads its live height. Where the
 path crosses into a module, an inline divider marks it (next paragraphs).
 
 **Continue bar.** Removed on 2026-09-26 (the next step now opens itself, see above); the bottom

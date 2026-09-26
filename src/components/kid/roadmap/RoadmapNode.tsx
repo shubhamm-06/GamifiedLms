@@ -9,6 +9,8 @@ interface Props {
   lesson: RoadmapLesson
   /** Position in the whole course path, for the weave. */
   index: number
+  /** 1-based place within its module, for the module bar's "Unit" number (scroll-spy reads it). */
+  unit: number
   /** The module this lesson belongs to (a key, not shown), for the module bar's scroll-spy. */
   moduleKey: string
   isCurrent: boolean
@@ -28,7 +30,7 @@ interface Props {
  * toggles its anchored popover (`LessonPopover`); tapping a locked one only
  * wiggles it and opens nothing.
  */
-export function RoadmapNode({ lesson, index, moduleKey, isCurrent, expanded, onOpen }: Props) {
+export function RoadmapNode({ lesson, index, unit, moduleKey, isCurrent, expanded, onOpen }: Props) {
   const off = weaveOffset(index)
   const { label: typeLabel, Icon: TypeIcon } = LESSON_TYPE_META[lesson.type]
   const locked = lesson.state === 'locked'
@@ -56,6 +58,7 @@ export function RoadmapNode({ lesson, index, moduleKey, isCurrent, expanded, onO
       className="rm-row"
       data-off={off}
       data-module-key={moduleKey}
+      data-unit={unit}
       style={{ '--off': off } as CSSProperties}
       data-testid="lesson-row"
     >

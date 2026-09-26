@@ -297,10 +297,29 @@
     box-shadow: 0 3px 0 var(--kid-muted-d);
   }
 
-  .rm-modbar-title {
+  .rm-modbar-text {
     flex: 1;
     min-width: 0;
+  }
+
+  /* "Section N, Unit M": small, letter-spaced, lighter than the title. On teal-d
+     it is cream mixed a little toward the fill (still over 4.5:1, measured); on
+     the locked neutral it is the same muted foreground as the title. */
+  .rm-modbar-caption {
     margin: 0;
+    color: color-mix(in srgb, var(--cream) 88%, var(--teal-d));
+    font-size: var(--kid-text-caption);
+    line-height: var(--kid-leading-caption);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .rm-modbar[data-locked='true'] .rm-modbar-caption { color: inherit; }
+
+  .rm-modbar-title {
+    margin: 0;
+    min-width: 0;
     font-size: var(--kid-text-body);
     line-height: var(--kid-leading-body);
     font-weight: 800;

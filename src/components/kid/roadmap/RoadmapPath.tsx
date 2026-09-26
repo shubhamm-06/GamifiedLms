@@ -45,8 +45,14 @@ export function RoadmapPath({
   )
   const idKey = rows.map((r) => r.lesson.id).join(',')
   const measure = useNodeCenters(pathRef, idKey)
-  const activeKey = useModuleSpy(rootRef, roadmap.sections[0]?.key ?? '', idKey)
-  const active = roadmap.sections.find((s) => s.key === activeKey) ?? roadmap.sections[0]
+  // Where the page is about to scroll to (the next-up lesson, else the last one of a
+  // finished course, else the first), so the bar is right before any scrolling happens.
+  const startRow =
+    (roadmap.currentLessonId ? rows.find((r) => r.lesson.id === roadmap.currentLessonId) : undefined) ??
+    (roadmap.courseComplete ? rows[rows.length - 1] : rows[0])
+  const spy = useModuleSpy(rootRef, { key: startRow?.section.key ?? '', unit: startRow?.position ?? 1 }, idKey)
+  const activeIndex = Math.max(0, roadmap.sections.findIndex((s) => s.key === spy.key))
+  const active = roadmap.sections[activeIndex]
 
   const focusIsLocked = rows.some((r) => r.lesson.id === focusLessonId && r.lesson.state === 'locked')
   // The automatic open happens through the initial state, so no effect has to set it.
@@ -109,7 +115,7 @@ export function RoadmapPath({
 
   return (
     <div className="rm" data-testid="roadmap" ref={rootRef}>
-      {active ? <ModuleBar section={active} /> : null}
+      {active ? <ModuleBar section={active} sectionNumber={activeIndex + 1} unit={spy.unit} /> : null}
       <div className="rm-path" ref={pathRef}>
         <PathDecor rows={rows.length} breaks={breaks} />
         <RoadmapConnector measure={measure} completedCount={completed} />
@@ -120,6 +126,7 @@ export function RoadmapPath({
             <RoadmapNode
               lesson={lesson}
               index={i}
+              unit={position}
               moduleKey={section.key}
               isCurrent={lesson.id === roadmap.currentLessonId}
               expanded={open?.id === lesson.id}
