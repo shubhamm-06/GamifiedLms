@@ -118,7 +118,8 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Ink on `--teal` in the lesson player.** The player's "Done" badge still has ink text on
   a `--teal` fill (4.50:1, passes AA). The roadmap fix (cream on `--teal-d`) was not applied
   there because the lesson player was out of scope on 2026-09-26.
-- **The stat bar** the brief deferred (streak, gems, hearts, energy) in the kid top bar.
+- **Gems and hearts/energy** in Home's stat bar. Streak and lifetime XP shipped there on
+  2026-09-26; the other two are still deferred and have no placeholders.
 - **A real design for Badges and Profile.** Both shipped 2026-09-26 as minimal functional
   screens (no celebration or animation, no avatar upload or editing, no per-badge detail).
 - **On-device bottom nav.** The nav's safe-area padding (`env(safe-area-inset-bottom)`) was

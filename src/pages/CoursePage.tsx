@@ -30,9 +30,18 @@ export function CoursePage() {
  * Opening it for an enrolled student stamps `enrollments.last_accessed_at`
  * (what Home uses to pick the course), once per open.
  */
-export function CourseRoadmapView({ courseId, openLessonId }: { courseId: string; openLessonId: string | null }) {
+export function CourseRoadmapView({
+  courseId,
+  openLessonId,
+  showTitle = true,
+}: {
+  courseId: string
+  openLessonId: string | null
+  /** Home shows the course name in its stat bar instead, so it turns the top bar title off. */
+  showTitle?: boolean
+}) {
   const screen = useCourseRoadmap(courseId)
-  useKidHeader(screen.kind === 'ready' || screen.kind === 'empty' ? screen.title : '')
+  useKidHeader(showTitle && (screen.kind === 'ready' || screen.kind === 'empty') ? screen.title : '')
   useTouchEnrollment(courseId, screen.kind === 'ready' || screen.kind === 'empty')
 
   switch (screen.kind) {

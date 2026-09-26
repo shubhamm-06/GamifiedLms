@@ -1,4 +1,5 @@
 import { useEffect, useState, type RefObject } from 'react'
+import { stickyTopEdge } from '@/lib/stickyTop'
 
 /**
  * Scroll-spy for the module bar: which module's lessons are in view. Each
@@ -27,7 +28,7 @@ export function useModuleSpy(
       // the child is "looking at" is 40% of the way down from there, so the bar
       // also changes for a last module that never scrolls all the way up.
       const bar = root.querySelector<HTMLElement>('[data-module-bar]')
-      const stuck = (document.querySelector('.kid-topbar')?.getBoundingClientRect().bottom ?? 0) + (bar?.offsetHeight ?? 0)
+      const stuck = stickyTopEdge() + (bar?.offsetHeight ?? 0)
       const line = stuck + (window.innerHeight - stuck) * 0.4
       const rows = Array.from(root.querySelectorAll<HTMLElement>('[data-module-key]'))
       if (rows.length === 0) return

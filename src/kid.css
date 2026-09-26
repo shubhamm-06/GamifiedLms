@@ -23,6 +23,10 @@
        screen's bottom padding and sticky button move up with no re-layout. */
     --kid-nav-h: 4.25rem;
     --kid-bottom-inset: 0px;
+    /* Home's stat bar height, and what the sticky module bar must sit below it.
+       .kid-home sets --kid-top-inset; everywhere else it stays 0. */
+    --kid-statbar-h: 3rem;
+    --kid-top-inset: 0px;
     --kid-shadow:
       0 24px 48px -24px color-mix(in srgb, var(--ink) 28%, transparent),
       0 2px 10px color-mix(in srgb, var(--ink) 6%, transparent);
@@ -74,6 +78,12 @@
   }
 
   .kid-app[data-nav] { --kid-bottom-inset: var(--kid-nav-h); }
+
+  .kid-home { --kid-top-inset: var(--kid-statbar-h); display: flex; flex: 1; flex-direction: column; }
+
+  /* Home: the stat bar is the first thing under the top bar, so it takes the
+     flush-to-the-top margin and the module bar no longer needs it. */
+  .kid-home .rm-modbar { margin-top: 0; }
 
   .kid-app {
     display: flex;
@@ -259,7 +269,7 @@
      screen starts at this bar. */
   .rm-modbar {
     position: sticky;
-    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top));
+    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + var(--kid-top-inset));
     z-index: 20;
     display: flex;
     align-items: center;
@@ -1705,6 +1715,83 @@
 
   @media (hover: hover) {
     a.lp-row:not([data-kind='current'], [data-kind='next']):hover { background: color-mix(in srgb, var(--ink) 6%, white); }
+  }
+
+  /* ---------------------------------------------------------------- stat bar */
+
+  /* Home's slim top row: streak and lifetime XP pills on the left, the course
+     name as a link on the right. Sticky under the top bar; the module bar sticks
+     below it through --kid-top-inset (set on .kid-home). Everything sits on the
+     plain cream page: ink text, and no coloured fill anywhere. Gold is not used
+     here (it stays "the next action"): the flame is coral-d, the spark plum-d. */
+  .kid-statbar {
+    position: sticky;
+    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top));
+    z-index: 25;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    height: var(--kid-statbar-h);
+    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
+    margin-top: -1rem;
+    padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+    background: var(--cream);
+    border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+
+  .kid-stats {
+    display: flex;
+    flex: none;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kid-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent);
+    color: var(--ink);
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    font-weight: 500;
+  }
+
+  .kid-stat[data-kind='streak'] svg { color: var(--coral-d); }
+  .kid-stat[data-kind='xp'] svg { color: var(--plum-d); }
+
+  /* The course name is a link, not a stat: no pill, teal-d (6.2:1 on cream),
+     underlined, with a chevron. 44px tall hit target inside the 48px bar. */
+  .kid-statbar-course {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.125rem;
+    min-width: 0;
+    min-height: 2.75rem;
+    color: var(--teal-d);
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+  }
+
+  .kid-statbar-course-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  @media (min-width: 768px) {
+    .kid-statbar { margin: 0; }
   }
 
   /* ----------------------------------------------------------- bottom nav */

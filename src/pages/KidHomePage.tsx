@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useKidHeader } from '@/components/kid/kidHeader'
+import { StatBar } from '@/components/kid/StatBar'
 import { NoCoursesScreen, RetryScreen, RoadmapSkeleton } from '@/components/kid/roadmap/StateScreens'
 import { useHomeCourse } from '@/hooks/useHomeCourse'
 import { CourseRoadmapView } from '@/pages/CoursePage'
@@ -19,7 +20,15 @@ function PlainHome({ children }: { children: ReactNode }) {
  */
 export function KidHomePage() {
   const home = useHomeCourse()
+  return (
+    <div className="kid-home">
+      <StatBar courseId={home.data ?? null} />
+      <HomeBody home={home} />
+    </div>
+  )
+}
 
+function HomeBody({ home }: { home: ReturnType<typeof useHomeCourse> }) {
   if (home.isPending) {
     return (
       <PlainHome>
@@ -41,5 +50,5 @@ export function KidHomePage() {
       </PlainHome>
     )
   }
-  return <CourseRoadmapView courseId={home.data} openLessonId={null} />
+  return <CourseRoadmapView courseId={home.data} openLessonId={null} showTitle={false} />
 }

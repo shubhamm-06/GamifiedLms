@@ -202,6 +202,24 @@ covers the connector for its height, which reads as a break in the road. Not int
 `pointer-events: none`, no tab stop, `role="separator"` with an `aria-label`. It appears at every
 boundary, including before a module that is still fully locked.
 
+**Stat bar** (`StatBar`, `.kid-statbar`; Home only, 2026-09-26). A slim 3rem row, sticky directly
+under the kid top bar and above the module bar, full-bleed on the cream page with a hairline bottom
+border. Left: two `--surface` pills with the inset ring the XP chips use, a flame (`--coral-d`) with
+the current streak and a spark (`--plum-d`) with lifetime XP (`user_stats.total_xp`, never
+level-relative), ink numbers at weight 500; gold is not used. Right: the course name as a link to
+`/courses`, deliberately not a pill: `--teal-d` text (6.2:1), bold, underlined, with a chevron,
+truncated with an ellipsis, a 44px tall hit target. Numbers come from `useKidProfile` (the Profile
+screen's query; no second fetch of `user_stats`); a student with no stats row shows 0 and 0, and a
+dash stands in only while loading or on error. The course name is read from the roadmap's own cached
+content query (`useQuery` with `enabled: false`, never fetches) for the `fn_home_course` id; the
+link is absent while there is no course. The top bar's title is empty on Home (the course name
+lives here instead; `CourseRoadmapView`'s `showTitle` is false), and the `/courses/$courseId` deep
+link is unchanged: title, no stat bar. **Sticky stack:** `.kid-home` sets `--kid-top-inset` to
+`--kid-statbar-h`, the module bar's `top` adds it (default `0px` off Home, same pattern as
+`--kid-bottom-inset`), and scroll-spy and the popover measure the stack through
+`lib/stickyTop.ts` (`stickyTopEdge`: the lower of the top bar's and stat bar's bottom edges) instead
+of hardcoding anything. Gems and hearts/energy are still deferred, with no placeholders.
+
 **Path spec.** (One connector for the whole course since 2026-09-26; the sway below is continuous across modules.) The connector is an SVG behind the nodes, generated from the
 measured centres of the real node elements (`useNodeCenters` reads
 `[data-rm-anchor]` boxes with a `ResizeObserver`, `lib/roadmapPath.ts` builds the
