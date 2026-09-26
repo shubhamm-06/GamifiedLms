@@ -1342,6 +1342,47 @@ course name never appears. Same content at every size.
    "Next: <title>" (the next lesson in this module) or "Back to roadmap" after the module's
    last. Otherwise no bottom button.
 
+### Desktop widths (2026-09-27): one breakpoint, one column
+
+The kid app is mobile-first and stays exactly that below **768px** (checked: the Home, video, doc, quiz
+and game pages are pixel-identical at 360, 390 and 430px before and after). From 768px it is a centred
+column, not a redesign: no sidebar, no second column, no moved controls. Single source of truth, in
+`kid.css` (`.kid-app { --kid-col; --kid-col-wide }` and the "desktop widths" block at the end):
+
+| | Value | Applies to |
+|---|---|---|
+| Breakpoint | `min-width: 768px` (the tiers above already used it) | everything below |
+| `--kid-col` | 40rem (640px) | the roadmap (path, stat bar, module bar, dividers), text, doc blocks, quiz, lesson info, the bottom nav, the top bar's contents |
+| `--kid-col-wide` | 64rem (1024px), capped at the window minus 2rem | the video player and the game frame only, centred over the column |
+| Quiz measure | 34rem (544px) | the quiz flow: answer buttons stay 544x64, not a slab |
+| Callouts | 36rem | doc callout cards |
+
+- The cream page fills the window; the top bar's background spans it and its row (Back) sits in the column.
+- **Bottom nav**: still at the bottom, but `--kid-col` wide, centred, with rounded top corners and a hairline
+  border, instead of an edge to edge stripe.
+- **Lesson pages** are one column at every width. The earlier "from lg the module list is a sticky left
+  column" (legacy HTML doc lessons) and the 70rem main width at 1024px are gone.
+- **Media**: `.lp-video-bleed` and `.lp-game-bleed` are `position: relative; left: 50%; translateX(-50%)` at
+  `min(64rem, 100vw - 2rem)` with 20px corners; the game frame's height is the window's minus the top bar,
+  capped at 44rem. The column (`.lp`, `.lp-layout`, `.lp-main`) is pinned to its own width so a wider child
+  cannot grow it. Everything under the player (title, description, time bar) stays in the standard column.
+- **Popover, stat bar, module bar** needed no change: the popover measures the node and the path's own box, so
+  it stays inside the column (verified at 1280 and 1600px: tail on the node's centre, flips above near the nav).
+- **Completion card** is the existing dialog (28rem at md and up), centred; the quiz "+N XP earned" line is
+  content-width, not a slab.
+- **Orientation lock** on a desktop browser: the plugin's web fallback is called, its refusal is swallowed, no
+  page error, no layout change. The "turn your phone" hint now shows only on a coarse pointer (a handheld),
+  never in a desktop window.
+- **Hover** (`@media (hover: hover)`, so touch screens are unchanged): nodes, popover and primary buttons
+  brighten slightly, nav tabs and quiz options tint teal-10%, course rows lift 2px, the course link's underline
+  thickens, the player's icon buttons get a soft cream wash, quiet buttons a faint ink wash. Simple by design.
+- **Verified** at 1280 and 1600px on the live project: Home (column, nav, popover), video, doc, quiz through
+  its completion card, game.
+- **Rough but left alone**: the Back arrow sits at the column's left edge rather than the window's; the
+  placeholder demo games are `example.com` pages, and on desktop a host with no CORS headers logs one blocked
+  fetch to the console before the game loads straight from its URL (the cache falls back, nothing breaks);
+  the admin panel was not touched.
+
 ### Game lessons (2026-09-26)
 
 A game lesson hosts a page the admin registered in `games` (`bundle_url`); there is no content to build.

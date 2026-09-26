@@ -39,6 +39,7 @@ interface Props {
  */
 export function GameLesson({ game, courseId, onComplete, ack }: Props) {
   const portrait = useMediaQuery('(orientation: portrait)')
+  const handheld = useMediaQuery('(pointer: coarse)')
   const src = game ? safeMediaUrl(game.bundleUrl, import.meta.env.DEV) : null
   const [attempt, setAttempt] = useState(0)
   const [entry, setEntry] = useState<GameEntry | null | undefined>(undefined) // undefined: still deciding
@@ -125,10 +126,10 @@ export function GameLesson({ game, courseId, onComplete, ack }: Props) {
     )
   }
 
-  // On a native shell the lock does this; in a browser a hint says what the game wants.
-  const native = Capacitor.isNativePlatform()
-  const wantsSideways = !native && game.orientation === 'landscape' && portrait
-  const wantsUpright = !native && game.orientation === 'portrait' && !portrait
+  // On a native shell the lock does this; on a handheld browser a hint says what the game wants.
+  const hintable = handheld && !Capacitor.isNativePlatform() // a desktop window has no phone to turn
+  const wantsSideways = hintable && game.orientation === 'landscape' && portrait
+  const wantsUpright = hintable && game.orientation === 'portrait' && !portrait
 
   return (
     <div className="lp-game-stage" data-testid="game-lesson" data-source={entry?.source ?? (entry === null ? 'direct' : 'pending')}>

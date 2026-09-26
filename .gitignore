@@ -40,3 +40,22 @@ review-shots/
 *.njsproj
 *.sln
 *.sw?
+
+# Additional build/tool output and caches
+.pnp
+.pnp.js
+build/
+.next/
+out/
+.supabase/
+.turbo/
+.cache/
+coverage/
+Thumbs.db
+*.swp
+*.swo
+
+# Docs folders (per the owner's request). Files already tracked in docs/ stay
+# tracked; only NEW files under docs/ or doc/ are ignored.
+docs/
+doc/
