@@ -118,24 +118,37 @@ adding the tab bar later needs no re-layout; **the tab bar itself is not
 built**.
 
 **The roadmap** (`components/kid/roadmap/`, data in `lib/roadmap.ts` +
-`hooks/useCourseRoadmap.ts`): a course header (art, title, chunky progress
-bar, "X of Y lessons" + percent) or, at `lg`, a sticky left summary card
-holding the same plus lessons-done/XP-to-earn and the Continue button; a
-vertical path of modules, each a flat banner followed by its lesson nodes
-(spec below). A lesson with no module renders in a final "More to explore"
-section, never a special case in the component, just whatever
-`fn_course_lesson_states` sorts last (`schema.md`). Components:
-`RoadmapPath` (one `SectionPath` per module), `ModuleBanner`, `RoadmapConnector`,
-`RoadmapNode`, `LessonSheet` and `LockedLessonSheet`. The "empty grey bar" a design
-review saw above the first module was the real course progress bar at 0%
-(label "0 of N lessons" above a track with nothing in it), not a stray element:
-its track is now a gold tint instead of grey and its fill keeps a rounded
-minimum width once any lesson is done. Tapping a node opens `LessonSheet`: a bottom drawer
-(shadcn `drawer`/vaul, added this task — see below) under `md`, a centered
-`Dialog` from `md` up, both Radix underneath so focus is trapped while open
-and returns to the tapped node on close (a custom `onOpenAutoFocus`/
-`onCloseAutoFocus` pair, because neither primitive has a trigger element here
-to return focus to automatically).
+`hooks/useCourseRoadmap.ts`). Since 2026-09-26 there is no header block (no course art,
+title or progress bar) and no Continue button: the screen starts at the sticky module bar,
+flush under the top bar, and the path does the rest. Components: `RoadmapPath`,
+`ModuleBar`, `RoadmapConnector`, `RoadmapNode`, `PathDecor` and `LessonPopover`. A lesson
+with no module is just whatever `fn_course_lesson_states` sorts last (`schema.md`).
+
+**Every visit opens the next step.** Each time the roadmap mounts (Home or the
+`/courses/$courseId` deep link) it scrolls the next-up node (`roadmap.currentLessonId`) to
+the middle of the screen, smoothly (instantly under reduced motion), and opens that node's
+popover without a tap. The open is the popover's initial state, so no effect sets it.
+Fallbacks: a finished course has no next-up node, so the page scrolls to a small "You finished
+every lesson!" note after the last node and opens nothing; a locked lesson the player turned
+away (`?open=`) is scrolled to and wiggled once, with no popover, and the param is cleared with
+`resetScroll: false` (the router's default scroll reset otherwise jumped back to the top).
+
+**Lesson popover** (`LessonPopover`, `.rm-pop`, replaces the bottom sheet). A small card
+anchored to the tapped node by a triangular tail; no backdrop, no dimming, the path stays
+visible. Gold (ink text, 7.33:1) for the next-up node only; `--teal-d` with cream text (6.2:1)
+for every other unlocked node, completed or ahead; no third colour. Content: the lesson title,
+"Lesson X of Y" (its place in its module) and one off-white (`--surface`) pill button with the
+candy lip, labelled by the same state words the sheet used, with the XP still to earn inline:
+"Start +25 XP", "Keep going +25 XP", "Review" (no XP on a completed lesson, which awards none on
+replay). Sentence case like the rest of the kid app, not the brief's uppercase examples.
+Placement is written straight to the element: centred on the node's real centre, clamped to the
+path's width so it never clips at 360 to 430px, the tail kept on the node's centre; below the
+node, flipped above (tail pointing down) when the viewport has no room under it, re-measured on
+resize and after scrolling settles. One at a time: tapping another node switches, tapping the
+open node or anywhere else closes it, Escape closes and returns focus to the node. It is a
+non-modal `role="dialog"`; a tap or keyboard open moves focus to the button, the automatic open
+does not. Locked nodes open nothing: a tap only wiggles them (decided 2026-09-26; the locked
+sheet with "steps to go" is gone).
 
 **Module bar (2026-09-26, replaces the boxed module banners).** There are no per-module
 containers, headings, dots or borders on the path any more: the lessons of every module are
@@ -144,20 +157,16 @@ bar, full width on phones, and names whichever module is in view. It is scroll-s
 (`useModuleSpy`): every lesson row carries `data-module-key`, and the active module owns the
 topmost row whose centre is below a reading line 40% of the way down the visible area under
 the stuck bar (so the last module also gets its turn on a page that cannot scroll further).
-Teal with a `--teal-d` lip for a module a child can work in; a dimmer neutral with a lock
-icon when every lesson in it is locked. It is flat, not a control, and never gold: gold stays
+Cream text on `--teal-d` for a module a child can work in (changed 2026-09-26 from ink on
+`--teal`, 4.50:1: cream on plain `--teal` would have been 2.88:1, so the fill was darkened
+rather than only the text lightened); a dimmer neutral with a lock icon when every lesson in it
+is locked. It is flat, not a control, and never gold: gold stays
 with the next-up node and Continue. It announces changes politely (`aria-live`). Module
 boundaries are otherwise invisible on the road, by design.
 
-**Continue bar.** Continue is the only candy-pressable element on the screen. Below
-`lg` it lives in `.rm-bar`: a real bar, sticky at the bottom of the roadmap
-column (above `--kid-bottom-inset`), bleeding to the gutters, with the
-safe-area inset in its own padding, a translucent cream background and a top
-hairline. It is the last thing in the column and its negative bottom margin
-cancels the page's bottom padding, so at the end of the page it sits below the
-last node instead of over it (checked at 360, 390 and 430 px). `.kid-app` and
-`.kid-main` are flex columns that fill the screen, so on a one-lesson course the bar
-still rests at the bottom edge.
+**Continue bar.** Removed on 2026-09-26 (the next step now opens itself, see above). No space
+is reserved for the navigation bar planned for that spot; `--kid-bottom-inset` is still the hook
+for it.
 
 **Path spec.** (One connector for the whole course since 2026-09-26; the sway below is continuous across modules.) The connector is an SVG behind the nodes, generated from the
 measured centres of the real node elements (`useNodeCenters` reads
@@ -212,15 +221,9 @@ variant, and signed-out, zero-enrollment, single-enrollment and multi-enrollment
 **Follow-up flagged**: the zigzag geometry was checked at three phone widths and on one
 ten-lesson course only; a course with dozens of lessons, tablet and desktop widths (where the
 sway amplitude is fixed at 5.5rem) and the reference screenshot's exact rhythm still want a
-visual pass. The Home course header (art, title, progress) still sits above the path.
+visual pass. The Home course header was removed on 2026-09-26.
 
-**Locked lesson sheet** (`LockedLessonSheet`): a lock illustration at the top, the
-type, XP and minimum-time chips, the lesson title, one friendly line naming the
-lesson to do next ("Almost there! Finish “X” to unlock Y." when one lesson
-remains, "Keep going! Finish “X” next to get closer to Y." otherwise) and a hint
-pill ("1 step to go" / "4 steps to go") whose number is the count of earlier
-lessons not yet completed, computed from the ordered states (`unlockPlan` in
-`lib/roadmap.ts`). No action button, no em dashes in the copy.
+**Locked lesson sheet.** Removed on 2026-09-26 with `LessonSheet`; a locked node only wiggles.
 
 **Responsive tiers**, mobile-first (base is the 390 px design, `md`/`lg` only
 add): base (< 768 px) is the single-column layout above with the sticky Continue

@@ -12,6 +12,9 @@ interface Props {
   /** The module this lesson belongs to (a key, not shown), for the module bar's scroll-spy. */
   moduleKey: string
   isCurrent: boolean
+  /** This node's popover is open. */
+  expanded: boolean
+  /** Tapping an unlocked node toggles its popover; a locked node only wiggles. */
   onOpen: (lessonId: string) => void
 }
 
@@ -21,9 +24,11 @@ interface Props {
  * nodes are small and soft. The state is never colour alone (check + star,
  * lock, progress ring, pulsing ring), and the type badge is big and dark so a
  * child can see what is coming. XP / time chips show only on active and
- * completed nodes; a locked node shows its title only.
+ * completed nodes; a locked node shows its title only. Tapping an unlocked node
+ * toggles its anchored popover (`LessonPopover`); tapping a locked one only
+ * wiggles it and opens nothing.
  */
-export function RoadmapNode({ lesson, index, moduleKey, isCurrent, onOpen }: Props) {
+export function RoadmapNode({ lesson, index, moduleKey, isCurrent, expanded, onOpen }: Props) {
   const off = weaveOffset(index)
   const { label: typeLabel, Icon: TypeIcon } = LESSON_TYPE_META[lesson.type]
   const locked = lesson.state === 'locked'
@@ -41,6 +46,7 @@ export function RoadmapNode({ lesson, index, moduleKey, isCurrent, onOpen }: Pro
       window.clearTimeout(timer.current)
       setWiggle(true)
       timer.current = window.setTimeout(() => setWiggle(false), 600)
+      return
     }
     onOpen(lesson.id)
   }
@@ -57,6 +63,7 @@ export function RoadmapNode({ lesson, index, moduleKey, isCurrent, onOpen }: Pro
         <div
           className="rm-node-box"
           data-rm-anchor
+          data-anchor-for={lesson.id}
           data-active={active ? 'true' : undefined}
           data-wiggle={wiggle ? 'true' : undefined}
         >
@@ -68,6 +75,8 @@ export function RoadmapNode({ lesson, index, moduleKey, isCurrent, onOpen }: Pro
               data-lesson-id={lesson.id}
               data-current={isCurrent ? 'true' : undefined}
               aria-label={ariaLabel}
+              aria-haspopup={locked ? undefined : 'dialog'}
+              aria-expanded={locked ? undefined : expanded}
               onClick={handleClick}
             >
               {lesson.state === 'in_progress' ? (

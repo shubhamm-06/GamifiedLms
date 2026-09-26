@@ -230,27 +230,13 @@
     .candy-btn-quiet:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
   }
 
-  /* ---------------------------------------------------------------- progress */
-
-  .kid-progress {
-    height: 1.25rem;
-    overflow: hidden;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--ink) 10%, var(--cream));
-  }
-
-  .kid-progress-fill {
-    height: 100%;
-    min-width: 0;
-    border-radius: 999px;
-    background: var(--teal);
-    box-shadow: inset 0 -4px 0 var(--teal-d);
-    transition: width 0.4s ease;
-  }
-
   /* ----------------------------------------------------------------- roadmap */
 
   .rm {
+    position: relative;
+    width: 100%;
+    max-width: 40rem;
+    margin-inline: auto;
     --rm-node: 4rem;
     --rm-node-active: 4.75rem;
     --rm-node-locked: 3.5rem;
@@ -260,9 +246,11 @@
 
   /* The slim module bar: a full-width sticky strip under the top bar that names
      whichever module is in view (scroll-spy). Flat, not a control: no press or
-     hover state. Teal for a module a child can work in; a dimmer neutral (with a
-     lock icon in the markup) when every lesson in it is locked. Gold stays with
-     the next-up node and Continue. Ink on --teal is 4.5:1, used at 18px bold. */
+     hover state. Cream on --teal-d for a module a child can work in (6.2:1;
+     cream on plain --teal would be 2.88:1); a dimmer neutral (with a lock icon in
+     the markup) when every lesson in it is locked. Never gold: gold is the
+     next-up node and its popover. It sits flush under the top bar, so the
+     screen starts at this bar. */
   .rm-modbar {
     position: sticky;
     top: calc(var(--kid-topbar-h) + env(safe-area-inset-top));
@@ -273,9 +261,10 @@
     min-height: 2.75rem;
     margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
     padding: 0.5rem max(1rem, env(safe-area-inset-right)) 0.5rem max(1rem, env(safe-area-inset-left));
-    background: var(--teal);
-    color: var(--ink);
-    box-shadow: 0 3px 0 var(--teal-d);
+    margin-top: -1rem;
+    background: var(--teal-d);
+    color: var(--cream);
+    box-shadow: 0 3px 0 color-mix(in srgb, var(--teal-d) 70%, var(--ink));
     cursor: default;
   }
 
@@ -296,13 +285,117 @@
   }
 
   @media (min-width: 768px) {
-    .rm-modbar { margin-inline: 0; border-radius: 14px; }
+    .rm-modbar { margin: 0; border-radius: 14px; }
   }
 
   .rm-path {
     position: relative;
     margin-top: 0.5rem;
     margin-bottom: 1.5rem;
+  }
+
+  /* The lesson popover: a small card anchored to the tapped node by a tail, no
+     backdrop and no dimming. LessonPopover.tsx writes top/left/width and
+     --tail-x; data-placement flips the tail. Gold (ink text, 7.33:1) for the
+     next-up node only; --teal-d with cream text (6.2:1) for any other unlocked
+     node. Above the path, below the sticky module bar and top bar. */
+  .rm-pop {
+    position: absolute;
+    z-index: 15;
+    padding: 1rem;
+    border-radius: 20px;
+    box-shadow: 0 12px 28px -12px color-mix(in srgb, var(--ink) 45%, transparent);
+    text-align: left;
+    animation: rm-pop-in var(--motion-base) var(--ease-standard) both;
+  }
+
+  .rm-pop[data-tone='gold'] { background: var(--gold); color: var(--ink); --pop-bg: var(--gold); }
+  .rm-pop[data-tone='teal'] { background: var(--teal-d); color: var(--cream); --pop-bg: var(--teal-d); }
+
+  /* The tail: a rotated square in the card's colour, centred on the node. */
+  .rm-pop::before {
+    content: '';
+    position: absolute;
+    left: calc(var(--tail-x, 50%) - 0.625rem);
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 3px;
+    background: var(--pop-bg);
+    transform: rotate(45deg);
+  }
+
+  .rm-pop[data-placement='below']::before { top: -0.5rem; }
+  .rm-pop[data-placement='above']::before { bottom: -0.5rem; }
+
+  .rm-pop-title {
+    position: relative;
+    margin: 0;
+    font-size: var(--kid-text-heading);
+    line-height: var(--kid-leading-heading);
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
+
+  .rm-pop-sub {
+    position: relative;
+    margin: 0.25rem 0 0.75rem;
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 600;
+  }
+
+  /* The pill CTA: the off-white card surface (no new token), ink text, the candy lip. */
+  .rm-pop-cta {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    min-height: 3.5rem;
+    padding: 0.5rem 1.25rem;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 5px 0 color-mix(in srgb, var(--ink) 22%, var(--pop-bg));
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 800;
+    text-decoration: none;
+    transform: translateY(0);
+    transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+  }
+
+  .rm-pop-cta:active {
+    transform: translateY(5px);
+    box-shadow: 0 0 0 transparent;
+  }
+
+  @keyframes rm-pop-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rm-pop { animation: none; }
+    .rm-pop-cta { transition: none; }
+  }
+
+  /* A finished course: a small note after the last node, where Home scrolls to. */
+  .rm-complete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin: 0 auto 1.5rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 999px;
+    width: fit-content;
+    background: color-mix(in srgb, var(--teal) 16%, var(--surface));
+    color: var(--ink);
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 800;
   }
 
   /* Decorative background: soft procedural shapes from the colour tokens, one per
@@ -528,7 +621,7 @@
     .rm-node-box[data-wiggle='true'] .rm-node-motion {
       animation: none;
     }
-    .rm-node, .candy-btn, .kid-progress-fill { transition: none; }
+    .rm-node, .candy-btn { transition: none; }
   }
 
   .rm-badge {
@@ -614,13 +707,12 @@
     white-space: nowrap;
   }
 
-  /* The Continue bar: a real bar, sticky at the bottom of the roadmap column,
-     bleeding to the column's gutters, with the safe-area inset (and the future
-     tab bar's --kid-bottom-inset) in its own padding. It is the last thing in
-     the column, and its negative bottom margin cancels .kid-main's bottom
-     padding, so at the end of the page it sits below the last node instead of
-     over it. Hidden at lg, where the summary card holds Continue. */
-  .rm-bar,
+  /* The lesson player's bottom bar: sticky at the bottom of the column,
+     bleeding to the gutters, with the safe-area inset (and the future tab
+     bar's --kid-bottom-inset) in its own padding. Its negative bottom margin
+     cancels .kid-main's bottom padding, so at the end of the page it sits below
+     the content instead of over it. (The roadmap's Continue bar, which shared
+     this, was removed on 2026-09-26.) */
   .lp-bar {
     position: sticky;
     bottom: var(--kid-bottom-inset);
@@ -636,19 +728,8 @@
     backdrop-filter: blur(8px);
   }
 
-  /* Below lg the course page is a flex column that fills the screen, so on a
-     short course the bar still rests at the bottom edge instead of mid-page. */
-  .kid-course-grid,
-  .kid-roadmap-col {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-  }
-
-  .rm-bar,
   .lp-bar { margin-top: auto; }
 
-  .rm-bar .candy-btn,
   .lp-bar > .candy-btn,
   .lp-bar > .candy-btn-quiet {
     width: 100%;
@@ -1580,31 +1661,6 @@
     a.lp-row:not([data-kind='current'], [data-kind='next']):hover { background: color-mix(in srgb, var(--ink) 6%, white); }
   }
 
-  /* Locked-lesson sheet: a lock illustration and a "steps to go" hint. */
-  .rm-sheet-lock {
-    display: grid;
-    place-items: center;
-    width: 4.25rem;
-    height: 4.25rem;
-    margin-inline: auto;
-    border-radius: 999px;
-    background: var(--kid-muted);
-    color: var(--ink);
-    box-shadow: 0 5px 0 var(--kid-muted-d);
-  }
-
-  .rm-sheet-hint {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-    margin-top: 0.75rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 999px;
-    background: var(--kid-muted);
-    font-size: 0.9375rem;
-    font-weight: 800;
-  }
-
   /* ------------------------------------------------------------------ tiers */
 
   @media (min-width: 768px) {
@@ -1616,16 +1672,5 @@
 
   @media (min-width: 1024px) {
     .kid-main { max-width: 70rem; }
-    .kid-course-grid {
-      display: grid;
-      grid-template-columns: 21rem minmax(0, 1fr);
-      gap: 2rem;
-      align-items: start;
-    }
-    .kid-summary {
-      position: sticky;
-      top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + 1.5rem);
-    }
-    .kid-roadmap-col { max-width: 40rem; width: 100%; margin-inline: auto; }
   }
 }

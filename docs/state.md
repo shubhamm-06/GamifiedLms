@@ -17,7 +17,7 @@ nav entry is a real route):
 
 **Student app** (routes and access rules: `routes-permissions.md`; visuals:
 `ui.md`):
-- `/` — the kid Home: the roadmap of the most recently used course (migration 022; `fn_home_course`, `fn_touch_enrollment`), with a "No courses yet" state. The roadmap is one continuous winding path with a sticky scroll-spy module bar and a procedural background (`ui.md`).
+- `/` — the kid Home: the roadmap of the most recently used course (migration 022; `fn_home_course`, `fn_touch_enrollment`), with a "No courses yet" state. The roadmap is one continuous winding path with a sticky scroll-spy module bar and a procedural background; since 2026-09-26 it has no header or Continue button, and every visit scrolls to the next-up node and opens its anchored popover (`ui.md`).
 - `/courses/$courseId` — the course roadmap: modules and lessons as a
   learning path with lock state (from `fn_course_lesson_states`), a progress
   bar, a sticky Continue bar, a tap sheet per lesson (a friendlier one for
@@ -111,6 +111,9 @@ nav entry is a real route):
 
 The schema or docs anticipate each of these; no working code exists for any.
 
+- **Ink on `--teal` in the lesson player.** The player's "Done" badge still has ink text on
+  a `--teal` fill (4.50:1, passes AA). The roadmap fix (cream on `--teal-d`) was not applied
+  there because the lesson player was out of scope on 2026-09-26.
 - **A course switcher.** Home shows only the most recently used course; a student
   enrolled in several has no in-app way to pick another except a deep link (and the
   stat bar the brief deferred: streak, gems, hearts, energy).

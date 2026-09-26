@@ -161,29 +161,3 @@ export function buildRoadmap(content: CourseContent, states: LessonStateRow[]): 
     xpAvailable,
   }
 }
-
-export interface UnlockPlan {
-  /** The lesson to do next: the first not-yet-completed lesson before this one. */
-  next: RoadmapLesson | null
-  /** How many lessons before this one are still not completed (real data, counted from the ordered states). */
-  steps: number
-}
-
-/**
- * What a locked lesson is waiting on. Every earlier lesson in course order must
- * be completed for it to unlock, so the steps to go are the earlier lessons not
- * yet completed, and the one to do next is the first of them.
- */
-export function unlockPlan(roadmap: Roadmap, lessonId: string): UnlockPlan {
-  const ordered = roadmap.sections.flatMap((s) => s.lessons)
-  let next: RoadmapLesson | null = null
-  let steps = 0
-  for (const lesson of ordered) {
-    if (lesson.id === lessonId) break
-    if (lesson.state !== 'completed') {
-      steps += 1
-      next ??= lesson
-    }
-  }
-  return { next, steps }
-}

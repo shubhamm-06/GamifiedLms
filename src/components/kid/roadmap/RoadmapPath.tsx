@@ -1,7 +1,10 @@
-import { useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { PartyPopper } from 'lucide-react'
 import type { Roadmap } from '@/lib/roadmap'
 import { useModuleSpy } from '@/hooks/useModuleSpy'
+import { prefersReducedMotion } from '@/hooks/useMediaQuery'
 import { useNodeCenters } from '@/hooks/useNodeCenters'
+import { LessonPopover } from './LessonPopover'
 import { ModuleBar } from './ModuleBar'
 import { PathDecor } from './PathDecor'
 import { RoadmapConnector } from './RoadmapConnector'
@@ -9,23 +12,34 @@ import { RoadmapNode } from './RoadmapNode'
 
 /**
  * The learning path: ONE continuous winding road through every lesson in the
- * states function's order, with no per-module boxes. Module boundaries are
- * invisible on the road itself; the slim sticky `ModuleBar` names whichever
- * module is in view (scroll-spy over each row's module key). The connector is
- * one SVG through all node centres, teal up to the next-up node, and the decor
- * layer sits behind it.
+ * states function's order, with no per-module boxes and no header above it.
+ * The slim sticky `ModuleBar` names whichever module is in view.
+ *
+ * On every visit (every mount) it scrolls the next-up node to the middle of
+ * the screen and opens that node's popover, so the child's next step is
+ * already on screen with no tap. Fallbacks: a finished course scrolls to a
+ * small "course complete" note at the end with no popover; a locked lesson the
+ * player sent back here (`focusLessonId`) is scrolled to and wiggled instead.
+ * One popover at a time: tapping another node switches, tapping the open node
+ * or anywhere else closes it.
  */
 export function RoadmapPath({
   roadmap,
-  onOpenLesson,
+  courseId,
+  focusLessonId,
 }: {
   roadmap: Roadmap
-  onOpenLesson: (lessonId: string) => void
+  courseId: string
+  /** A locked lesson the lesson player turned away (`?open=`); null normally. */
+  focusLessonId: string | null
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const pathRef = useRef<HTMLDivElement>(null)
   const rows = useMemo(
-    () => roadmap.sections.flatMap((s) => s.lessons.map((lesson) => ({ lesson, section: s }))),
+    () =>
+      roadmap.sections.flatMap((s) =>
+        s.lessons.map((lesson, i) => ({ lesson, section: s, position: i + 1, of: s.lessons.length })),
+      ),
     [roadmap],
   )
   const idKey = rows.map((r) => r.lesson.id).join(',')
@@ -33,12 +47,62 @@ export function RoadmapPath({
   const activeKey = useModuleSpy(rootRef, roadmap.sections[0]?.key ?? '', idKey)
   const active = roadmap.sections.find((s) => s.key === activeKey) ?? roadmap.sections[0]
 
+  const focusIsLocked = rows.some((r) => r.lesson.id === focusLessonId && r.lesson.state === 'locked')
+  // The automatic open happens through the initial state, so no effect has to set it.
+  const [open, setOpen] = useState<{ id: string; focus: boolean } | null>(() =>
+    !focusIsLocked && !roadmap.courseComplete && roadmap.currentLessonId
+      ? { id: roadmap.currentLessonId, focus: false }
+      : null,
+  )
+
+  // Every visit: bring the next step into view (or the fallback target).
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const target = focusIsLocked
+      ? root.querySelector<HTMLElement>(`.rm-node[data-lesson-id="${focusLessonId}"]`)
+      : roadmap.courseComplete || !roadmap.currentLessonId
+        ? root.querySelector<HTMLElement>('[data-testid="course-complete-note"]')
+        : root.querySelector<HTMLElement>(`[data-anchor-for="${roadmap.currentLessonId}"]`)
+    target?.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+    // A locked lesson explains itself the same way a tap on it does: it wiggles.
+    if (focusIsLocked) target?.click()
+    // Runs once per visit on purpose; later state changes must not re-scroll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Tapping anywhere that is not a node or the card closes the card.
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null
+      if (t?.closest('.rm-pop') || t?.closest('.rm-node')) return
+      setOpen(null)
+    }
+    document.addEventListener('pointerdown', onDown)
+    return () => document.removeEventListener('pointerdown', onDown)
+  }, [open])
+
+  const toggle = useCallback((id: string) => {
+    setOpen((prev) => (prev?.id === id ? null : { id, focus: true }))
+  }, [])
+
+  const openId = open?.id ?? null
+  const close = useCallback(
+    (returnFocus: boolean) => {
+      if (openId && returnFocus) document.querySelector<HTMLElement>(`.rm-node[data-lesson-id="${openId}"]`)?.focus()
+      setOpen(null)
+    },
+    [openId],
+  )
+
   // Completed lessons always form a prefix of the course order.
   let completed = 0
   for (const { lesson } of rows) {
     if (lesson.state !== 'completed') break
     completed += 1
   }
+  const openRow = open ? rows.find((r) => r.lesson.id === open.id) : undefined
 
   return (
     <div className="rm" data-testid="roadmap" ref={rootRef}>
@@ -53,10 +117,29 @@ export function RoadmapPath({
             index={i}
             moduleKey={section.key}
             isCurrent={lesson.id === roadmap.currentLessonId}
-            onOpen={onOpenLesson}
+            expanded={open?.id === lesson.id}
+            onOpen={toggle}
           />
         ))}
       </div>
+      {roadmap.courseComplete ? (
+        <div className="rm-complete" role="status" data-testid="course-complete-note">
+          <PartyPopper className="size-6 flex-none" aria-hidden />
+          You finished every lesson!
+        </div>
+      ) : null}
+      {openRow && openRow.lesson.state !== 'locked' ? (
+        <LessonPopover
+          key={openRow.lesson.id}
+          lesson={openRow.lesson}
+          courseId={courseId}
+          current={openRow.lesson.id === roadmap.currentLessonId}
+          subtitle={`Lesson ${openRow.position} of ${openRow.of}`}
+          rootRef={rootRef}
+          focusOnOpen={open?.focus ?? false}
+          onClose={close}
+        />
+      ) : null}
     </div>
   )
 }
