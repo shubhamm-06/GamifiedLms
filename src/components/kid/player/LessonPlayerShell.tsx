@@ -16,8 +16,10 @@ interface Props {
   path: ModulePath
   mode: PlayerMode
   pause: ClockPause | null
-  /** The activity card. */
+  /** The activity card (a video lesson: the player, full-bleed). */
   children: ReactNode
+  /** A video lesson's title, module, XP pill and minimum-time bar, shown right under the player. */
+  info?: ReactNode
   /** The Next / Back to roadmap bar, only once the lesson is completed. */
   bar?: ReactNode
 }
@@ -28,17 +30,30 @@ interface Props {
  * done, one Next button. From lg the list becomes a sticky left column beside
  * the card. The top bar (KidLayout) carries only Back and the title. It holds
  * no rules: time, completion, XP and unlock state all come from the server.
+ *
+ * A video lesson swaps the hero and the card for the player itself, edge to edge
+ * right under the top bar, with its `info` below it; the module list and the
+ * bottom bar are the same. Its Back goes to Home (`/`) when there is no history,
+ * and the top bar carries no title (the title is under the player).
  */
-export function LessonPlayerShell({ lesson, courseId, path, mode, pause, children, bar }: Props) {
-  useKidHeader(lesson.title, `/courses/${courseId}`)
+export function LessonPlayerShell({ lesson, courseId, path, mode, pause, children, info, bar }: Props) {
+  const isVideo = lesson.type === 'video'
+  useKidHeader(isVideo ? '' : lesson.title, isVideo ? '/' : `/courses/${courseId}`)
 
   return (
     <div className="lp" data-testid="lesson-player" data-mode={mode} data-type={lesson.type}>
-      <LessonHero title={lesson.title} moduleTitle={path.moduleTitle} />
+      {isVideo ? null : <LessonHero title={lesson.title} moduleTitle={path.moduleTitle} />}
       <div className="lp-layout">
         <div className="lp-main">
           <PausedNotice reason={mode === 'play' ? pause : null} />
-          <Reveal className="lp-body">{children}</Reveal>
+          {isVideo ? (
+            <>
+              <div className="lp-video-bleed">{children}</div>
+              {info}
+            </>
+          ) : (
+            <Reveal className="lp-body">{children}</Reveal>
+          )}
         </div>
         <div className="lp-side">
           <Reveal>

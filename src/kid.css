@@ -1615,7 +1615,8 @@
     font-weight: 400;
   }
 
-  /* One teal "Done" badge; ink on --teal is 4.50:1 at 18px bold. */
+  /* One teal "Done" badge: cream on --teal-d (6.20:1), the same fix the module bar
+     got; ink on plain --teal was 4.50:1. */
   .lp-done {
     display: inline-flex;
     align-self: flex-start;
@@ -1624,8 +1625,8 @@
     min-height: 2.5rem;
     padding: 0.25rem 1rem 0.25rem 0.75rem;
     border-radius: 999px;
-    background: var(--teal);
-    color: var(--ink);
+    background: var(--teal-d);
+    color: var(--cream);
     font-size: var(--kid-text-body);
     line-height: var(--kid-leading-body);
     font-weight: 800;
@@ -2130,6 +2131,161 @@
 
   @media (prefers-reduced-motion: reduce) {
     .kc-row { transition: none; }
+  }
+
+  /* ------------------------------------------------------------ video lesson */
+
+  /* The player runs edge to edge right under the top bar on phones (it cancels the
+     page gutter and the first bit of top padding); from md it sits in its column
+     with rounded corners instead. */
+  .lp-video-bleed {
+    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
+    margin-top: -1rem;
+  }
+
+  @media (min-width: 768px) {
+    .lp-video-bleed {
+      margin: 0;
+      overflow: hidden;
+      border-radius: 20px;
+    }
+  }
+
+  /* Our own player chrome: a chromeless stage (file or embed, never tappable
+     itself) over a slim control strip. Cream on ink throughout, the gold big
+     Play as the one main action, no speed control. */
+  .vp {
+    display: flex;
+    flex-direction: column;
+    background: var(--ink);
+    color: var(--cream);
+  }
+
+  .vp-stage {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: var(--ink);
+  }
+
+  .vp-media {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  .vp-tap {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .vp-bigplay {
+    display: grid;
+    place-items: center;
+    width: 4.5rem;
+    height: 4.5rem;
+    border-radius: 999px;
+    background: var(--gold);
+    color: var(--ink);
+    box-shadow: 0 6px 0 var(--gold-d);
+  }
+
+  .vp-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+  }
+
+  .vp-btn {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--cream);
+    cursor: pointer;
+  }
+
+  .vp-btn:active { background: color-mix(in srgb, var(--cream) 16%, transparent); }
+  .vp-btn:focus-visible, .vp-tap:focus-visible { outline: 3px solid var(--cream); outline-offset: -3px; }
+
+  .vp-time {
+    flex: none;
+    font-size: var(--kid-text-caption);
+    line-height: var(--kid-leading-caption);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .vp-range {
+    height: 2.75rem;
+    margin: 0;
+    accent-color: var(--teal);
+    cursor: pointer;
+  }
+
+  .vp-seek { flex: 1; min-width: 3rem; }
+  .vp-volume { flex: none; width: 4rem; }
+
+  @media (max-width: 399px) {
+    .vp-volume { display: none; }
+  }
+
+  .vp:fullscreen { height: 100%; }
+  .vp:fullscreen .vp-stage { flex: 1; aspect-ratio: auto; }
+
+  /* Under the player: title, module, the XP pill, and the minimum-time bar. The bar
+     counts time the video actually played; it is not the scrubber. */
+  .lp-vinfo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .lp-vinfo-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .lp-timebar-track {
+    height: 0.625rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--kid-muted);
+  }
+
+  .lp-timebar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--teal-d);
+    transition: width var(--motion-base) var(--ease-standard);
+  }
+
+  .lp-timebar-text {
+    margin: 0.25rem 0 0;
+    font-size: var(--kid-text-caption);
+    line-height: var(--kid-leading-caption);
+    font-weight: 600;
+    color: var(--kid-muted-fg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lp-timebar-fill { transition: none; }
   }
 
   /* ------------------------------------------------------------------ tiers */

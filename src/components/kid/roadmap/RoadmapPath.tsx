@@ -4,6 +4,7 @@ import type { Roadmap } from '@/lib/roadmap'
 import { useModuleSpy } from '@/hooks/useModuleSpy'
 import { prefersReducedMotion } from '@/hooks/useMediaQuery'
 import { useNodeCenters } from '@/hooks/useNodeCenters'
+import { clearLessonLeft, peekLessonLeft } from '@/lib/roadmapReturn'
 import { LessonPopover } from './LessonPopover'
 import { ModuleBar } from './ModuleBar'
 import { ModuleDivider } from './ModuleDivider'
@@ -45,19 +46,27 @@ export function RoadmapPath({
   )
   const idKey = rows.map((r) => r.lesson.id).join(',')
   const measure = useNodeCenters(pathRef, idKey)
-  // Where the page is about to scroll to (the next-up lesson, else the last one of a
-  // finished course, else the first), so the bar is right before any scrolling happens.
+  // The lesson to bring into view: one the player turned away (`?open=`), else the one the
+  // child just came back from (`roadmapReturn`), else none (the next-up lesson, below).
+  const [returnedFrom] = useState(peekLessonLeft)
+  const focusId = focusLessonId ?? returnedFrom
+  const focusRow = focusId ? rows.find((r) => r.lesson.id === focusId) : undefined
+  const focusIsLocked = focusRow?.lesson.state === 'locked'
+  // A lesson they came back from that is not the next-up one: scroll to it, open nothing.
+  const focusIsOther = !!focusRow && !focusIsLocked && focusRow.lesson.id !== roadmap.currentLessonId
+  // Where the page is about to scroll to (that lesson, else the next-up lesson, else the last
+  // one of a finished course, else the first), so the bar is right before any scrolling happens.
   const startRow =
+    focusRow ??
     (roadmap.currentLessonId ? rows.find((r) => r.lesson.id === roadmap.currentLessonId) : undefined) ??
     (roadmap.courseComplete ? rows[rows.length - 1] : rows[0])
   const spy = useModuleSpy(rootRef, { key: startRow?.section.key ?? '', unit: startRow?.position ?? 1 }, idKey)
   const activeIndex = Math.max(0, roadmap.sections.findIndex((s) => s.key === spy.key))
   const active = roadmap.sections[activeIndex]
 
-  const focusIsLocked = rows.some((r) => r.lesson.id === focusLessonId && r.lesson.state === 'locked')
   // The automatic open happens through the initial state, so no effect has to set it.
   const [open, setOpen] = useState<{ id: string; focus: boolean } | null>(() =>
-    !focusIsLocked && !roadmap.courseComplete && roadmap.currentLessonId
+    !focusIsLocked && !focusIsOther && !roadmap.courseComplete && roadmap.currentLessonId
       ? { id: roadmap.currentLessonId, focus: false }
       : null,
   )
@@ -67,13 +76,16 @@ export function RoadmapPath({
     const root = rootRef.current
     if (!root) return
     const target = focusIsLocked
-      ? root.querySelector<HTMLElement>(`.rm-node[data-lesson-id="${focusLessonId}"]`)
-      : roadmap.courseComplete || !roadmap.currentLessonId
-        ? root.querySelector<HTMLElement>('[data-testid="course-complete-note"]')
-        : root.querySelector<HTMLElement>(`[data-anchor-for="${roadmap.currentLessonId}"]`)
+      ? root.querySelector<HTMLElement>(`.rm-node[data-lesson-id="${focusId}"]`)
+      : focusIsOther
+        ? root.querySelector<HTMLElement>(`[data-anchor-for="${focusId}"]`)
+        : roadmap.courseComplete || !roadmap.currentLessonId
+          ? root.querySelector<HTMLElement>('[data-testid="course-complete-note"]')
+          : root.querySelector<HTMLElement>(`[data-anchor-for="${roadmap.currentLessonId}"]`)
     target?.scrollIntoView({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
     // A locked lesson explains itself the same way a tap on it does: it wiggles.
     if (focusIsLocked) target?.click()
+    clearLessonLeft()
     // Runs once per visit on purpose; later state changes must not re-scroll.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

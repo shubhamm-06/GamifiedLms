@@ -1341,6 +1341,66 @@ course name never appears. Same content at every size.
    "Next: <title>" (the next lesson in this module) or "Back to roadmap" after the module's
    last. Otherwise no bottom button.
 
+### Video lessons (2026-09-26)
+
+The first fully built lesson type; it reuses the page above (heartbeat, server completion and
+XP, module list, replay mode) and changes only what a video needs. Nothing about doc, quiz or
+game lessons changed, apart from two shared fixes listed at the end.
+
+- **Layout** (`LessonPlayerShell`, video branch). No hero and no activity card: the player runs
+  edge to edge right under the top bar (`.lp-video-bleed` cancels the page gutter; from md it sits
+  in its column with 20px corners). The top bar carries only Back (no title, since the title is
+  under the player). Under the player, `VideoInfo`: the title, the module name, the lesson's XP as
+  the roadmap's own `.rm-chip` pill (`+10 XP`), and a slim minimum-time bar. Then the same module
+  list. No bottom nav (the nav only shows on Home, Badges, Courses and Profile).
+- **Player** (`VideoLesson`, `VideoEngines`, `lib/videoPlayback.ts`). A chromeless stage over our
+  own control strip: play or pause, a scrubber that seeks freely in both directions, mute plus a
+  volume slider (the slider hides below 400px; the mute button stays), and full screen (shown only
+  where the Fullscreen API exists; it fullscreens the whole player, strip included). No speed
+  control. Cream on `--ink`; the big centre Play is the one gold thing. Three engines report the
+  same state (`ready`, `playing`, `ended`, `current`, `duration`, `volume`, `muted`, `failed`) and
+  register the same controls: a plain https file (`<video>`; dev/test only, see `video.ts`), a
+  YouTube embed (`controls=0`, driven over its postMessage API: the `listening` handshake, then
+  `infoDelivery` and `onStateChange`) and a Vimeo embed (`controls=0`, its postMessage
+  `addEventListener` API). No third-party script is loaded. The iframes have `pointer-events: none`
+  so the provider's own controls are never tappable. A failed engine shows the existing
+  `PlayerError` with Try again.
+- **Active time counts only while the video is actually playing.** `useLessonClock` takes an
+  `active` flag (`ClockPause` gains `idle`): false stops the clock exactly like a backgrounded
+  app, with the same quiet period on resume, so paused time never counts. The page passes
+  "the video is playing" (a stop is reported after 1 s so a buffering blip does not stop the
+  clock; playing is reported at once). When the video stops after counting, the clock sends one
+  final beat so the stretch just played is credited (the server credits the real elapsed seconds,
+  capped); a stop during the quiet period sends nothing, because nothing was being counted and a beat
+  then would credit the paused gap. Backgrounding the app still pauses as before.
+- **Completion needs both**: the server says the minimum time is met AND the video played to its
+  end (`ended`). Seeking to the end satisfies only the second, so it never completes a lesson whose
+  time is not met. The existing auto-finish then calls `fn_complete_lesson` once; XP is awarded
+  once by the server. A video with no usable URL keeps the old rule (time only).
+- **Minimum-time bar** (`.lp-timebar`): a slim `--teal-d` fill on the muted track with "Watch time
+  0:05 of 2:00" under it, separate from the scrubber. It shows only while the lesson can still be
+  completed.
+- **Completion card**: the existing `LessonCompleteSheet` (teal check medallion, "Lesson done!",
+  the `+N XP` count-up, confetti). It now has ONE button: "Continue to next lesson" when the next
+  lesson is open, else "Back to roadmap" (the secondary link is gone for every lesson type).
+- **Revisiting a completed lesson** opens in replay: the Done badge (no XP pill, no time bar), no
+  clock, no XP, no celebration, however much of the video is played.
+- **Back** returns to Home at the node the child left from: the player records its lesson
+  (`lib/roadmapReturn.ts`) and the roadmap, on its next mount, scrolls that node to the middle
+  through the same code path as the locked-lesson redirect (`focusLessonId`). If it is the next-up
+  lesson the popover opens as usual; any other lesson (a completed one) is scrolled to with no
+  popover. The lesson list links now replace the history entry, so in-app history stays
+  [Home, lesson] and the Back arrow's `history.back()` lands on Home; with no history it goes to `/`.
+- **Locked siblings** in the module list stay non-interactive spans (`aria-disabled`), as before.
+- **Shared fixes made in the same pass**: the "Done" badge (`.lp-done`) is now cream on `--teal-d`
+  (6.20:1; it was ink on `--teal`, 4.50:1), and the completion sheet has one button for all types.
+- **Known limits**: the resume position of the video itself is not persisted (only accrued time is);
+  Vimeo's `controls=0` hides its own chrome only on plans that allow it, and its playback could
+  not be exercised in automation (the player answers `ready` but Vimeo's edge blocked headless
+  playback with a 401 challenge), so the Vimeo engine is verified to the handshake only; iPhone
+  Safari has no Fullscreen API for elements, so the full screen button is hidden there.
+- **Verified** (Chromium against the live project, real JWTs, fixtures removed): see `changelog.md`.
+
 **Completion is automatic (decided 2026-09-24).** There is no Finish button: once the server
 says the minimum time is met, and for a video or game once the child has tapped Play (a
 reading lesson: time only), the page calls the existing `fn_complete_lesson` itself, once per

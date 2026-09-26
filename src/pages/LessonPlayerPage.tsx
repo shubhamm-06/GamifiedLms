@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, useParams } from '@tanstack/react-router'
 import { ActivityCard } from '@/components/kid/player/ActivityCard'
 import { DocLesson } from '@/components/kid/player/DocLesson'
@@ -15,6 +15,7 @@ import {
 } from '@/components/kid/player/PlayerScreens'
 import { PlayerSkeleton } from '@/components/kid/player/PlayerSkeleton'
 import { QuizLesson } from '@/components/kid/player/QuizLesson'
+import { VideoInfo } from '@/components/kid/player/VideoInfo'
 import { VideoLesson } from '@/components/kid/player/VideoLesson'
 import { NotEnrolledScreen } from '@/components/kid/roadmap/StateScreens'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
@@ -30,6 +31,7 @@ import {
 } from '@/lib/lessonEngine'
 import { gameIsPlayable, nextOpenLesson, videoIsPlayable } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
+import { rememberLessonLeft } from '@/lib/roadmapReturn'
 
 /**
  * /courses/$courseId/lessons/$lessonId, the lesson player. It decides which screen
@@ -124,11 +126,22 @@ function PlayerLesson({
   const complete = useCompleteLesson(courseId)
   const path = useModulePath(courseId, states, lesson.id)
 
+  // A video lesson counts active time only while the video is really playing, and
+  // completes only once it has also played to its end (the server checks the time).
+  // Back brings the child to this lesson's node on the roadmap (`roadmapReturn`).
+  useEffect(() => rememberLessonLeft(lesson.id), [lesson.id])
+  const isVideo = lesson.type === 'video'
+  const videoPlayable = isVideo && videoIsPlayable(lesson.videoUrl)
+  const [videoPlaying, setVideoPlaying] = useState(false)
+  const [videoEnded, setVideoEnded] = useState(false)
+  const onVideoEnded = useCallback(() => setVideoEnded(true), [])
+
   const clock = useLessonClock({
     lessonId: lesson.id,
     enabled: mode === 'play' && !refusal,
     initialSeconds: row.activeSeconds,
     minTimeSeconds: row.minTimeSeconds,
+    active: videoPlayable ? videoPlaying : true,
   })
   // Completed somewhere else (another tab): show it as a replay, with no XP promised.
   const shownMode: PlayerMode = mode === 'play' && clock.completedRemotely ? 'replay' : mode
@@ -139,7 +152,7 @@ function PlayerLesson({
   // shows its error straight away instead of offering a Play that leads nowhere.
   const playable =
     lesson.type === 'video' ? videoIsPlayable(lesson.videoUrl) : lesson.type === 'game' ? gameIsPlayable(game) : false
-  const needsPlay = playable && !played
+  const needsPlay = playable && !played && !isVideo
 
   function celebrate(xp: number, already: boolean) {
     setXpAwarded(xp)
@@ -172,7 +185,11 @@ function PlayerLesson({
   // a Try again button, so a refused call is never retried in a loop.
   const autoTried = useRef(false)
   const readyToFinish =
-    shownMode === 'play' && !fatal && lesson.type !== 'quiz' && clock.timeMet && (played || !playable)
+    shownMode === 'play' &&
+    !fatal &&
+    lesson.type !== 'quiz' &&
+    clock.timeMet &&
+    (videoPlayable ? videoEnded : played || !playable)
   useEffect(() => {
     if (!readyToFinish || autoTried.current) return
     autoTried.current = true
@@ -202,7 +219,15 @@ function PlayerLesson({
   let media: ReactNode
   switch (lesson.type) {
     case 'video':
-      media = <VideoLesson url={lesson.videoUrl} title={lesson.title} courseId={courseId} />
+      media = (
+        <VideoLesson
+          url={lesson.videoUrl}
+          title={lesson.title}
+          courseId={courseId}
+          onPlayingChange={setVideoPlaying}
+          onEnded={onVideoEnded}
+        />
+      )
       break
     case 'game':
       media = <GameLesson game={game} courseId={courseId} />
@@ -265,10 +290,34 @@ function PlayerLesson({
 
   return (
     <>
-      <LessonPlayerShell lesson={lesson} courseId={courseId} path={path} mode={shownMode} pause={clock.pause} bar={bar}>
-        <ActivityCard lesson={lesson} done={lessonDone} needsPlay={needsPlay} onPlay={() => setPlayed(true)}>
-          {media}
-        </ActivityCard>
+      <LessonPlayerShell
+        lesson={lesson}
+        courseId={courseId}
+        path={path}
+        mode={shownMode}
+        pause={clock.pause}
+        bar={bar}
+        info={
+          isVideo ? (
+            <VideoInfo
+              title={lesson.title}
+              moduleTitle={path.moduleTitle}
+              xp={shownMode === 'play' && lesson.gamificationEnabled ? lesson.xp : null}
+              done={lessonDone}
+              seconds={clock.displaySeconds}
+              minSeconds={clock.minTimeSeconds}
+              timeMet={clock.timeMet}
+            />
+          ) : undefined
+        }
+      >
+        {isVideo ? (
+          media
+        ) : (
+          <ActivityCard lesson={lesson} done={lessonDone} needsPlay={needsPlay} onPlay={() => setPlayed(true)}>
+            {media}
+          </ActivityCard>
+        )}
       </LessonPlayerShell>
       <LessonCompleteSheet
         open={sheetOpen && !statesRefreshing}

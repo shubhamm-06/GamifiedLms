@@ -14,7 +14,7 @@ export const playerCopy = {
     continueReview: 'Continue',
     tryAgain: 'Try again',
     backToRoadmap: 'Back to roadmap',
-    nextLesson: 'Next lesson',
+    nextLesson: 'Continue to next lesson',
     finishing: 'Finishing',
     checking: 'Checking',
     back: 'Back',
@@ -59,6 +59,18 @@ export const playerCopy = {
     tryAgain: 'Try again',
   },
   video: {
+    controls: {
+      group: 'Video controls',
+      play: 'Play',
+      pause: 'Pause',
+      seek: 'Seek',
+      mute: 'Mute',
+      unmute: 'Unmute',
+      volume: 'Volume',
+      fullscreen: 'Full screen',
+      exitFullscreen: 'Exit full screen',
+    },
+    watchTime: (elapsed: string, min: string) => `Watch time ${elapsed} of ${min}`,
     unavailable: {
       heading: "This video isn't ready",
       body: "We can't play this video right now. Please check back soon.",

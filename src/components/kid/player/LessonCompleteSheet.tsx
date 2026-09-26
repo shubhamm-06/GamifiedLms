@@ -54,21 +54,16 @@ function Body({
       ) : null}
       <div className="mt-6 flex flex-col gap-3">
         {nextLessonId ? (
-          <>
-            <Link
-              to="/courses/$courseId/lessons/$lessonId"
-              params={{ courseId, lessonId: nextLessonId }}
-              replace
-              className="lp-primary kid-tap w-full"
-              data-variant="candy"
-              data-testid="next-lesson"
-            >
-              {playerCopy.button.nextLesson}
-            </Link>
-            <Link to="/courses/$courseId" params={{ courseId }} className="candy-btn-quiet kid-tap w-full" data-testid="back-to-path">
-              {playerCopy.button.backToRoadmap}
-            </Link>
-          </>
+          <Link
+            to="/courses/$courseId/lessons/$lessonId"
+            params={{ courseId, lessonId: nextLessonId }}
+            replace
+            className="lp-primary kid-tap w-full"
+            data-variant="candy"
+            data-testid="next-lesson"
+          >
+            {playerCopy.button.nextLesson}
+          </Link>
         ) : (
           <Link
             to="/courses/$courseId"
@@ -90,7 +85,7 @@ function Body({
  * (spec Part B8): a teal check medallion (not gold — gold is the XP/primary
  * colour, teal is success), a confetti burst, an XP count-up shown only when
  * this call awarded some, and Next lesson (only once the refreshed states
- * show it open) or Back to roadmap otherwise. A repeat or racing call that
+ * show it open) or Back to roadmap otherwise: one button, never two. A repeat or racing call that
  * finds the lesson already done shows neither XP nor confetti, just a plain
  * "you already finished this one." The star pop is switched off under
  * `prefers-reduced-motion`; the title and description are read out when the

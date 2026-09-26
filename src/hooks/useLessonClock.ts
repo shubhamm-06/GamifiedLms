@@ -14,8 +14,11 @@ import {
  * - `offline`: the device has no connection.
  * - `resuming`: back in the foreground, waiting out the quiet period (below).
  * - `connection`: a beat failed and is being retried.
+ * - `idle`: the lesson's own activity is not running (a video that is paused,
+ *   buffering or not started), so `active` is false. Stopping sends one last beat
+ *   so the stretch just played is credited.
  */
-export type ClockPause = 'hidden' | 'offline' | 'resuming' | 'connection'
+export type ClockPause = 'hidden' | 'offline' | 'resuming' | 'connection' | 'idle'
 
 const FATAL: ReadonlySet<LessonEngineErrorCode> = new Set<LessonEngineErrorCode>([
   'locked',
@@ -45,6 +48,12 @@ interface Options {
   enabled: boolean
   initialSeconds: number
   minTimeSeconds: number
+  /**
+   * Whether the lesson's activity is running right now; false stops the clock exactly
+   * like a backgrounded app (same quiet period on resume, so paused time never
+   * counts). Defaults to true. A video lesson passes "is the video playing".
+   */
+  active?: boolean
 }
 
 /**
@@ -65,7 +74,7 @@ interface Options {
  * replies; the smoothed `displaySeconds` never reaches the minimum before the
  * server confirms it.
  */
-export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSeconds }: Options): LessonClock {
+export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSeconds, active = true }: Options): LessonClock {
   const [server, setServer] = useState({
     seconds: initialSeconds,
     min: minTimeSeconds,
@@ -80,6 +89,15 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
   const serverRef = useRef(server)
   const runningRef = useRef(false)
   const arrivedAtRef = useRef(0)
+  const activeRef = useRef(active)
+  // Set by the beat loop below so a change of `active` can pause or resume it in place.
+  const gateRef = useRef<(() => void) | null>(null)
+
+  // Declared before the loop's effect so the loop's first start() sees the current value.
+  useEffect(() => {
+    activeRef.current = active
+    gateRef.current?.()
+  }, [active])
 
   useEffect(() => {
     serverRef.current = server
@@ -110,6 +128,7 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
       if (stopped) return
       if (!visible()) return pauseFor('hidden')
       if (!navigator.onLine) return pauseFor('offline')
+      if (!activeRef.current) return pauseFor('idle')
       const quiet = lastSentAt ? Math.max(0, lastSentAt + HEARTBEAT_RESUME_QUIET_MS - Date.now()) : 0
       clear()
       if (quiet > 0) {
@@ -123,7 +142,7 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
 
     async function beat() {
       if (stopped || inFlight) return
-      if (!visible() || !navigator.onLine) return start()
+      if (!visible() || !navigator.onLine || !activeRef.current) return start()
       inFlight = true
       const sentAt = Date.now()
       lastSentAt = sentAt // the request may reach the server even if the reply is lost
@@ -158,10 +177,44 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
         setCompletedRemotely(true)
         return
       }
-      if (!visible() || !navigator.onLine) return start()
+      if (!visible() || !navigator.onLine || !activeRef.current) return start()
       setPause(null)
       setRun(true)
       timer = window.setTimeout(beat, Math.max(1000, HEARTBEAT_INTERVAL_MS - (Date.now() - sentAt)))
+    }
+
+    /**
+     * The lesson's activity just stopped (a video was paused): stop the loop, then send one
+     * last beat so the stretch played since the previous beat is credited now. It lands
+     * inside the server's window (beats are 12 s apart), so it credits the real seconds,
+     * never more than the cap. Best effort: a failed beat only loses that stretch.
+     */
+    async function settle() {
+      // Only while a beat reply has us counting: during the quiet period after a resume nothing
+      // is being counted, and a beat then would credit the paused gap.
+      const send = !stopped && !inFlight && runningRef.current && visible() && navigator.onLine
+      pauseFor('idle')
+      if (!send) return
+      inFlight = true
+      lastSentAt = Date.now()
+      try {
+        const reply = await heartbeatLesson(lessonId)
+        if (stopped) return
+        arrivedAtRef.current = Date.now()
+        setServer({ seconds: reply.activeSeconds, min: reply.minTimeSeconds, timeMet: reply.timeMet })
+        if (reply.completed) {
+          stopped = true
+          setCompletedRemotely(true)
+        }
+      } catch (e) {
+        const code = e instanceof LessonEngineError ? e.code : 'unknown'
+        if (!stopped && FATAL.has(code)) {
+          stopped = true
+          setFatal(code)
+        }
+      } finally {
+        inFlight = false
+      }
     }
 
     const onVisibility = () => (visible() ? start() : pauseFor('hidden'))
@@ -169,6 +222,7 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
     const onOffline = () => pauseFor('offline')
     const onOnline = () => start()
 
+    gateRef.current = () => (activeRef.current ? start() : void settle())
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onHide)
     window.addEventListener('offline', onOffline)
@@ -179,6 +233,7 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
       stopped = true
       clear()
       runningRef.current = false
+      gateRef.current = null
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', onHide)
       window.removeEventListener('offline', onOffline)

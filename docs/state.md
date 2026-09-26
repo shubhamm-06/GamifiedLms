@@ -115,9 +115,11 @@ nav entry is a real route):
 
 The schema or docs anticipate each of these; no working code exists for any.
 
-- **Ink on `--teal` in the lesson player.** The player's "Done" badge still has ink text on
-  a `--teal` fill (4.50:1, passes AA). The roadmap fix (cream on `--teal-d`) was not applied
-  there because the lesson player was out of scope on 2026-09-26.
+- **The other lesson types on the shared framework.** Video is fully built (custom player, playing-only
+  active time, ends-then-completes, one-button completion card). Doc, quiz and game lessons still use
+  the earlier flow (time only, plus their own quiz/game handling); they can take an `active` signal into
+  `useLessonClock` and the single-button completion sheet as they are reworked. Vimeo playback was not
+  exercised end to end (see `ui.md`); YouTube and a file were.
 - **Gems and hearts/energy** in Home's stat bar. Streak and lifetime XP shipped there on
   2026-09-26; the other two are still deferred and have no placeholders.
 - **A real design for Badges and Profile.** Both shipped 2026-09-26 as minimal functional
@@ -240,7 +242,10 @@ worked on.
 - **Dead time after a pause.** The server cannot be told the child left, so after
   a pause the client waits until 32 s after its last beat before sending the next (so
   the beat lands past the server's 30 s window and credits 0). Cost: up to about 32 s
-  of visible time is not counted after each pause. Removing it needs a small migration
+  of visible time is not counted after each pause. Video lessons (2026-09-26) hit this hardest,
+  because a paused video is a pause: the stretch played BEFORE the pause is credited by a final
+  beat, but the seconds played in the first ~32 s after each resume are not. Watching without
+  pausing is unaffected. Removing it needs a small migration
   (a `p_resumed` flag on `fn_lesson_heartbeat` that credits 0 and restarts the clock).
   In dev, React StrictMode sends the opening beat twice within a fraction of a second; harmless (the second credits 0).
 - **The Capacitor App plugin is not installed** (`@capacitor/app`), so the player

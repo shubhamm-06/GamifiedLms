@@ -79,6 +79,7 @@ export function ModuleLessonList({
                   <Link
                     to="/courses/$courseId/lessons/$lessonId"
                     params={{ courseId, lessonId: lesson.id }}
+                    replace
                     className="lp-row kid-tap"
                     data-kind={kind}
                     aria-current={kind === 'current' ? 'page' : undefined}
