@@ -92,7 +92,7 @@ nav entry is a real route):
   (`lib/lessonEngine.ts`, `hooks/useLessonEngine.ts`) are now exercised through
   the course roadmap, both directly (real JWTs against the REST API) and via
   the real UI (Chromium) — see the changelog.
-- Schema through migration 023 (`schema.md`; 020 is written but deliberately
+- Schema through migration 024 (`schema.md`; 020 is written but deliberately
   unapplied, see below), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
@@ -135,12 +135,12 @@ The schema or docs anticipate each of these; no working code exists for any.
   Capacitor webview has not been exercised.
 - **Native back-button handling and a Capacitor session audit** for the
   student app — noted as follow-ups, not started (see Next steps).
-- **Quiz reveal.** Grading exists (`fn_submit_quiz`, v1: per-question
-  correct/incorrect only — no correct option, no explanation, by assumption).
-  The player shows right or wrong per question; each question's explanation
-  appears after grading only once migration 020 is applied (proposed, awaiting
-  approval, which also means amending the quiz-answers invariant in `rules.md`).
-  The correct option is never shown. Whether to reveal it is undecided. `app_settings.quiz_pass_threshold_percent` is stored
+- **Quiz explanations.** The correct option is now revealed after each answer
+  (migration 024, `fn_check_quiz_answer`; `rules.md` amended). An explanation is still
+  not sent anywhere: the quiz page has no place for one and `fn_submit_quiz` /
+  `fn_check_quiz_answer` return none. Migration 020 (unapplied) would add it to a graded
+  result only, which the new one-at-a-time flow no longer shows; if explanations are
+  wanted they belong in the check reply instead. `app_settings.quiz_pass_threshold_percent` is stored
   and admin-editable but read by nothing — the pass mark is per lesson.
 - **Other XP award paths.** Only `'lesson'` (automatic) and `'manual'` (admin)
   award XP; the `'quiz'`, `'game'` and `'streak'` `source_type`s have no

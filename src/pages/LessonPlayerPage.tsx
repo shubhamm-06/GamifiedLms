@@ -140,7 +140,8 @@ function PlayerLesson({
   const blocks = useLessonBlocks(lesson.id, isDoc)
   const blocksPending = isDoc && blocks.isPending
   const hasBlocks = isDoc && (blocks.data?.length ?? 0) > 0
-  const singleColumn = isVideo || hasBlocks
+  const isQuiz = lesson.type === 'quiz'
+  const singleColumn = isVideo || hasBlocks || isQuiz
   const videoPlayable = isVideo && videoIsPlayable(lesson.videoUrl)
   const [videoPlaying, setVideoPlaying] = useState(false)
   const [videoEnded, setVideoEnded] = useState(false)
@@ -323,7 +324,7 @@ function PlayerLesson({
         mode={shownMode}
         pause={clock.pause}
         bar={bar}
-        variant={isVideo ? 'video' : hasBlocks ? 'doc' : undefined}
+        variant={isVideo ? 'video' : hasBlocks ? 'doc' : isQuiz ? 'quiz' : undefined}
         info={
           hasBlocks ? (
             <DocInfo
@@ -347,7 +348,7 @@ function PlayerLesson({
           ) : undefined
         }
       >
-        {isVideo || hasBlocks ? (
+        {isVideo || hasBlocks || isQuiz ? (
           media
         ) : (
           <ActivityCard lesson={lesson} done={lessonDone} needsPlay={needsPlay} onPlay={() => setPlayed(true)}>

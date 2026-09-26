@@ -6,10 +6,9 @@ import { PausedNotice } from '@/components/kid/player/PausedNotice'
 import { PlayerError } from '@/components/kid/player/PlayerError'
 import { PrimaryButton, PrimaryLink } from '@/components/kid/player/PrimaryButton'
 import { EnrollmentExpiredScreen, LessonRetryScreen, LessonUnavailableScreen } from '@/components/kid/player/PlayerScreens'
-import { QuizFeedbackPanel } from '@/components/kid/player/QuizFeedbackPanel'
 import { QuizQuestion } from '@/components/kid/player/QuizQuestion'
 import { QuizResultView } from '@/components/kid/player/QuizResultView'
-import { QuizStepDots } from '@/components/kid/player/QuizStepDots'
+import { QuizProgress } from '@/components/kid/player/QuizProgress'
 import { NotEnrolledScreen } from '@/components/kid/roadmap/StateScreens'
 import { playerCopy } from '@/lib/playerCopy'
 import type { QuizQuestionView } from '@/lib/lessonPlayer'
@@ -112,39 +111,18 @@ export function LessonPlayerGallery() {
         </Row>
       </Section>
 
-      <Section title="B7: quiz question and review">
+      <Section title="B7: quiz question (one at a time, feedback on the buttons)">
+        <Row label="progress bar (2 of 5 answered)">
+          <QuizProgress done={2} total={5} />
+        </Row>
         <Row label="unanswered">
-          <QuizQuestion question={FIXTURE_QUESTION} index={0} total={3} selected={undefined} disabled={false} onSelect={setSelected} />
+          <QuizQuestion question={FIXTURE_QUESTION} index={0} total={3} selected={selected} checking={false} correctOption={null} onSelect={setSelected} />
         </Row>
-        <Row label="selected (plum)">
-          <QuizQuestion question={FIXTURE_QUESTION} index={0} total={3} selected={selected} disabled={false} onSelect={setSelected} />
+        <Row label="answered right (teal, check)">
+          <QuizQuestion question={FIXTURE_QUESTION} index={0} total={3} selected="b" checking={false} correctOption="b" onSelect={() => {}} />
         </Row>
-        <Row label="step dots">
-          <QuizStepDots total={5} current={2} />
-        </Row>
-        <Row label="review: chosen right (teal)">
-          <QuizQuestion
-            question={FIXTURE_QUESTION}
-            index={0}
-            total={3}
-            selected="b"
-            disabled
-            onSelect={() => {}}
-            graded={{ correct: true }}
-          />
-          <QuizFeedbackPanel correct explanation="Counting goes ...8, 9, 10." />
-        </Row>
-        <Row label="review: chosen wrong (coral, shakes once)">
-          <QuizQuestion
-            question={FIXTURE_QUESTION}
-            index={0}
-            total={3}
-            selected="a"
-            disabled
-            onSelect={() => {}}
-            graded={{ correct: false }}
-          />
-          <QuizFeedbackPanel correct={false} explanation={null} />
+        <Row label="answered wrong (coral X, the right one teal)">
+          <QuizQuestion question={FIXTURE_QUESTION} index={0} total={3} selected="a" checking={false} correctOption="b" onSelect={() => {}} />
         </Row>
       </Section>
 

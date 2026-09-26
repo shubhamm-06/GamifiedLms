@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ClipboardList } from 'lucide-react'
-import { useSubmitQuiz } from '@/hooks/useLessonEngine'
+import { ClipboardList, Sparkles } from 'lucide-react'
+import { useCheckQuizAnswer, useSubmitQuiz } from '@/hooks/useLessonEngine'
 import { useQuizQuestions } from '@/hooks/useLessonContent'
 import {
   LessonEngineError,
   describeEngineError,
   type LessonEngineErrorCode,
+  type QuizAnswerCheck,
   type QuizResult,
 } from '@/lib/lessonEngine'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
@@ -17,10 +18,9 @@ import { PlayerError } from './PlayerError'
 import { PlayerSkeleton } from './PlayerSkeleton'
 import { PrimaryButton, PrimaryLink } from './PrimaryButton'
 import type { PlayerMode } from './LessonPlayerShell'
-import { QuizFeedbackPanel } from './QuizFeedbackPanel'
+import { QuizProgress } from './QuizProgress'
 import { QuizQuestion } from './QuizQuestion'
 import { QuizResultView } from './QuizResultView'
-import { QuizStepDots } from './QuizStepDots'
 
 interface Props {
   lesson: LessonContent
@@ -43,27 +43,27 @@ const REFUSALS: ReadonlySet<LessonEngineErrorCode> = new Set<LessonEngineErrorCo
   'lesson_unavailable',
 ])
 
-type Phase = 'answering' | 'review' | 'results'
-
 /**
- * The quiz: one question at a time, then a server-graded result reviewed one
- * question at a time, then the results screen (spec Part B7). Answers are
- * only ever sent to fn_submit_quiz in one call once every question is
- * answered; nothing is graded, and no explanation or correct option is shown,
- * before that reply comes back (rules.md — unchanged by the new UI spec). The
- * review step can show a chosen answer as right or wrong, but never marks an
- * option the child did not pick as "the correct one": the server does not
- * send which option that is, in review or anywhere else. See ui.md for why
- * this is a deliberate reading of the spec's per-question reveal, not a
- * shortcut.
+ * The quiz, one question at a time and forward only. Tapping an option locks it
+ * in and the server (`fn_check_quiz_answer`) answers at once whether it was right
+ * and which option was: the chosen button turns teal with a check or coral with
+ * an X, and after a wrong answer the right one turns teal too. A per-question
+ * Continue then moves on; there is no way back, and a wrong answer never stops
+ * the child from going on. Only after the last question are all the answers sent,
+ * once, to `fn_submit_quiz`, which grades against the lesson's pass mark, records
+ * the attempt, and (on the first pass) completes the lesson and awards its XP
+ * exactly once. A pass opens the shared gold completion sheet (owned by the
+ * page); a fail offers Try again, which starts the same questions again from the
+ * first. The answer key reaches the browser only through the check function and
+ * only after an answer (rules.md); nothing here is graded on the client.
  */
 export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing, finishError, onCompleted, onRefused }: Props) {
   const questions = useQuizQuestions(lesson.id, true)
+  const check = useCheckQuizAnswer()
   const submit = useSubmitQuiz(courseId)
   const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [revealed, setRevealed] = useState<Record<string, QuizAnswerCheck>>({})
   const [index, setIndex] = useState(0)
-  const [phase, setPhase] = useState<Phase>('answering')
-  const [reviewIndex, setReviewIndex] = useState(0)
   const [result, setResult] = useState<QuizResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
@@ -72,7 +72,7 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
   useEffect(() => {
     if (!moved.current) return
     heading.current?.focus()
-  }, [index, reviewIndex, phase])
+  }, [index])
 
   const showLoadingSkeleton = useDelayedFlag(questions.isPending, 200)
   if (questions.isPending) return showLoadingSkeleton ? <PlayerSkeleton /> : null
@@ -103,41 +103,68 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
   const total = list.length
   const question = list[Math.min(index, total - 1)]
   const isLast = index === total - 1
-  const answered = !!answers[question.id]
+  const reveal = revealed[question.id] ?? null
+  const checking = check.isPending
   const grading = submit.isPending
   const practice = mode === 'replay'
+
+  function refuseOrNote(e: unknown, fallback: (code: LessonEngineErrorCode) => string) {
+    const code = e instanceof LessonEngineError ? e.code : 'unknown'
+    if (REFUSALS.has(code)) onRefused(code)
+    else setError(fallback(code))
+  }
+
+  async function choose(optionId: string) {
+    if (checking || reveal) return
+    setError(null)
+    setAnswers((prev) => ({ ...prev, [question.id]: optionId }))
+    try {
+      const r = await check.mutateAsync({ lessonId: lesson.id, questionId: question.id, optionId })
+      setRevealed((prev) => ({ ...prev, [question.id]: r }))
+    } catch (e) {
+      // Nothing was locked in: let the child tap again.
+      setAnswers((prev) => {
+        const next = { ...prev }
+        delete next[question.id]
+        return next
+      })
+      refuseOrNote(e, describeEngineError)
+    }
+  }
 
   async function grade() {
     setError(null)
     try {
       const r = await submit.mutateAsync({ lessonId: lesson.id, answers })
       setResult(r)
-      setReviewIndex(0)
       moved.current = true
-      // The completion sheet waits until the review is finished (below): a child
-      // who just passed still gets to see how each question went first.
-      setPhase('review')
+      // The shared gold sheet, only for a pass that completed the lesson right now.
+      if (r.completed && mode === 'play') onCompleted(r.xpAwarded)
     } catch (e) {
-      const code = e instanceof LessonEngineError ? e.code : 'unknown'
-      if (REFUSALS.has(code)) onRefused(code)
-      else if (code === 'invalid_answers') setError('Something went wrong with your answers. Please try the quiz again.')
-      else setError(describeEngineError(code))
+      refuseOrNote(e, (code) =>
+        code === 'invalid_answers' ? 'Something went wrong with your answers. Please try the quiz again.' : describeEngineError(code),
+      )
     }
   }
 
   function tryAgain() {
     moved.current = false
     setAnswers({})
+    setRevealed({})
     setResult(null)
     setError(null)
     setIndex(0)
-    setReviewIndex(0)
-    setPhase('answering')
+    check.reset()
+    submit.reset()
   }
 
-  function go(next: number) {
-    moved.current = true
-    setIndex(next)
+  function next() {
+    if (isLast) {
+      void grade()
+    } else {
+      moved.current = true
+      setIndex(index + 1)
+    }
   }
 
   const errorNote = error || finishError
@@ -150,79 +177,29 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
         </p>
       ) : null}
 
-      {phase === 'answering' ? (
+      {!result ? (
         <>
-          <QuizStepDots total={total} current={index} />
-          <p className="sr-only">{playerCopy.quiz.questionCount(index + 1, total)}</p>
+          <QuizProgress done={index + (reveal ? 1 : 0)} total={total} />
           <QuizQuestion
             ref={heading}
             question={question}
             index={index}
             total={total}
             selected={answers[question.id]}
-            disabled={grading}
-            onSelect={(optionId) => setAnswers((prev) => ({ ...prev, [question.id]: optionId }))}
+            checking={checking}
+            correctOption={reveal?.correctOption ?? null}
+            onSelect={(optionId) => void choose(optionId)}
           />
-          <PlayerBar>
-            <div className="lp-bar-row">
-              {index > 0 ? (
-                <button type="button" className="candy-btn-quiet kid-tap" disabled={grading} onClick={() => go(index - 1)}>
-                  {playerCopy.button.back}
-                </button>
-              ) : null}
-              <PrimaryButton
-                variant={answered ? 'candy' : 'muted'}
-                loading={isLast && grading}
-                testId="quiz-primary"
-                onClick={() => (isLast ? void grade() : go(index + 1))}
-              >
-                {isLast ? playerCopy.button.check : playerCopy.button.next}
+          {/* Held in place (hidden) until the answer is locked in, so nothing shifts when it appears. */}
+          <div className="lp-continue-slot" data-visible={reveal ? 'true' : 'false'} aria-hidden={reveal ? undefined : true}>
+            <PlayerBar>
+              <PrimaryButton variant="candy" loading={isLast && grading} testId="quiz-continue" onClick={next}>
+                {playerCopy.button.continueReview}
               </PrimaryButton>
-            </div>
-          </PlayerBar>
+            </PlayerBar>
+          </div>
         </>
-      ) : phase === 'review' && result ? (
-        (() => {
-          const r = result.results[reviewIndex]
-          const q = list.find((x) => x.id === r.questionId) ?? question
-          const isLastReview = reviewIndex === result.results.length - 1
-          return (
-            <div className="lp-fill">
-              <QuizStepDots total={result.results.length} current={reviewIndex} />
-              <QuizQuestion
-                ref={heading}
-                question={q}
-                index={reviewIndex}
-                total={result.results.length}
-                selected={answers[q.id]}
-                disabled
-                onSelect={() => {}}
-                graded={{ correct: r.correct }}
-              />
-              <QuizFeedbackPanel correct={r.correct} explanation={r.explanation} />
-              <PlayerBar>
-                <PrimaryButton
-                  variant="candy"
-                  testId="quiz-continue"
-                  onClick={() => {
-                    moved.current = true
-                    if (isLastReview) {
-                      setPhase('results')
-                      // Only now, after the review, does a pass that already met
-                      // the minimum time open the completion sheet.
-                      if (result.completed && mode === 'play') onCompleted(result.xpAwarded)
-                    } else {
-                      setReviewIndex((i) => i + 1)
-                    }
-                  }}
-                >
-                  {playerCopy.button.continueReview}
-                </PrimaryButton>
-              </PlayerBar>
-            </div>
-          )
-        })()
-      ) : phase === 'results' && result ? (
+      ) : (
         <div className="lp-fill">
           <QuizResultView
             score={result.score}
@@ -231,6 +208,12 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
             passPercentage={lesson.passPercentage}
             practice={practice}
           />
+          {result.passed && !practice && result.xpAwarded > 0 ? (
+            <p className="lp-xp kid-num" data-testid="quiz-xp">
+              <Sparkles className="size-5" aria-hidden />
+              {playerCopy.quiz.xpEarned(result.xpAwarded)}
+            </p>
+          ) : null}
           {mode === 'done' ? null : practice ? (
             <PlayerBar hint={playerCopy.replay.quizPracticeNote}>
               <PrimaryLink variant="candy" to="/courses/$courseId" params={{ courseId }} data-testid="back-to-path">
@@ -266,7 +249,7 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
             </PlayerBar>
           )}
         </div>
-      ) : null}
+      )}
     </div>
   )
 }

@@ -105,6 +105,11 @@ export const playerCopy = {
     questionCount: (i: number, total: number) => `Question ${i} of ${total}`,
     feedbackCorrect: 'Nice one!',
     feedbackWrong: 'Almost',
+    spokenCorrect: 'Correct',
+    spokenWrong: 'Not quite',
+    spokenRightAnswer: 'The right answer',
+    progressLabel: 'Quiz progress',
+    xpEarned: (n: number) => `+${n} XP earned`,
     empty: {
       heading: "This quiz isn't ready yet",
       body: 'Please check back soon.',

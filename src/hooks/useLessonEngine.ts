@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   LessonEngineError,
+  checkQuizAnswer,
   completeLesson,
   fetchCourseLessonStates,
   heartbeatLesson,
@@ -84,6 +85,17 @@ export function useCompleteLesson(courseId: string | undefined) {
  * it never reached the server (`network`); that can at worst record a
  * duplicate attempt, never a duplicate reward.
  */
+export function useCheckQuizAnswer() {
+  return useMutation<
+    Awaited<ReturnType<typeof checkQuizAnswer>>,
+    LessonEngineError,
+    { lessonId: string; questionId: string; optionId: string }
+  >({
+    mutationFn: ({ lessonId, questionId, optionId }) => checkQuizAnswer(lessonId, questionId, optionId),
+    retry: (failureCount, error) => failureCount < 2 && error.code === 'network',
+  })
+}
+
 export function useSubmitQuiz(courseId: string | undefined) {
   const queryClient = useQueryClient()
   return useMutation<

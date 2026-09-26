@@ -217,6 +217,7 @@ in `src/hooks/` owns the heartbeat loop).
 | `fn_course_lesson_states(p_course_id)` | Signed-in, actively enrolled in the course | `not_enrolled`, `lesson_unavailable` (draft/trashed course) |
 | `fn_lesson_heartbeat(p_lesson_id)` | Enrolled, lesson unlocked | `not_enrolled`, `lesson_unavailable`, `locked` |
 | `fn_complete_lesson(p_lesson_id)` | Enrolled, lesson unlocked | the above plus `too_early`, `quiz_not_passed` |
+| `fn_check_quiz_answer(p_lesson_id, p_question_id, p_option_id)` | Enrolled, quiz lesson unlocked | `not_enrolled`, `lesson_unavailable` (also: not a quiz), `locked`, `invalid_answers` (option or question not part of the quiz) |
 | `fn_submit_quiz(p_lesson_id, p_answers)` | Enrolled, quiz lesson unlocked | `not_enrolled`, `lesson_unavailable` (also: not a quiz), `locked`, `invalid_answers` |
 
 Admins are not special here: an admin who is not enrolled gets `not_enrolled`

@@ -1,83 +1,92 @@
 import { forwardRef } from 'react'
 import { Check, X } from 'lucide-react'
+import { playerCopy } from '@/lib/playerCopy'
 import type { QuizQuestionView } from '@/lib/lessonPlayer'
-
-const LETTERS = 'ABCDEFGHIJ'
 
 interface Props {
   question: QuizQuestionView
   index: number
   total: number
+  /** The option the child tapped, if any. */
   selected: string | undefined
-  disabled: boolean
+  /** The tap is being checked by the server: options are locked and the chosen one looks pressed. */
+  checking: boolean
+  /** The server's answer, once it has replied: which option was right. Null until the child has answered. */
+  correctOption: string | null
   onSelect: (optionId: string) => void
-  /** Set only during the post-grading review: which option the child chose
-   * was right or wrong. The correct option is never marked on one the child
-   * did NOT choose — the server never sends which option that is (rules.md),
-   * so an unchosen option can only ever be shown as dimmed, not "correct". */
-  graded?: { correct: boolean }
 }
 
 /**
- * One question: the prompt and large radio choices (each at least 64 px
- * tall). Real radio inputs sit inside the labels, so the keyboard and screen
- * readers get the native behaviour. Before grading, a chosen answer is marked
- * by a plum border, filled letter badge and check (never colour alone).
- * During the graded review, the chosen option turns teal (right) or coral
- * (wrong, with a short shake) and every other option dims and stops
- * responding to taps.
+ * One question at a time: the prompt and full-width answer buttons in the
+ * app's candy 3D treatment (a bottom lip that presses down on tap). Tapping an
+ * option locks it in and asks the server (`fn_check_quiz_answer`) whether it was
+ * right; only that reply says which option is correct, so nothing here can mark
+ * an answer before the child has given one. Feedback is on the buttons
+ * themselves: the chosen option turns teal with a check (right) or coral with an
+ * X (wrong), and after a wrong answer the right option turns teal with a check
+ * too. Every other option keeps its normal look and stops responding. Colour is
+ * never alone (check and X icons, plus spoken text).
  */
 export const QuizQuestion = forwardRef<HTMLHeadingElement, Props>(function QuizQuestion(
-  { question, index, total, selected, disabled, onSelect, graded },
+  { question, index, total, selected, checking, correctOption, onSelect },
   headingRef,
 ) {
   const promptId = `q-${question.id}`
+  const answered = correctOption !== null
+  const gotIt = answered && selected === correctOption
   return (
     <section aria-labelledby={promptId} data-testid="quiz-question">
       <p className="lp-question-count" data-testid="question-count">
-        Question {index + 1} of {total}
+        {playerCopy.quiz.questionCount(index + 1, total)}
       </p>
       <h2 id={promptId} className="lp-prompt mt-1" tabIndex={-1} ref={headingRef}>
         {question.prompt}
       </h2>
-      <div role="radiogroup" aria-labelledby={promptId} className="lp-options mt-4">
-        {question.options.map((option, i) => {
+      <div role="group" aria-labelledby={promptId} className="lp-options mt-4">
+        {question.options.map((option) => {
           const chosen = selected === option.id
+          const state = !answered
+            ? chosen && checking
+              ? 'checking'
+              : 'idle'
+            : chosen
+              ? gotIt
+                ? 'correct'
+                : 'wrong'
+              : option.id === correctOption
+                ? 'correct'
+                : 'idle'
           return (
-            <label
+            <button
               key={option.id}
-              className="lp-option"
+              type="button"
+              className="lp-choice kid-tap"
               data-testid="quiz-option"
-              data-graded={graded ? 'true' : undefined}
+              data-state={state}
               data-chosen={chosen ? 'true' : undefined}
-              data-correct={graded && chosen ? graded.correct : undefined}
+              aria-pressed={chosen}
+              disabled={checking || answered}
+              onClick={() => onSelect(option.id)}
             >
-              <input
-                type="radio"
-                className="sr-only"
-                name={question.id}
-                value={option.id}
-                checked={chosen}
-                disabled={disabled || !!graded}
-                onChange={() => onSelect(option.id)}
-              />
-              <span className="lp-option-letter" aria-hidden="true">
-                {graded && chosen ? (
-                  graded.correct ? (
-                    <Check className="size-4" strokeWidth={3.5} />
-                  ) : (
-                    <X className="size-4" strokeWidth={3.5} />
-                  )
-                ) : (
-                  LETTERS[i] ?? i + 1
-                )}
-              </span>
               <span>{option.text}</span>
-              {!graded ? <Check className="lp-option-check size-6" strokeWidth={3.5} aria-hidden /> : null}
-            </label>
+              {state === 'correct' ? <Check className="lp-choice-icon size-7" strokeWidth={3.5} aria-hidden /> : null}
+              {state === 'wrong' ? <X className="lp-choice-icon size-7" strokeWidth={3.5} aria-hidden /> : null}
+              {state === 'correct' || state === 'wrong' ? (
+                <span className="sr-only">
+                  {chosen
+                    ? state === 'correct'
+                      ? playerCopy.quiz.spokenCorrect
+                      : playerCopy.quiz.spokenWrong
+                    : playerCopy.quiz.spokenRightAnswer}
+                </span>
+              ) : null}
+            </button>
           )
         })}
       </div>
+      <p className="sr-only" role="status" data-testid="quiz-feedback">
+        {answered ? (gotIt ? playerCopy.quiz.feedbackCorrect : playerCopy.quiz.feedbackWrong) : ''}
+      </p>
     </section>
   )
 })

@@ -455,41 +455,41 @@ question) reads "Next", not "Check": there is no per-question grading (below),
 so a "Check" that does not check would be misleading. "Check" is reserved for
 the one action that actually calls `fn_submit_quiz`.
 
-### Quiz: one grade, then a per-question review
+### Quiz: one question at a time, feedback on the button (2026-09-26)
 
-`fn_submit_quiz` still grades the whole quiz in one call once every question is
-answered, and still never returns the correct option or (until migration 020 is
-approved) an explanation, unchanged by this redesign and required by
-`rules.md`. What changed is what happens with that one reply: instead of a
-single results list, `QuizLesson` walks the child back through each question
-one more time (`phase: 'review'`), showing:
-- **unanswered**: `--kid-line-base` border, letter badge.
-- **selected** (before grading): `--plum` border (3px, reserved from the start
-  as an inset shadow so picking never shifts the layout), plum-tinted
-  background, cream-on-plum letter badge, a check.
-- **graded, chosen, correct**: teal tint, `--teal-d` border, badge becomes a
-  check.
-- **graded, chosen, wrong**: coral tint, `--coral-d` border, a 0.4s shake, badge
-  becomes a cross.
-- **graded, not chosen**: dimmed to 60% opacity, not tappable.
+Replaces the earlier "answer everything, get one grade, then review each question" flow. The page
+(`QuizLesson`, shell variant `quiz`) has no hero and no module list; the top bar keeps Back and the quiz
+title. One question is on screen at a time, forward only (no Back between questions), under a slim
+progress bar (`QuizProgress`, the same `.lp-timebar-*` track and fill as the video and doc lessons)
+that advances as each answer is locked in, with "Question 2 of 3" and the prompt above the options.
 
-**The correct option is never marked on an option the child did not choose,
-in review or anywhere**: the server does not send which option that is,
-before or after grading (`rules.md`'s "quiz answers never leave the server").
-This is a deliberate, security-preserving reading of the spec's per-question
-reveal, not a shortcut: showing it would need either the server to reveal the
-answer key (an invariant change, not something this task's UI pass can grant
-itself) or the client to know it independently (exactly the client-trust hole
-`rules.md` exists to close). A completion this review unlocks (quiz passed,
-minimum time already met) waits until the review is finished before opening
-the completion sheet. An early pass opened it mid-review; fixed before commit.
-
-Results screen: never a percentage, always "X of Y". Passed: a teal check
-badge, "You did it!". Failed: "So close!", the pass mark in words ("You need 2
-of 2 to pass"), a candy Try again and a secondary Back to roadmap link.
-Replay's practice attempt: "Practice round", the score, no pass/fail language,
-no XP. Step dots (`--plum`, quiz identity only) replace a question counter as
-the primary progress cue; the score never shows mid-quiz.
+- **Answer buttons** (`.lp-choice`): full width, 4rem tall, in the candy 3D treatment (a 5px bottom lip
+  that presses away on tap, like `.candy-btn`), card surface with an ink outline when idle.
+- **Tapping locks the answer** and asks the server (`fn_check_quiz_answer`, `schema.md`). While it
+  answers the chosen button shows pressed and every option is inert. Then: the chosen option turns
+  `--teal` (lip `--teal-d`) with a check if right, or `--coral` (lip `--coral-d`) with an X and one short
+  shake if wrong; after a wrong answer the right option also turns teal with a check. Every other option
+  keeps its idle look. Text and icons stay ink on the solid fills (4.50:1 on teal, 4.70:1 on coral);
+  colour is never alone (check and X icons, and spoken "Correct" / "Not quite" / "The right answer"
+  plus a polite live status). No new colours; there is no green or red token. A failed check (network)
+  unlocks the answer and shows a note so the child can tap again.
+- **Continue** (`.lp-continue-slot`, the sticky candy bar): held in the layout but hidden until an answer
+  is locked in, so nothing shifts when it appears. A per-question confirmation, not the removed page-level
+  Next bar. A wrong answer never stops the child going on; nothing is scored mid-quiz.
+- **After the last Continue** all the answers go once to `fn_submit_quiz`, which grades against the
+  lesson's own pass mark (`lessons.pass_percentage`), records the attempt and, on the first pass, completes
+  the lesson and awards its XP once (a passed retake awards none). **Results** (`QuizResultView`): "X of Y",
+  never a percentage. Passed: "You did it!" and "+N XP earned", and the shared gold completion sheet opens
+  ("Continue to next lesson"), the same component the video and doc lessons use. Failed: "So close!", the pass
+  mark in words, a candy **Try again** that restarts the same questions from the first (no pooling or
+  shuffling exists) and a Back to roadmap link; the lesson stays incomplete. Passed before the minimum
+  time is met: the earlier Finish lesson / keep learning bar. A completed lesson revisited is a
+  practice round: the same flow, "Practice round" and the score, no pass or fail, no XP.
+- **The answer key** reaches the browser only in the reply to a tap, for that question
+  (`rules.md`). Verified in the network log: the question fetch (`quiz_questions_public`) carries no
+  `correct` field, and the first reply that names a correct option is the one to the first tap.
+- Removed with this: the step dots, the plum "selected" state, the letter badges, the post-grading
+  review phase and its feedback panel (`QuizFeedbackPanel`, `QuizStepDots`).
 
 ### Other lesson types
 

@@ -1171,29 +1171,6 @@
 
   /* ------------------------------------------------------------------- quiz */
 
-  /* Step dots: quiz identity is --plum, used nowhere else in the player. */
-  .lp-dots {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .lp-dot {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 999px;
-    background: var(--kid-line-base);
-  }
-
-  .lp-dot[data-s='done'] { background: var(--plum); }
-
-  .lp-dot[data-s='current'] {
-    width: 0.75rem;
-    height: 0.75rem;
-    background: transparent;
-    box-shadow: inset 0 0 0 2px var(--plum-d);
-  }
-
   .lp-question-count {
     font-size: var(--kid-text-caption);
     line-height: var(--kid-leading-caption);
@@ -1219,59 +1196,66 @@
     border: 0;
   }
 
-  .lp-option {
+  /* An answer: a full-width candy button (the bottom lip presses down on tap, like
+     .candy-btn). Idle is the card surface with an ink outline. Tapping locks it and the
+     server replies: right turns teal (with -d lip) and wrong turns coral, both with ink
+     text (4.50:1 and 4.70:1 on the solid fills), plus a check or an X; after a wrong
+     answer the right option turns teal too. Every other option keeps this idle look. */
+  .lp-choice {
+    --choice-bg: var(--surface);
+    --choice-lip: color-mix(in srgb, var(--ink) 20%, var(--surface));
     position: relative;
     display: flex;
     align-items: center;
     gap: 0.75rem;
+    width: 100%;
     min-height: 4rem;
-    padding: 1rem;
+    padding: 1rem 1.25rem;
+    border: 2px solid color-mix(in srgb, var(--ink) 18%, transparent);
     border-radius: 20px;
-    background: var(--surface);
-    /* The 3px selected/graded border is reserved from the start (an inset
-       shadow, not a border), so picking an option never shifts the layout. */
-    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 24%, transparent);
+    background: var(--choice-bg);
+    color: var(--ink);
+    font-family: inherit;
     font-size: var(--kid-text-body);
     line-height: var(--kid-leading-body);
-    font-weight: 600;
-    overflow-wrap: anywhere;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-    transition: box-shadow var(--motion-fast) var(--ease-standard), opacity var(--motion-base) var(--ease-standard);
-  }
-
-  /* Selected, not yet graded: --plum (4.9:1 on cream/surface, clears 3:1 as-is). */
-  .lp-option:has(input:checked) {
-    background: color-mix(in srgb, var(--plum) 15%, var(--surface));
-    box-shadow: inset 0 0 0 3px var(--plum);
     font-weight: 700;
+    text-align: left;
+    overflow-wrap: anywhere;
+    box-shadow: 0 5px 0 var(--choice-lip);
+    transform: translateY(0);
+    transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+    cursor: pointer;
   }
 
-  .lp-option:has(input:focus-visible) {
+  .lp-choice:disabled { cursor: default; }
+
+  .lp-choice:active:not(:disabled),
+  .lp-choice[data-state='checking'] {
+    transform: translateY(5px);
+    box-shadow: 0 0 0 transparent;
+  }
+
+  .lp-choice:focus-visible {
     outline: 3px solid var(--ink);
     outline-offset: 3px;
   }
 
-  /* Graded (the review step, after the whole quiz is checked). The chosen right
-     answer turns teal; the chosen wrong answer turns coral; every other option
-     dims and stops being tappable. The correct option is never marked on an
-     option the child did not choose: the server never sends which one it was
-     (rules.md) — see ui.md for why this is a deliberate reading of the spec. */
-  .lp-option[data-graded='true'] { cursor: default; }
-
-  .lp-option[data-graded='true']:not([data-chosen='true']) { opacity: 0.6; }
-
-  .lp-option[data-chosen='true'][data-correct='true'] {
-    background: color-mix(in srgb, var(--teal) 15%, var(--surface));
-    /* Border uses --teal-d (6.2:1), not --teal (2.88:1) — the base tone fails
-       the 3:1 a boundary needs against this background (ui.md). */
-    box-shadow: inset 0 0 0 3px var(--teal-d);
+  .lp-choice[data-state='correct'] {
+    --choice-bg: var(--teal);
+    --choice-lip: var(--teal-d);
+    border-color: var(--teal-d);
   }
 
-  .lp-option[data-chosen='true'][data-correct='false'] {
-    background: color-mix(in srgb, var(--coral) 15%, var(--surface));
-    box-shadow: inset 0 0 0 3px var(--coral-d);
+  .lp-choice[data-state='wrong'] {
+    --choice-bg: var(--coral);
+    --choice-lip: var(--coral-d);
+    border-color: var(--coral-d);
     animation: lp-shake 0.4s var(--ease-standard);
+  }
+
+  .lp-choice-icon {
+    flex: none;
+    margin-left: auto;
   }
 
   @keyframes lp-shake {
@@ -1282,70 +1266,8 @@
     80% { transform: translateX(6px); }
   }
 
-  .lp-option-letter {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 2rem;
-    height: 2rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--ink) 10%, transparent);
-    color: var(--ink);
-    font-weight: 700;
-  }
-
-  /* Selected uses a solid --plum badge, which needs CREAM text/icon: ink on
-     plum measures 2.64:1 (fails), cream on plum measures 4.9:1 (passes) — the
-     same rule as any solid plum fill on cream. */
-  .lp-option:has(input:checked) .lp-option-letter {
-    background: var(--plum);
-    color: var(--cream);
-  }
-
-  .lp-option[data-graded='true'][data-chosen='true'] .lp-option-letter {
-    background: transparent;
-    color: var(--ink);
-  }
-
-  .lp-option-check {
-    flex: none;
-    margin-left: auto;
-    visibility: hidden;
-  }
-
-  .lp-option:has(input:checked) .lp-option-check,
-  .lp-option[data-graded='true'][data-chosen='true'] .lp-option-check {
-    visibility: visible;
-  }
-
-  /* The feedback panel slides up from the bar area after Check, one question
-     at a time during the review step. Tinted, never a full colour fill with
-     small text (A1). */
-  .lp-feedback {
-    padding: 1rem;
-    border-radius: 20px;
-    animation: lp-feedback-in var(--motion-base) var(--ease-standard) both;
-  }
-
-  .lp-feedback[data-correct='true'] { background: color-mix(in srgb, var(--teal) 15%, var(--cream)); }
-  .lp-feedback[data-correct='false'] { background: color-mix(in srgb, var(--coral) 15%, var(--cream)); }
-
-  @keyframes lp-feedback-in {
-    from { transform: translateY(0.5rem); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-
-  .lp-feedback-head {
-    font-size: var(--kid-text-heading);
-    line-height: var(--kid-leading-heading);
-    font-weight: 700;
-  }
-
-  .lp-explain {
-    margin-top: 0.5rem;
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-  }
+  /* The per-question Continue bar: kept in the layout but hidden until the answer is in. */
+  .lp-continue-slot[data-visible='false'] { visibility: hidden; }
 
   .lp-result-head {
     font-size: var(--kid-text-title);
@@ -1443,18 +1365,12 @@
   @media (prefers-reduced-motion: reduce) {
     .lp-ring-icon,
     .lp-medallion,
-    .lp-confetti-piece,
-    .lp-feedback,
-    .lp-option[data-chosen='true'][data-correct='false'],
+    .lp-choice[data-state='wrong'] { animation: none; }
 
     .lp-confetti-piece { display: none; }
     .lp-ring-fill { transition: none; }
-    .lp-primary { transition: none; }
-  }
-
-  @media (hover: hover) {
-    .lp-option:hover { box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--ink) 55%, transparent); }
-    .lp-option:has(input:checked):hover { box-shadow: inset 0 0 0 3px var(--plum); }
+    .lp-primary,
+    .lp-choice { transition: none; }
   }
 
   /* ------------------------------------------------ lesson page (ages 5 to 7) */

@@ -22,9 +22,10 @@ interface Props {
   info?: ReactNode
   /**
    * `video`: the player edge to edge under the top bar, then `info`. `doc`: `info`, then the
-   * content blocks. Both drop the hero and the module list. Absent: the default layout.
+   * content blocks. `quiz`: just the question flow (its own progress bar, no hero, no module
+   * list; the top bar keeps the quiz title and Back). Absent: the default layout.
    */
-  variant?: 'video' | 'doc'
+  variant?: 'video' | 'doc' | 'quiz'
   /** The Next / Back to roadmap bar, only once the lesson is completed. */
   bar?: ReactNode
 }
@@ -45,7 +46,8 @@ interface Props {
 export function LessonPlayerShell({ lesson, courseId, path, mode, pause, children, info, variant, bar }: Props) {
   const isVideo = variant === 'video'
   const single = variant !== undefined
-  useKidHeader(single ? '' : lesson.title, single ? '/' : `/courses/${courseId}`)
+  const titled = variant === 'quiz' || !single
+  useKidHeader(titled ? lesson.title : '', single && !titled ? '/' : `/courses/${courseId}`)
 
   return (
     <div className="lp" data-testid="lesson-player" data-mode={mode} data-type={lesson.type}>
@@ -58,7 +60,7 @@ export function LessonPlayerShell({ lesson, courseId, path, mode, pause, childre
               <div className="lp-video-bleed">{children}</div>
               {info}
             </>
-          ) : variant === 'doc' ? (
+          ) : variant === 'doc' || variant === 'quiz' ? (
             <>
               {info}
               {children}

@@ -242,6 +242,29 @@ export async function submitQuiz(lessonId: string, answers: QuizAnswers): Promis
   }
 }
 
+/** The server's answer to one tapped option: was it right, and which option was. */
+export interface QuizAnswerCheck {
+  correct: boolean
+  /** The id of the right option. Sent only in reply to an answer, for THIS question (rules.md). */
+  correctOption: string
+}
+
+/**
+ * `fn_check_quiz_answer` (migration 024): checks one answer for the per-question
+ * feedback. Writes nothing; the attempt, the pass mark, completion and XP all stay
+ * in `submitQuiz`.
+ */
+export async function checkQuizAnswer(lessonId: string, questionId: string, optionId: string): Promise<QuizAnswerCheck> {
+  const { data, error } = await supabase.rpc('fn_check_quiz_answer', {
+    p_lesson_id: lessonId,
+    p_question_id: questionId,
+    p_option_id: optionId,
+  })
+  if (error) throw toEngineError(error)
+  const r = firstRow(data)
+  return { correct: r.correct, correctOption: r.correct_option }
+}
+
 // ------------------------------------------------------------------- states
 
 export type LessonState = 'locked' | 'available' | 'in_progress' | 'completed'

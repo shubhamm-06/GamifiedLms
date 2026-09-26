@@ -317,11 +317,15 @@ belongs in `context.md` or `state.md`, not here.
   client can call and that writes any of those tables, or that takes a user id
   from the client, breaks this rule — including a definer function granted to
   `authenticated` by default (`fn_evaluate_badges` was one until 019).
-- **Quiz answers never leave the server.** `quiz_questions.correct_option` and
-  `explanation` reach a student in no response — not `quiz_questions_public` (no
-  such columns), not `fn_submit_quiz` (per-question correct/incorrect flags only).
-  Showing a correct answer or explanation later is a product decision that needs
-  its own gated path, not a column added to a view.
+- **The answer key reaches a student only through `fn_check_quiz_answer`, and only
+  for a question they are answering.** `quiz_questions.correct_option` and
+  `explanation` are in no table or view a student can read (`quiz_questions_public`
+  has neither column) and not in `fn_submit_quiz` (per-question correct/incorrect
+  flags only). The single gated path is `fn_check_quiz_answer` (migration 024, amended
+  from "never leaves the server" by the 2026-09-26 product decision to show the right
+  answer after each answer): it takes the option the student chose and replies with
+  whether it was right and which option was. It writes nothing. Nothing else may add the key
+  or an explanation to a payload, and it must never be sent before an answer is given.
 - **XP is awarded once per lesson, on the first completion.** A completed
   `lesson_progress` row is never modified again by the engine; a replay or a
   repeated `fn_complete_lesson` returns success with 0 XP, and

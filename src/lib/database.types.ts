@@ -1167,6 +1167,10 @@ export type Database = {
         Args: { p_lesson_id: string }
         Returns: boolean
       }
+      fn_check_quiz_answer: {
+        Args: { p_lesson_id: string; p_option_id: string; p_question_id: string }
+        Returns: { correct: boolean; correct_option: string }[]
+      }
       fn_complete_lesson: {
         Args: { p_lesson_id: string }
         Returns: {
