@@ -79,9 +79,9 @@ src/
                hand — see ui.md re: the shadcn CLI's Windows path bug)
     auth/      AuthCard, AuthField (login/signup shared UI)
     kid/       KidLayout (the student-route shell) + kidHeader.ts (its
-               context/hook); roadmap/ (CourseHeader, SummaryCard, RoadmapPath,
-               ModuleBanner, LessonNode, LessonSheet, StateScreens, CourseArt,
-               ContinueButton, KidProgress, lessonTypeMeta); player/ (LessonPlayerShell,
+               context/hook); roadmap/ (RoadmapPath, RoadmapNode,
+               RoadmapConnector, ModuleBar, PathDecor, LessonPopover, StateScreens,
+               lessonTypeMeta); player/ (LessonPlayerShell,
                ActiveTimeRing, PausedNotice, PlayerBar, PlayerSkeleton, PlayerScreens,
                VideoLesson, DocLesson, GameLesson, QuizLesson, QuizQuestion,
                QuizResultView, LessonCompleteSheet, LessonMessage) — see ui.md
