@@ -92,7 +92,7 @@ nav entry is a real route):
   (`lib/lessonEngine.ts`, `hooks/useLessonEngine.ts`) are now exercised through
   the course roadmap, both directly (real JWTs against the REST API) and via
   the real UI (Chromium) — see the changelog.
-- Schema through migration 021 (`schema.md`; 020 is written but deliberately
+- Schema through migration 023 (`schema.md`; 020 is written but deliberately
   unapplied, see below), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
@@ -115,6 +115,11 @@ nav entry is a real route):
 
 The schema or docs anticipate each of these; no working code exists for any.
 
+- **Admin authoring for content blocks.** `lesson_content_blocks` (migration 023) and the kid renderer
+  exist; there is no admin UI to write blocks (a later task), so today they are edited in the database.
+  The three demo doc lessons have seeded blocks; the image block uses a `placehold.co` placeholder. A
+  doc lesson with no blocks still renders `content_html` (the old sandboxed frame), which is also all the
+  admin form can write today.
 - **The other lesson types on the shared framework.** Video is fully built (custom player, playing-only
   active time, ends-then-completes, one-button completion card). Doc, quiz and game lessons still use
   the earlier flow (time only, plus their own quiz/game handling); they can take an `active` signal into

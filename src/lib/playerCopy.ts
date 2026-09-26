@@ -82,6 +82,7 @@ export const playerCopy = {
     },
   },
   doc: {
+    readTime: (elapsed: string, min: string) => `Reading time ${elapsed} of ${min}`,
     empty: {
       heading: "There's nothing to read yet",
       body: 'Please check back soon.',

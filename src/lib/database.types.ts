@@ -402,6 +402,63 @@ export type Database = {
           },
         ]
       }
+      lesson_content_blocks: {
+        Row: {
+          block_type: string
+          callout_color: string | null
+          callout_icon: string | null
+          created_at: string
+          id: string
+          image_alt: string | null
+          image_url: string | null
+          lesson_id: string
+          position: number
+          text_content: string | null
+          updated_at: string
+        }
+        Insert: {
+          block_type: string
+          callout_color?: string | null
+          callout_icon?: string | null
+          created_at?: string
+          id?: string
+          image_alt?: string | null
+          image_url?: string | null
+          lesson_id: string
+          position?: number
+          text_content?: string | null
+          updated_at?: string
+        }
+        Update: {
+          block_type?: string
+          callout_color?: string | null
+          callout_icon?: string | null
+          created_at?: string
+          id?: string
+          image_alt?: string | null
+          image_url?: string | null
+          lesson_id?: string
+          position?: number
+          text_content?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lesson_content_blocks_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lesson_effective_xp"
+            referencedColumns: ["lesson_id"]
+          },
+          {
+            foreignKeyName: "lesson_content_blocks_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lesson_progress: {
         Row: {
           active_seconds: number

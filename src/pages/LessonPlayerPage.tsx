@@ -15,6 +15,8 @@ import {
 } from '@/components/kid/player/PlayerScreens'
 import { PlayerSkeleton } from '@/components/kid/player/PlayerSkeleton'
 import { QuizLesson } from '@/components/kid/player/QuizLesson'
+import { DocBlocks } from '@/components/kid/player/DocBlocks'
+import { DocInfo } from '@/components/kid/player/LessonStatus'
 import { VideoInfo } from '@/components/kid/player/VideoInfo'
 import { VideoLesson } from '@/components/kid/player/VideoLesson'
 import { NotEnrolledScreen } from '@/components/kid/roadmap/StateScreens'
@@ -22,6 +24,7 @@ import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { useCompleteLesson, useCourseLessonStates } from '@/hooks/useLessonEngine'
 import { useLessonClock } from '@/hooks/useLessonClock'
 import { useEnrollmentStatus, useLessonContent, type LoadedLesson } from '@/hooks/useLessonContent'
+import { useLessonBlocks } from '@/hooks/useLessonBlocks'
 import { useModulePath } from '@/hooks/useModulePath'
 import {
   LessonEngineError,
@@ -131,6 +134,13 @@ function PlayerLesson({
   // Back brings the child to this lesson's node on the roadmap (`roadmapReturn`).
   useEffect(() => rememberLessonLeft(lesson.id), [lesson.id])
   const isVideo = lesson.type === 'video'
+  // A doc lesson with content blocks (migration 023) gets its own single-column page; one
+  // without keeps the older HTML frame. A failed blocks fetch counts as no blocks.
+  const isDoc = lesson.type === 'text'
+  const blocks = useLessonBlocks(lesson.id, isDoc)
+  const blocksPending = isDoc && blocks.isPending
+  const hasBlocks = isDoc && (blocks.data?.length ?? 0) > 0
+  const singleColumn = isVideo || hasBlocks
   const videoPlayable = isVideo && videoIsPlayable(lesson.videoUrl)
   const [videoPlaying, setVideoPlaying] = useState(false)
   const [videoEnded, setVideoEnded] = useState(false)
@@ -187,6 +197,7 @@ function PlayerLesson({
   const readyToFinish =
     shownMode === 'play' &&
     !fatal &&
+    !blocksPending &&
     lesson.type !== 'quiz' &&
     clock.timeMet &&
     (videoPlayable ? videoEnded : played || !playable)
@@ -212,6 +223,15 @@ function PlayerLesson({
     return (
       <PlayerFrame courseId={courseId}>
         <LessonUnavailableScreen courseId={courseId} variant="mid-session" />
+      </PlayerFrame>
+    )
+  }
+
+  // The blocks decide the layout, so nothing shows (and nothing can complete) until they arrive.
+  if (blocksPending) {
+    return (
+      <PlayerFrame courseId={courseId}>
+        <PlayerSkeleton />
       </PlayerFrame>
     )
   }
@@ -248,7 +268,11 @@ function PlayerLesson({
       )
       break
     default:
-      media = <DocLesson html={lesson.contentHtml} title={lesson.title} courseId={courseId} />
+      media = hasBlocks ? (
+        <DocBlocks blocks={blocks.data ?? []} />
+      ) : (
+        <DocLesson html={lesson.contentHtml} title={lesson.title} courseId={courseId} />
+      )
   }
 
   const lessonDone = shownMode !== 'play'
@@ -259,7 +283,7 @@ function PlayerLesson({
   let bar: ReactNode = null
   // A video lesson has no Next / Back bar: the completion sheet's one button is its only
   // next step, and Back in the top bar leaves.
-  if (lessonDone && !isVideo && !(lesson.type === 'quiz' && shownMode === 'replay')) {
+  if (lessonDone && !singleColumn && !(lesson.type === 'quiz' && shownMode === 'replay')) {
     const following = path.following
     bar = (
       <PlayerBar>
@@ -299,8 +323,18 @@ function PlayerLesson({
         mode={shownMode}
         pause={clock.pause}
         bar={bar}
+        variant={isVideo ? 'video' : hasBlocks ? 'doc' : undefined}
         info={
-          isVideo ? (
+          hasBlocks ? (
+            <DocInfo
+              title={lesson.title}
+              xp={shownMode === 'play' && lesson.gamificationEnabled ? lesson.xp : null}
+              done={lessonDone}
+              seconds={clock.displaySeconds}
+              minSeconds={clock.minTimeSeconds}
+              timeMet={clock.timeMet}
+            />
+          ) : isVideo ? (
             <VideoInfo
               title={lesson.title}
               description={lesson.summary?.trim() || null}
@@ -313,7 +347,7 @@ function PlayerLesson({
           ) : undefined
         }
       >
-        {isVideo ? (
+        {isVideo || hasBlocks ? (
           media
         ) : (
           <ActivityCard lesson={lesson} done={lessonDone} needsPlay={needsPlay} onPlay={() => setPlayed(true)}>

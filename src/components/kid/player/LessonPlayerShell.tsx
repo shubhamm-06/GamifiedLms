@@ -18,8 +18,13 @@ interface Props {
   pause: ClockPause | null
   /** The activity card (a video lesson: the player, full-bleed). */
   children: ReactNode
-  /** A video lesson's title, module, XP pill and minimum-time bar, shown right under the player. */
+  /** The title, status marker and minimum-time bar of a single-column lesson (video, block-based doc). */
   info?: ReactNode
+  /**
+   * `video`: the player edge to edge under the top bar, then `info`. `doc`: `info`, then the
+   * content blocks. Both drop the hero and the module list. Absent: the default layout.
+   */
+  variant?: 'video' | 'doc'
   /** The Next / Back to roadmap bar, only once the lesson is completed. */
   bar?: ReactNode
 }
@@ -33,17 +38,19 @@ interface Props {
  *
  * A video lesson swaps the hero and the card for the player itself, edge to edge
  * right under the top bar, with its `info` below it (title, status, description),
- * and has no module list. Its Back goes to Home (`/`) when there is no history,
- * and the top bar carries no title (the title is under the player).
+ * and has no module list. A block-based doc lesson shows its `info` (title, status,
+ * time bar) and then its blocks, also with no hero and no module list. Both go Back to
+ * Home (`/`) when there is no history, and their top bar carries no title.
  */
-export function LessonPlayerShell({ lesson, courseId, path, mode, pause, children, info, bar }: Props) {
-  const isVideo = lesson.type === 'video'
-  useKidHeader(isVideo ? '' : lesson.title, isVideo ? '/' : `/courses/${courseId}`)
+export function LessonPlayerShell({ lesson, courseId, path, mode, pause, children, info, variant, bar }: Props) {
+  const isVideo = variant === 'video'
+  const single = variant !== undefined
+  useKidHeader(single ? '' : lesson.title, single ? '/' : `/courses/${courseId}`)
 
   return (
     <div className="lp" data-testid="lesson-player" data-mode={mode} data-type={lesson.type}>
-      {isVideo ? null : <LessonHero title={lesson.title} moduleTitle={path.moduleTitle} />}
-      <div className="lp-layout" data-video={isVideo ? 'true' : undefined}>
+      {single ? null : <LessonHero title={lesson.title} moduleTitle={path.moduleTitle} />}
+      <div className="lp-layout" data-video={single ? 'true' : undefined}>
         <div className="lp-main">
           <PausedNotice reason={mode === 'play' ? pause : null} />
           {isVideo ? (
@@ -51,11 +58,16 @@ export function LessonPlayerShell({ lesson, courseId, path, mode, pause, childre
               <div className="lp-video-bleed">{children}</div>
               {info}
             </>
+          ) : variant === 'doc' ? (
+            <>
+              {info}
+              {children}
+            </>
           ) : (
             <Reveal className="lp-body">{children}</Reveal>
           )}
         </div>
-        {isVideo ? null : (
+        {single ? null : (
           <div className="lp-side">
             <Reveal>
               <ModuleLessonList path={path} courseId={courseId} currentLessonId={lesson.id} />

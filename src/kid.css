@@ -2259,6 +2259,73 @@
     gap: 0.5rem;
   }
 
+  /* A block-based doc lesson: its blocks in one column, 1rem apart. */
+  .lp-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .lp-block-p {
+    margin: 0;
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 400;
+    overflow-wrap: anywhere;
+  }
+
+  /* A callout: a card with a round icon in the block's colour token and its -d press shadow
+     (the button convention), a cream icon (decorative; the text carries the meaning) and the
+     text in ink on the card surface. */
+  .lp-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .lp-callout-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 999px;
+    color: var(--cream);
+    background: var(--callout);
+    box-shadow: 0 4px 0 var(--callout-d);
+  }
+
+  .lp-callout-icon[data-color='gold'] { --callout: var(--gold); --callout-d: var(--gold-d); }
+  .lp-callout-icon[data-color='teal'] { --callout: var(--teal); --callout-d: var(--teal-d); }
+  .lp-callout-icon[data-color='coral'] { --callout: var(--coral); --callout-d: var(--coral-d); }
+  .lp-callout-icon[data-color='plum'] { --callout: var(--plum); --callout-d: var(--plum-d); }
+
+  .lp-callout-text {
+    align-self: center;
+    margin: 0;
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  /* An image: a rounded container at a capped width, its own proportions (no cropping). */
+  .lp-block-image {
+    width: 100%;
+    max-width: 32rem;
+    margin: 0 auto;
+    overflow: hidden;
+    border-radius: 20px;
+    background: var(--kid-muted);
+  }
+
+  .lp-block-image img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
   .lp-vdesc {
     margin: 0;
     font-size: var(--kid-text-body);

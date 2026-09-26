@@ -172,6 +172,30 @@ that reader should treat `0`/`''` as "not provided," not as a real value.
 orientation a game is meant to be played in. The lesson player reads it and shows a
 "turn your phone" hint when the screen does not match; it never locks orientation.
 
+**`lesson_content_blocks`** (migration 023) — a doc (`text`) lesson's content as ordered typed
+blocks. Columns: `id`, `lesson_id` (FK to `lessons`, **`ON DELETE CASCADE`**), `position` (int, not
+unique, the same per-lesson ordering pattern as `lessons.position`), `block_type`
+(`paragraph` | `callout` | `image`, a CHECK, no open type field), `text_content` (paragraph and
+callout), `callout_color` (`gold` | `teal` | `coral` | `plum`, the locked tokens) and `callout_icon`
+(`info` | `idea` | `star` | `heart` | `question`, a fixed set), `image_url` (paste-only, `http(s)://`
+checked, like `games.bundle_url`; no upload flow) and `image_alt`, plus `created_at` / `updated_at`
+(`fn_set_updated_at` trigger). `lesson_content_blocks_shape_check` ties the columns to the type: a
+paragraph has non-empty text and nothing else, a callout has non-empty text, a colour and an icon and
+no image, an image has a URL and no text or callout fields, so a row can never carry another type's
+fields. Index `idx_lesson_content_blocks_lesson_position (lesson_id, position)`. `lessons.content_html`
+stays and is the kid app's fallback for a lesson with no blocks. **RLS**: SELECT for an admin, or for a
+lesson that is live (`fn_lesson_is_live`) AND `status = 'published'` AND (`is_preview`, or the caller is
+not trashed and has an active enrollment in its course): the `lessons` policy's shape plus the status
+check (the `lessons` policy itself has no status check, see `state.md`; blocks do not inherit that).
+INSERT, UPDATE and DELETE are admin only (`fn_is_admin()`). Trashing a lesson hides its blocks through
+`fn_lesson_is_live`; deleting one removes them. The migration also seeds 13 demo blocks for the three
+doc lessons of "Demo: Fun with Numbers" (Fun Facts About Numbers 4, Shapes in Your Home 5, The Mystery
+of the Missing Cookies 4); the image block points at a `placehold.co` placeholder to be replaced.
+Verified with real JWTs (not `execute_sql`): an enrolled student reads exactly the 13 published blocks
+(a draft lesson's block in the same course came back as 0), a student enrolled only in another course and
+`anon` read 0 (also when filtering by a lesson id), and a student INSERT is refused (`42501`) while
+UPDATE and DELETE touch no rows.
+
 ### 3. Learner activity
 
 **`enrollments`** — access is a row here, not a flag on `profiles`. `id`,
@@ -824,6 +848,7 @@ explicitly; don't lean on this.
 | `courses` | `status='published'` and not trashed, or admin | admin | admin | admin, only when trashed |
 | `modules` | actively-enrolled in a live course and module not trashed, or admin | admin | admin | admin, only when trashed |
 | `lessons` | live lessons only (`fn_lesson_is_live`) that are `is_preview` or actively-enrolled, or admin | admin | admin | admin, only when trashed |
+| `lesson_content_blocks` | admin, or blocks of a live, `published` lesson that is `is_preview` or actively-enrolled (not trashed) | admin | admin | admin |
 | `games` | any authenticated and not trashed, or admin | admin | admin | admin, only when trashed |
 | `quiz_questions` | admin only (base table) | admin | admin | admin |
 | `quiz_attempts` | self (not trashed) or admin | `service_role` policy only; students write it only through `fn_submit_quiz` | — | — |
@@ -947,6 +972,7 @@ table.
 | 019 | `20260920185147_019_lock_evaluate_badges.sql` | 2026-09-20 18:51:47 | `EXECUTE` on `fn_evaluate_badges(uuid)` revoked from `public`/`anon`/`authenticated` |
 | 022 | `20260926000000_022_home_course_last_accessed.sql` | 2026-09-26 | `enrollments.last_accessed_at` (nullable); `fn_touch_enrollment(uuid)` and `fn_home_course()` (both `SECURITY DEFINER`, `search_path = ''`, `authenticated` only) |
 | 021 | `20260924000000_021_admin_enrollment_restore_and_reset.sql` | 2026-09-24 | `uq_enrollments_user_course` replaced by the partial `uq_enrollments_user_course_active` (`WHERE status = 'active'`); `fn_admin_course_progress_summary` and `fn_admin_reset_course_progress` added (both admin-gated inside the body). 020 is still unapplied and unrelated — see `state.md` |
+| 023 | `20260926100000_023_lesson_content_blocks.sql` | 2026-09-26 17:21:12 (live version `20260926172112`) | `lesson_content_blocks` (typed block rows with shape CHECKs, fixed colour and icon sets, cascade on lesson delete), its RLS (published-lesson enrolled read, admin writes) and 13 demo blocks for the three doc lessons of the demo course |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named

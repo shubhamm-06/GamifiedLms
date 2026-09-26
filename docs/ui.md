@@ -1341,6 +1341,37 @@ course name never appears. Same content at every size.
    "Next: <title>" (the next lesson in this module) or "Back to roadmap" after the module's
    last. Otherwise no bottom button.
 
+### Doc lessons with content blocks (2026-09-26)
+
+A `text` lesson whose `lesson_content_blocks` (migration 023, `schema.md`) are not empty gets its own
+single-column page, sharing the video page's title row and progress bar (`LessonStatus`:
+`LessonTitle`, `LessonTimeBar`, `DocInfo`); a doc lesson with no blocks keeps the older hero plus
+sandboxed HTML frame (`content_html`), and a failed blocks fetch counts as no blocks. Top to bottom:
+the back-arrow-only top bar (no title), the title with its inline marker (the XP pill while there is
+XP to earn, the small check badge once done, never both; glued to the title's last word), the slim
+minimum-time bar ("Reading time 0:20 of 1:00", shown only while completable and when the lesson has
+a minimum) and the blocks in `position` order, one column, 1rem apart. No hero, no module list, no
+Next bar, no description, no separate header illustration (a lesson that wants a header image puts an
+image block first). No bottom nav.
+
+- **paragraph**: plain body text (18px, weight 400, Baloo 2), rendered as text, never HTML.
+- **callout**: a `.kid-card` with a 3rem round icon in the block's colour token at full strength
+  and its `-d` variant as a `0 4px 0` press shadow (the candy button convention), a cream icon
+  (`lucide`: info, lightbulb, star, heart, circle-help) and the text in ink at weight 600. The icons are
+  decorative (`aria-hidden`; the text carries the meaning) and do not reach 3:1 against their circles
+  (cream on teal 2.88:1, coral 2.75:1, gold lower, plum higher); that follows the brief's cream icon and
+  is worth a look in the later design pass.
+- **image**: the pasted URL in a `figure` with a 20px radius, capped at 32rem, `img` at natural
+  proportions (no cropping), lazy-loaded, alt text from `image_alt` (empty when none). A URL that is
+  not https (http in dev) is skipped, like every other embedded URL.
+- **Completion is minimum-time only.** There is no end-of-content signal, so the heartbeat counts
+  whenever the page is open and foregrounded (nothing is gated on play or pause, unlike video) and the
+  existing auto-finish calls `fn_complete_lesson` the moment the server says the minimum is met; a
+  lesson with no minimum completes as soon as its blocks have loaded (nothing shows or completes
+  before they arrive, because the blocks decide the layout). The gold completion sheet is the video
+  lesson's own (`LessonCompleteSheet`, one "Continue to next lesson" button). A revisit opens in replay:
+  the check badge, no XP pill, no time bar, no clock, no sheet, no XP.
+
 ### Video lessons (2026-09-26)
 
 The first fully built lesson type; it reuses the page above (heartbeat, server completion and
