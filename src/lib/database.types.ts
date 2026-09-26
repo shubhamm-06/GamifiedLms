@@ -260,6 +260,7 @@ export type Database = {
           enrolled_at: string
           expires_at: string | null
           id: string
+          last_accessed_at: string | null
           payment_id: string | null
           source: string
           status: string
@@ -270,6 +271,7 @@ export type Database = {
           enrolled_at?: string
           expires_at?: string | null
           id?: string
+          last_accessed_at?: string | null
           payment_id?: string | null
           source: string
           status?: string
@@ -280,6 +282,7 @@ export type Database = {
           enrolled_at?: string
           expires_at?: string | null
           id?: string
+          last_accessed_at?: string | null
           payment_id?: string | null
           source?: string
           status?: string
@@ -1176,6 +1179,7 @@ export type Database = {
         }[]
       }
       fn_evaluate_badges: { Args: { p_user_id: string }; Returns: undefined }
+      fn_home_course: { Args: never; Returns: string }
       fn_is_admin: { Args: never; Returns: boolean }
       fn_is_enrolled: {
         Args: { p_course_id: string; p_user_id: string }
@@ -1236,6 +1240,7 @@ export type Database = {
           xp_awarded: number
         }[]
       }
+      fn_touch_enrollment: { Args: { p_course_id: string }; Returns: undefined }
       fn_user_is_trashed: { Args: { p_user_id: string }; Returns: boolean }
     }
     Enums: {
