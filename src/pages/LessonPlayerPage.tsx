@@ -135,6 +135,7 @@ function PlayerLesson({
   const [videoPlaying, setVideoPlaying] = useState(false)
   const [videoEnded, setVideoEnded] = useState(false)
   const onVideoEnded = useCallback(() => setVideoEnded(true), [])
+  const [replayToken, setReplayToken] = useState(0)
 
   const clock = useLessonClock({
     lessonId: lesson.id,
@@ -226,6 +227,7 @@ function PlayerLesson({
           courseId={courseId}
           onPlayingChange={setVideoPlaying}
           onEnded={onVideoEnded}
+          replayToken={replayToken}
         />
       )
       break
@@ -257,7 +259,9 @@ function PlayerLesson({
   // A quiz in replay keeps its own bar, so it gets none here. Otherwise there is
   // no bottom button, except Try again if the automatic finish failed.
   let bar: ReactNode = null
-  if (lessonDone && !(lesson.type === 'quiz' && shownMode === 'replay')) {
+  // A video lesson has no Next / Back bar: the completion sheet's one button is its only
+  // next step, and Back in the top bar leaves.
+  if (lessonDone && !isVideo && !(lesson.type === 'quiz' && shownMode === 'replay')) {
     const following = path.following
     bar = (
       <PlayerBar>
@@ -301,7 +305,8 @@ function PlayerLesson({
           isVideo ? (
             <VideoInfo
               title={lesson.title}
-              moduleTitle={path.moduleTitle}
+              description={lesson.summary?.trim() || null}
+              onReplay={() => setReplayToken((n) => n + 1)}
               xp={shownMode === 'play' && lesson.gamificationEnabled ? lesson.xp : null}
               done={lessonDone}
               seconds={clock.displaySeconds}

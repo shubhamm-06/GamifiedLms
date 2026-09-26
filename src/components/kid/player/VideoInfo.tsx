@@ -1,52 +1,68 @@
-import { Check, Sparkles } from 'lucide-react'
+import { Check, RotateCcw, Sparkles } from 'lucide-react'
 import { clockText } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 
 /**
- * What sits under a video lesson's player: the title, the module it belongs to,
- * the lesson's XP as the same pill the roadmap nodes use, and (while the lesson
- * can still be completed) a slim bar for the minimum active time. The bar counts
- * time the video was actually playing and is deliberately not the video's own
- * scrubber. A finished lesson shows the Done badge and no XP pill: replaying it
- * earns nothing.
+ * What sits under a video lesson's player, top to bottom: the title, one slim
+ * status row (the XP pill, the Done badge once finished, and a small Play again
+ * for a finished lesson), the description as a normal paragraph and, while the
+ * lesson can still be completed, a slim bar for the minimum active time. Plain
+ * inline content: nothing floats or is positioned, so nothing can sit under the
+ * top bar. The bar counts time the video was actually playing and is not the
+ * scrubber. A finished lesson shows no XP pill and no bar: replaying earns nothing.
  */
 export function VideoInfo({
   title,
-  moduleTitle,
+  description,
   xp,
   done,
+  onReplay,
   seconds,
   minSeconds,
   timeMet,
 }: {
   title: string
-  moduleTitle: string | null
+  description: string | null
   /** XP still to earn, or null for none (replay, gamification off, unknown). */
   xp: number | null
   done: boolean
+  onReplay: () => void
   seconds: number
   minSeconds: number
   timeMet: boolean
 }) {
   const shown = timeMet ? minSeconds : Math.min(seconds, minSeconds)
   const percent = minSeconds > 0 ? Math.round((shown / minSeconds) * 100) : 100
+  const showXp = xp !== null && xp > 0
   return (
     <section className="lp-vinfo" data-testid="video-info">
       <h1 className="lp-hero-title">{title}</h1>
-      <p className="lp-hero-sub">{moduleTitle ?? ' '}</p>
-      <div className="lp-vinfo-chips">
-        {xp !== null && xp > 0 ? (
-          <span className="rm-chip" data-testid="video-xp">
-            <Sparkles className="size-3.5" aria-hidden />+{xp} XP
-          </span>
-        ) : null}
-        {done ? (
-          <span className="lp-done" data-testid="done-badge">
-            <Check className="size-5" strokeWidth={3.5} aria-hidden />
-            {playerCopy.page.done}
-          </span>
-        ) : null}
-      </div>
+      {showXp || done ? (
+        <div className="lp-vinfo-status" data-testid="video-status">
+          {showXp ? (
+            <span className="rm-chip" data-testid="video-xp">
+              <Sparkles className="size-3.5" aria-hidden />+{xp} XP
+            </span>
+          ) : null}
+          {done ? (
+            <>
+              <span className="lp-done" data-testid="done-badge">
+                <Check className="size-5" strokeWidth={3.5} aria-hidden />
+                {playerCopy.page.done}
+              </span>
+              <button type="button" className="lp-replay kid-tap" onClick={onReplay} data-testid="replay-button">
+                <RotateCcw className="size-4" strokeWidth={2.75} aria-hidden />
+                {playerCopy.page.playAgain}
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+      {description ? (
+        <p className="lp-vdesc" data-testid="video-description">
+          {description}
+        </p>
+      ) : null}
       {!done && minSeconds > 0 ? (
         <div className="lp-timebar" data-testid="time-bar">
           <div

@@ -20,6 +20,8 @@ interface Props {
   onPlayingChange: (playing: boolean) => void
   /** The video played to its end (at least once). */
   onEnded: () => void
+  /** Bumped by the page's Play again: rewind to the start and play. */
+  replayToken?: number
 }
 
 /**
@@ -31,7 +33,7 @@ interface Props {
  * (the active-time clock only counts then) and whether it has reached its end
  * (completion needs both that and the minimum time; the server checks the time).
  */
-export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded }: Props) {
+export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded, replayToken = 0 }: Props) {
   const source = videoSource(url, import.meta.env.DEV)
   const [state, setState] = useState<PlaybackState>(INITIAL_PLAYBACK)
   const [attempt, setAttempt] = useState(0)
@@ -57,6 +59,12 @@ export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded }: 
   useEffect(() => {
     if (state.ended) onEnded()
   }, [state.ended, onEnded])
+
+  useEffect(() => {
+    if (replayToken === 0) return
+    controls.current?.seek(0)
+    controls.current?.play()
+  }, [replayToken])
 
   useEffect(() => {
     const change = () => setFullscreen(document.fullscreenElement === frame.current)

@@ -1350,9 +1350,17 @@ game lessons changed, apart from two shared fixes listed at the end.
 - **Layout** (`LessonPlayerShell`, video branch). No hero and no activity card: the player runs
   edge to edge right under the top bar (`.lp-video-bleed` cancels the page gutter; from md it sits
   in its column with 20px corners). The top bar carries only Back (no title, since the title is
-  under the player). Under the player, `VideoInfo`: the title, the module name, the lesson's XP as
-  the roadmap's own `.rm-chip` pill (`+10 XP`), and a slim minimum-time bar. Then the same module
-  list. No bottom nav (the nav only shows on Home, Badges, Courses and Profile).
+  under the player). Simplified 2026-09-26 to a YouTube-style page, top to bottom: the player, the
+  title (`.lp-hero-title`, the app's existing lesson title style), one slim status row, the
+  description as a normal paragraph (`lessons.summary`; none is shown when it is empty; the module
+  name is no longer on the page), and the minimum-time bar. **No module list and no Next / Back
+  bar**: the completion sheet's one button is the only next-step action, and Back in the top bar
+  leaves. The status row (`.lp-vinfo-status`) is plain inline content: the roadmap's `.rm-chip` XP
+  pill (`+10 XP`) and, for a finished lesson, the Done badge and a small **Play again** control
+  (`.lp-replay`: an icon and underlined text, no pill; it rewinds the player to 0:00 and plays,
+  earning nothing). Nothing on the page is floating or positioned, so nothing can sit under the top
+  bar (checked: the badge's top is 375px at 390 wide against a 57px top bar, and a hit test on it
+  lands on the badge). No bottom nav (the nav only shows on Home, Badges, Courses and Profile).
 - **Player** (`VideoLesson`, `VideoEngines`, `lib/videoPlayback.ts`). A chromeless stage over our
   own control strip: play or pause, a scrubber that seeks freely in both directions, mute plus a
   volume slider (the slider hides below 400px; the mute button stays), and full screen (shown only
@@ -1383,15 +1391,17 @@ game lessons changed, apart from two shared fixes listed at the end.
 - **Completion card**: the existing `LessonCompleteSheet` (teal check medallion, "Lesson done!",
   the `+N XP` count-up, confetti). It now has ONE button: "Continue to next lesson" when the next
   lesson is open, else "Back to roadmap" (the secondary link is gone for every lesson type).
-- **Revisiting a completed lesson** opens in replay: the Done badge (no XP pill, no time bar), no
-  clock, no XP, no celebration, however much of the video is played.
+- **Revisiting a completed lesson** opens in replay: the Done badge and Play again (no XP pill, no
+  time bar), no clock, no XP, no celebration, however much of the video is played.
 - **Back** returns to Home at the node the child left from: the player records its lesson
   (`lib/roadmapReturn.ts`) and the roadmap, on its next mount, scrolls that node to the middle
   through the same code path as the locked-lesson redirect (`focusLessonId`). If it is the next-up
   lesson the popover opens as usual; any other lesson (a completed one) is scrolled to with no
-  popover. The lesson list links now replace the history entry, so in-app history stays
-  [Home, lesson] and the Back arrow's `history.back()` lands on Home; with no history it goes to `/`.
-- **Locked siblings** in the module list stay non-interactive spans (`aria-disabled`), as before.
+  popover. In-app history stays [Home, lesson] (the list links used by the other lesson types and the
+  sheet's Continue replace the entry), so the Back arrow's `history.back()` lands on Home; with no
+  history it goes to `/`.
+- **Module list**: the list of sibling lessons was built for video lessons on 2026-09-26 and removed
+  the same day; doc, quiz and game lessons still show theirs.
 - **Shared fixes made in the same pass**: the "Done" badge (`.lp-done`) is now cream on `--teal-d`
   (6.20:1; it was ink on `--teal`, 4.50:1), and the completion sheet has one button for all types.
 - **Known limits**: the resume position of the video itself is not persisted (only accrued time is);
