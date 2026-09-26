@@ -72,7 +72,9 @@ export function LessonPopover({
     // What covers the top of the viewport: the top bar and the sticky module bar.
     const bar = root.querySelector<HTMLElement>('[data-module-bar]')
     const topLimit = (document.querySelector('.kid-topbar')?.getBoundingClientRect().bottom ?? 0) + (bar?.offsetHeight ?? 0)
-    const below = window.innerHeight - a.bottom - EDGE
+    // The bottom nav (when shown) covers the bottom of the viewport too.
+    const navTop = document.querySelector('.kid-nav')?.getBoundingClientRect().top ?? window.innerHeight
+    const below = Math.min(window.innerHeight, navTop) - a.bottom - EDGE
     const above = a.top - topLimit - EDGE
     const flip = below < height + GAP && above > below
 

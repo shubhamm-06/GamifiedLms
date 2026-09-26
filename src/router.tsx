@@ -14,7 +14,10 @@ import { requireStudentSession } from '@/lib/studentSession'
 import { CoursePage } from '@/pages/CoursePage'
 import { LessonPlayerPage } from '@/pages/LessonPlayerPage'
 import { LessonPlayerGallery } from '@/pages/dev/LessonPlayerGallery'
+import { KidBadgesPage } from '@/pages/KidBadgesPage'
+import { KidCoursesPage } from '@/pages/KidCoursesPage'
 import { KidHomePage } from '@/pages/KidHomePage'
+import { KidProfilePage } from '@/pages/KidProfilePage'
 import { LoginPage } from '@/pages/LoginPage'
 import { SignupPage } from '@/pages/SignupPage'
 import type { CourseTab } from '@/components/admin/courses/CourseBuilder'
@@ -80,6 +83,25 @@ const indexRoute = createRoute({
   getParentRoute: () => studentRoute,
   path: '/',
   component: KidHomePage,
+})
+
+/** The other three bottom-nav destinations (KidNav): badges, the course switcher, the profile. */
+const badgesRoute = createRoute({
+  getParentRoute: () => studentRoute,
+  path: 'badges',
+  component: KidBadgesPage,
+})
+
+const coursesRoute = createRoute({
+  getParentRoute: () => studentRoute,
+  path: 'courses',
+  component: KidCoursesPage,
+})
+
+const profileRoute = createRoute({
+  getParentRoute: () => studentRoute,
+  path: 'profile',
+  component: KidProfilePage,
 })
 
 const courseRoute = createRoute({
@@ -257,7 +279,7 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
   ...devRoutes,
-  studentRoute.addChildren([indexRoute, courseRoute, lessonRoute]),
+  studentRoute.addChildren([indexRoute, badgesRoute, coursesRoute, profileRoute, courseRoute, lessonRoute]),
   adminRoute.addChildren([
     adminIndexRoute,
     adminUsersRoute,

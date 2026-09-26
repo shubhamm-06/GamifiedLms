@@ -97,12 +97,18 @@ export function EmptyCourseScreen() {
   )
 }
 
-export function RetryScreen({ onRetry }: { onRetry: () => void }) {
+export function RetryScreen({
+  onRetry,
+  title = "Oops! We couldn't load your path",
+}: {
+  onRetry: () => void
+  title?: string
+}) {
   return (
     <Screen
       testId="state-error"
       icon={<WifiOff className="size-8" aria-hidden />}
-      title="Oops! We couldn't load your path"
+      title={title}
       body="Check your internet and try again."
     >
       <button type="button" className="candy-btn kid-tap" onClick={onRetry}>

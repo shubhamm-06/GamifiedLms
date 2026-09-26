@@ -2,18 +2,22 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { KidHeaderContext } from './kidHeader'
+import { KidNav } from './KidNav'
+import { tabForPath } from './kidTabs'
 
 /**
  * Shell for every kid-facing (student) route: a sticky top bar — Back, the
  * page title (truncated), safe-area padding — over a scrolling page on the
  * cream background. Document scroll, not an inner scroller, so iOS momentum and
- * the sticky roadmap banners behave. `--kid-bottom-inset` (kid.css, default 0)
- * is where a future bottom tab bar reports its height; nothing here builds one.
+ * the sticky roadmap banners behave. On the four top-level screens (Home, Badges,
+ * Courses, Profile) it also shows the bottom nav (`KidNav`) and reports its height
+ * through `--kid-bottom-inset` (`data-nav`, kid.css), so the page never sits under it.
  */
 export function KidLayout({ children }: { children?: ReactNode }) {
   const router = useRouter()
-  // Home has nowhere to go back to (the arrow would only leave the app).
-  const onHome = useRouterState({ select: (st) => st.location.pathname === '/' })
+  // The four nav destinations are top level: no Back arrow (it would only leave the app),
+  // and the bottom nav is shown.
+  const tab = useRouterState({ select: (st) => tabForPath(st.location.pathname) })
   const [title, setTitle] = useState('')
   const [fallbackPath, setFallbackPath] = useState('/')
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null)
@@ -31,10 +35,10 @@ export function KidLayout({ children }: { children?: ReactNode }) {
 
   return (
     <KidHeaderContext.Provider value={value}>
-      <div className="kid-app">
+      <div className="kid-app" data-nav={tab ? 'true' : undefined}>
         <header className="kid-topbar">
           <div className="kid-topbar-row">
-            {onHome ? (
+            {tab ? (
               <span className="kid-back-spacer" aria-hidden="true" />
             ) : (
               <button type="button" className="kid-back kid-tap" onClick={goBack} aria-label="Back">
@@ -48,6 +52,7 @@ export function KidLayout({ children }: { children?: ReactNode }) {
           </div>
         </header>
         <main className="kid-main">{children ?? <Outlet />}</main>
+        {tab ? <KidNav activeTo={tab.to} /> : null}
       </div>
     </KidHeaderContext.Provider>
   )

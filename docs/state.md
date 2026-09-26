@@ -18,6 +18,10 @@ nav entry is a real route):
 **Student app** (routes and access rules: `routes-permissions.md`; visuals:
 `ui.md`):
 - `/` — the kid Home: the roadmap of the most recently used course (migration 022; `fn_home_course`, `fn_touch_enrollment`), with a "No courses yet" state. The roadmap is one continuous winding path with a sticky scroll-spy module bar and a procedural background; since 2026-09-26 it has no header or Continue button, and every visit scrolls to the next-up node and opens its anchored popover (`ui.md`).
+- `/badges`, `/courses`, `/profile` (2026-09-26) — the other three bottom-nav screens; with
+  Home they are the four destinations of the persistent bottom nav (`ui.md`). `/courses` is the
+  course switcher (active enrollments with progress; tapping one makes it Home's course).
+  `/badges` and `/profile` are deliberately minimal and need a real design pass.
 - `/courses/$courseId` — the course roadmap: modules and lessons as a
   learning path with lock state (from `fn_course_lesson_states`), a progress
   bar, a sticky Continue bar, a tap sheet per lesson (a friendlier one for
@@ -114,11 +118,12 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Ink on `--teal` in the lesson player.** The player's "Done" badge still has ink text on
   a `--teal` fill (4.50:1, passes AA). The roadmap fix (cream on `--teal-d`) was not applied
   there because the lesson player was out of scope on 2026-09-26.
-- **A course switcher.** Home shows only the most recently used course; a student
-  enrolled in several has no in-app way to pick another except a deep link (and the
-  stat bar the brief deferred: streak, gems, hearts, energy).
-- **A bottom tab bar** for the student app. `--kid-bottom-inset` (kid.css) is
-  reserved for it so adding one later needs no re-layout, but it doesn't exist.
+- **The stat bar** the brief deferred (streak, gems, hearts, energy) in the kid top bar.
+- **A real design for Badges and Profile.** Both shipped 2026-09-26 as minimal functional
+  screens (no celebration or animation, no avatar upload or editing, no per-badge detail).
+- **On-device bottom nav.** The nav's safe-area padding (`env(safe-area-inset-bottom)`) was
+  checked in CSS and at 360 to 430px in Chromium, where the inset is 0; a real iPhone or the
+  Capacitor webview has not been exercised.
 - **Native back-button handling and a Capacitor session audit** for the
   student app — noted as follow-ups, not started (see Next steps).
 - **Quiz reveal.** Grading exists (`fn_submit_quiz`, v1: per-question
@@ -217,8 +222,7 @@ None.
 4. A student home/dashboard screen that links to `/courses/$courseId` — the
    roadmap currently has no entry point.
 5. Decide enrollment expiry (below) before any student is expected to lose access.
-6. A bottom tab bar, native back-button handling and a Capacitor session audit
-   for the student app (`--kid-bottom-inset` is reserved but nothing uses it).
+6. Native back-button handling and a Capacitor session audit for the student app.
 
 ## Open decisions & on the horizon
 

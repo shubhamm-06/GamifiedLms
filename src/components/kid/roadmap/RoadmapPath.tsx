@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PartyPopper } from 'lucide-react'
 import type { Roadmap } from '@/lib/roadmap'
 import { useModuleSpy } from '@/hooks/useModuleSpy'
@@ -6,6 +6,7 @@ import { prefersReducedMotion } from '@/hooks/useMediaQuery'
 import { useNodeCenters } from '@/hooks/useNodeCenters'
 import { LessonPopover } from './LessonPopover'
 import { ModuleBar } from './ModuleBar'
+import { ModuleDivider } from './ModuleDivider'
 import { PathDecor } from './PathDecor'
 import { RoadmapConnector } from './RoadmapConnector'
 import { RoadmapNode } from './RoadmapNode'
@@ -71,12 +72,12 @@ export function RoadmapPath({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Tapping anywhere that is not a node or the card closes the card.
+  // Tapping anywhere that is not a node, the card or the bottom nav closes the card.
   useEffect(() => {
     if (!open) return
     const onDown = (e: PointerEvent) => {
       const t = e.target as Element | null
-      if (t?.closest('.rm-pop') || t?.closest('.rm-node')) return
+      if (t?.closest('.rm-pop') || t?.closest('.rm-node') || t?.closest('.kid-nav')) return
       setOpen(null)
     }
     document.addEventListener('pointerdown', onDown)
@@ -102,24 +103,29 @@ export function RoadmapPath({
     if (lesson.state !== 'completed') break
     completed += 1
   }
+  // Row indices where a new module starts (not the first), which is where a divider sits.
+  const breaks = rows.flatMap((r, i) => (r.position === 1 && i > 0 ? [i] : []))
   const openRow = open ? rows.find((r) => r.lesson.id === open.id) : undefined
 
   return (
     <div className="rm" data-testid="roadmap" ref={rootRef}>
       {active ? <ModuleBar section={active} /> : null}
       <div className="rm-path" ref={pathRef}>
-        <PathDecor rows={rows.length} />
+        <PathDecor rows={rows.length} breaks={breaks} />
         <RoadmapConnector measure={measure} completedCount={completed} />
-        {rows.map(({ lesson, section }, i) => (
-          <RoadmapNode
-            key={lesson.id}
-            lesson={lesson}
-            index={i}
-            moduleKey={section.key}
-            isCurrent={lesson.id === roadmap.currentLessonId}
-            expanded={open?.id === lesson.id}
-            onOpen={toggle}
-          />
+        {rows.map(({ lesson, section, position }, i) => (
+          <Fragment key={lesson.id}>
+            {/* Where the path crosses into the next module: a plain visual break, never interactive. */}
+            {position === 1 && i > 0 ? <ModuleDivider title={section.title} /> : null}
+            <RoadmapNode
+              lesson={lesson}
+              index={i}
+              moduleKey={section.key}
+              isCurrent={lesson.id === roadmap.currentLessonId}
+              expanded={open?.id === lesson.id}
+              onOpen={toggle}
+            />
+          </Fragment>
         ))}
       </div>
       {roadmap.courseComplete ? (

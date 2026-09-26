@@ -111,11 +111,10 @@ A page calls `useKidHeader(title, fallbackPath)` to set the bar's title and
 where Back goes if there's no in-app history (a deep link — checked with
 `router.history.canGoBack()`, not `window.history.length`, since TanStack
 Router's own index knows what `window.history` doesn't after a
-`redirect`/`replace`). `--kid-bottom-inset` (kid.css, default `0px`) is where
-a future bottom tab bar would report its height — everything that pads for
-the bottom (the page, the sticky Continue button) reads this variable, so
-adding the tab bar later needs no re-layout; **the tab bar itself is not
-built**.
+`redirect`/`replace`). `--kid-bottom-inset` (kid.css, default `0px`) is where the
+bottom nav reports its height: everything that pads for the bottom (the page, the lesson
+player's sticky bar) reads it, and `.kid-app[data-nav]` sets it to `--kid-nav-h`. On the four
+top-level screens the layout also drops the Back arrow (a spacer keeps the title in place).
 
 **The roadmap** (`components/kid/roadmap/`, data in `lib/roadmap.ts` +
 `hooks/useCourseRoadmap.ts`). Since 2026-09-26 there is no header block (no course art,
@@ -161,12 +160,47 @@ Cream text on `--teal-d` for a module a child can work in (changed 2026-09-26 fr
 `--teal`, 4.50:1: cream on plain `--teal` would have been 2.88:1, so the fill was darkened
 rather than only the text lightened); a dimmer neutral with a lock icon when every lesson in it
 is locked. It is flat, not a control, and never gold: gold stays
-with the next-up node and Continue. It announces changes politely (`aria-live`). Module
-boundaries are otherwise invisible on the road, by design.
+with the next-up node and its popover. It announces changes politely (`aria-live`). Where the
+path crosses into a module, an inline divider marks it (next paragraphs).
 
-**Continue bar.** Removed on 2026-09-26 (the next step now opens itself, see above). No space
-is reserved for the navigation bar planned for that spot; `--kid-bottom-inset` is still the hook
-for it.
+**Continue bar.** Removed on 2026-09-26 (the next step now opens itself, see above); the bottom
+nav took over the bottom edge on 2026-09-26.
+
+**Bottom nav** (`KidNav`, `.kid-nav`, `kidTabs.ts`; 2026-09-26). Four tabs in order: Home
+(`/`), Badges (`/badges`), Courses (`/courses`), Profile (`/profile`), lucide icons House,
+Award, BookOpen, User. Shown only on those four routes (`tabForPath`); the lesson player and the
+`/courses/$courseId` deep link keep their own bottom edge and get no nav. Fixed to the viewport
+bottom, `--surface` with a hairline top border, `z-index` 35 (above the popover 15 and module bar
+20, below the top bar 40). Content height `--kid-nav-h` (4.25rem); the safe-area inset is added in
+the bar's own bottom padding via `env(safe-area-inset-bottom, 0px)`, so the home indicator never
+covers a tab, and `.kid-app[data-nav]` sets `--kid-bottom-inset` to `--kid-nav-h` so `.kid-main`'s
+bottom padding clears it. Active tab: ink icon and label with a soft teal pill
+(`color-mix(teal 26%, surface)`, 26px radius) behind the icon, `aria-current="page"`; inactive:
+`--kid-muted-fg`. Gold is not used (it stays "the next action"). Tapping the active tab is a no-op:
+`preventDefault` on the link, so no navigation, no remount, no scroll change, and an open lesson
+popover stays open (the roadmap's outside-tap handler ignores `.kid-nav`). The lesson popover
+also treats the nav's top edge as the bottom of the viewport when deciding whether to flip
+above its node.
+
+**Courses, Badges, Profile** (`KidCoursesPage`, `KidBadgesPage`, `KidProfilePage`). Courses is the
+course switcher: one `kid-card` button per active enrollment in a live, published course (title,
+thumbnail or a book icon, a progress bar, "N of M lessons"), most recently used first; progress
+comes from `fn_course_lesson_states` (published lessons only) under the roadmap's own query key;
+tapping a row calls `fn_touch_enrollment`, seeds the Home query with that course, and goes Home.
+Zero courses reuses `NoCoursesScreen`. Badges: a two-column grid (three from 640px) of every
+active badge, earned ones with a coral medallion and "Earned", the rest muted with a lock and "Not
+yet", plus "N of M earned"; no animation. Profile: initial or avatar, name, Level, XP and Day
+streak cards, and a quiet Log out button (signs out, clears the query cache, goes to `/login`).
+**Badges and Profile are intentionally minimal and need a real design pass.**
+
+**Module divider** (`ModuleDivider`, `.rm-divider`, 2026-09-26). Before the first node of every
+module after the first: a short rule, the module's name (`section.title`, the same text as the
+sticky module bar, up to two lines), a second short rule, on the cream page background in muted ink
+(`--kid-muted-fg`, 5.46:1; the rules are decorative). Fixed height `--rm-div-h` (6.5rem), which
+`PathDecor` counts (`breaks`, `--d`) so the background shapes stay aligned with the rows; it
+covers the connector for its height, which reads as a break in the road. Not interactive:
+`pointer-events: none`, no tab stop, `role="separator"` with an `aria-label`. It appears at every
+boundary, including before a module that is still fully locked.
 
 **Path spec.** (One connector for the whole course since 2026-09-26; the sway below is continuous across modules.) The connector is an SVG behind the nodes, generated from the
 measured centres of the real node elements (`useNodeCenters` reads

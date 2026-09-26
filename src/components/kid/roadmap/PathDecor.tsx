@@ -9,9 +9,10 @@ const KINDS = ['blob', 'dots', 'squiggle', 'ring', 'sparkle'] as const
  * one per row, on whichever side the row's node is NOT. Pure CSS/SVG, no
  * artwork, no motion, aria-hidden and behind everything (it is a texture, not
  * a focal point). Placement is a function of the row index alone, so it is
- * stable and needs no measuring; rows are a fixed height (`--rm-row-h`).
+ * stable and needs no measuring; rows are a fixed height (`--rm-row-h`) and each
+ * module divider before a row adds one fixed `--rm-div-h` (`breaks`).
  */
-export function PathDecor({ rows }: { rows: number }) {
+export function PathDecor({ rows, breaks = [] }: { rows: number; breaks?: number[] }) {
   return (
     <div className="rm-decor" aria-hidden="true" data-testid="path-decor">
       {Array.from({ length: rows }, (_, i) => {
@@ -24,7 +25,7 @@ export function PathDecor({ rows }: { rows: number }) {
             key={i}
             className={`rm-decor-item rm-decor-${kind}`}
             data-side={side}
-            style={{ '--i': i, '--v': i % 3 } as CSSProperties}
+            style={{ '--i': i, '--v': i % 3, '--d': breaks.filter((b) => b <= i).length } as CSSProperties}
           >
             {kind === 'squiggle' ? (
               <svg viewBox="0 0 80 24" width="100%" height="100%" focusable="false">

@@ -79,8 +79,9 @@ src/
                hand — see ui.md re: the shadcn CLI's Windows path bug)
     auth/      AuthCard, AuthField (login/signup shared UI)
     kid/       KidLayout (the student-route shell) + kidHeader.ts (its
-               context/hook); roadmap/ (RoadmapPath, RoadmapNode,
-               RoadmapConnector, ModuleBar, PathDecor, LessonPopover, StateScreens,
+               context/hook), KidNav + kidTabs.ts (the bottom nav and its four tabs);
+               roadmap/ (RoadmapPath, RoadmapNode,
+               RoadmapConnector, ModuleBar, ModuleDivider, PathDecor, LessonPopover, StateScreens,
                lessonTypeMeta); player/ (LessonPlayerShell,
                ActiveTimeRing, PausedNotice, PlayerBar, PlayerSkeleton, PlayerScreens,
                VideoLesson, DocLesson, GameLesson, QuizLesson, QuizQuestion,
@@ -90,7 +91,8 @@ src/
                folder holds the CSV import dialog), courses/,
                games/, orders/, settings/, gamification/; plus selection/
                (the shared multi-select kit) and trash/ (Trash page table + dialogs)
-  pages/       route-level components: KidHomePage (`/`, the kid Home), LoginPage, SignupPage,
+  pages/       route-level components: KidHomePage (`/`, the kid Home), KidCoursesPage, KidBadgesPage,
+               KidProfilePage (the other three bottom-nav screens), LoginPage, SignupPage,
                CoursePage (the kid-facing course roadmap), LessonPlayerPage
                (the kid-facing lesson player);
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
