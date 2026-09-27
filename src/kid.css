@@ -1983,8 +1983,9 @@
   }
 
   /* The avatar button: the rendered SVG plus a small pencil badge, both inside
-     one tap target. box-shadow substitutes for the old solid fill's candy lip,
-     since the avatar itself now carries its own colour. */
+     one tap target. The SVG itself carries the -d candy-lip shadow (keyed to
+     its own base colour, in Avatar.tsx), so the button adds no shadow of its
+     own — a second, differently-coloured shadow here would just muddy it. */
   .kp-avatar-btn {
     position: relative;
     display: grid;
@@ -1995,14 +1996,15 @@
     border: 0;
     border-radius: 999px;
     background: none;
-    box-shadow: var(--kid-shadow);
     cursor: pointer;
   }
 
+  /* Top-right, opposite the avatar's own accent mark (bottom-right, drawn
+     inside the SVG) so the two badges never overlap. */
   .kp-avatar-edit {
     position: absolute;
     right: -0.125rem;
-    bottom: -0.125rem;
+    top: -0.125rem;
     display: grid;
     place-items: center;
     width: 1.75rem;
@@ -2036,9 +2038,27 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.125rem;
-    padding: 1rem 0.5rem;
+    gap: 0.375rem;
+    padding: 1.125rem 0.5rem 1rem;
   }
+
+  /* Same colour-circle-badge pattern as .lp-callout-icon: a solid tone with
+     a cream icon and its own -d shadow, one token per stat so the three
+     read as distinct at a glance. */
+  .kp-stat-icon {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    color: var(--cream);
+    background: var(--callout);
+    box-shadow: 0 3px 0 var(--callout-d);
+  }
+
+  .kp-stat-icon[data-color='teal'] { --callout: var(--teal); --callout-d: var(--teal-d); }
+  .kp-stat-icon[data-color='plum'] { --callout: var(--plum); --callout-d: var(--plum-d); }
+  .kp-stat-icon[data-color='coral'] { --callout: var(--coral); --callout-d: var(--coral-d); }
 
   .kp-stat-num {
     font-size: var(--kid-text-title);
@@ -2107,21 +2127,48 @@
 
   .kp-cal-cell[data-pad='true'] { background: none; }
 
-  .kp-cal-cell[data-active='true'] { background: var(--teal-d); }
+  /* Solid teal with its own candy-lip shadow, not just a darker tan — reads
+     as a distinct colour+weight, not a subtle grey-shade shift. */
+  .kp-cal-cell[data-active='true'] {
+    background: var(--teal);
+    box-shadow: 0 2px 0 var(--teal-d);
+  }
 
   .kp-cal-cell[data-today='true'] { box-shadow: inset 0 0 0 2px var(--ink); }
 
-  /* Account forms: stacked fields, the app's own quiet button, reusing
-     .auth-field/.auth-field-error (styles.css) for inputs and error text
-     rather than a second error style. */
+  .kp-cal-cell[data-active='true'][data-today='true'] {
+    box-shadow: 0 2px 0 var(--teal-d), inset 0 0 0 2px var(--ink);
+  }
+
+  /* Account: each action (name/email/password) is its own bounded
+     sub-section — a divider plus a faint tint, so the card doesn't read as
+     one long form. */
+  .kp-subsection {
+    padding: 0.875rem 0.875rem 1rem;
+    margin-top: 0.75rem;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--ink) 3%, transparent);
+  }
+
+  .kp-subsection:first-of-type { margin-top: 0.25rem; }
+
+  .kp-subsection-title {
+    margin: 0 0 0.625rem;
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    font-weight: 800;
+    color: var(--kid-muted-fg);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Account forms: stacked fields, reusing .auth-field/.auth-field-error
+     (styles.css) for inputs and error text rather than a second error style. */
   .kp-form {
     display: flex;
     flex-direction: column;
     gap: 0.625rem;
-    margin-top: 1rem;
   }
-
-  .kp-form:first-of-type { margin-top: 0; }
 
   .kp-form-btn { align-self: flex-start; }
 

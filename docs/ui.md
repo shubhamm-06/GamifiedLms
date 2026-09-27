@@ -215,27 +215,41 @@ yet", plus "N of M earned"; no animation. **Badges is still intentionally minima
 design pass.** Profile was rebuilt 2026-09-27 (below); "initial or avatar, name, Level, XP and Day
 streak cards, and a quiet Log out button" is what it looked like before that.
 
-### Profile (2026-09-27): avatar, editable account, a real streak view
+### Profile (2026-09-27, redesigned same day): avatar, editable account, a real streak view
 
 Same page (`KidProfilePage`), no longer minimal: a tappable avatar that opens the builder, the
-Level/XP/streak cards (unchanged), a streak calendar, an account card (name, email, password) and
-Log out. Two decisions, both explained in `schema.md`: the streak calendar reads
-`xp_transactions.created_at` directly rather than a new log table, and the email address changes
-by syncing against the confirmed Auth session on read, rather than a client-held pending flag.
+Level/XP/streak cards, a streak calendar, an account card (name, email, password) and Log out. Two
+decisions, both explained in `schema.md`: the streak calendar reads `xp_transactions.created_at`
+directly rather than a new log table, and the email address changes by syncing against the
+confirmed Auth session on read, rather than a client-held pending flag. **The first build's visuals
+didn't match the app's language (a literal cartoon face, flat-outline stat icons, plain white
+button pills, one undifferentiated form) and were corrected the same day** — the paragraphs below
+describe the corrected, current state only; see `changelog.md` for both dates.
 
-**The avatar is procedural, never an image.** `AvatarConfig` (`src/lib/avatar.ts`) is
-`{ base, topper, face, accent }`, each from a small fixed set — `base` reuses the roadmap's own
-four module colours (gold, teal, coral, plum; `MODULE_COLOR_COUNT` in `lib/roadmap.ts`), `topper`
-is spiky/round/star/antenna/bow/none, `face` is happy/wink/silly/cool/sleepy, `accent` is
-star/stripe/dot/heart/none. `DEFAULT_AVATAR` (teal, round, happy, none) is what a student who has
-never customized one sees — fixed, not random, so it doesn't flicker between visits. **One shared
-component draws it everywhere**: `Avatar` (`components/kid/Avatar.tsx`), a 100x100 viewBox SVG of
-plain shapes (circle, path, polygon), coloured only through `style={{ fill: 'var(--x)' }}` (an SVG
-presentation attribute can't resolve `var()`; an inline style property can) — used in the builder's
-live preview, the profile page and the bottom nav's Profile tab (behind the same teal active pill
-the other tabs use, at both states; nothing else about the nav changed). `parseAvatarConfig`
-validates whatever comes back from the database (defensive, even though the CHECK constraint
-already guarantees the shape) and falls back to `DEFAULT_AVATAR` for anything else, including null.
+**The avatar is procedural, never an image, and reads as an abstract emblem, not a character —
+no eyes, no mouth.** `AvatarConfig` (`src/lib/avatar.ts`) is `{ base, topper, face, accent }`, each
+from a small fixed set — `base` reuses the roadmap's own four module colours (gold, teal, coral,
+plum; `MODULE_COLOR_COUNT` in `lib/roadmap.ts`), `topper` is spiky/round/star/antenna/bow/none,
+`face` is happy/wink/silly/cool/sleepy, `accent` is star/stripe/dot/heart/none. `DEFAULT_AVATAR`
+(teal, round, happy, none) is what a student who has never customized one sees — fixed, not
+random, so it doesn't flicker between visits. **One shared component draws it everywhere**:
+`Avatar` (`components/kid/Avatar.tsx`), a 100x100 viewBox SVG of plain shapes (circle, path,
+polygon), coloured only through `style={{ fill: 'var(--x)' }}` (an SVG presentation attribute can't
+resolve `var()`; an inline style property can) — used in the builder's live preview, the profile
+page and the bottom nav's Profile tab (behind the same teal active pill the other tabs use, at both
+states; nothing else about the nav changed). `parseAvatarConfig` validates whatever comes back from
+the database (defensive, even though the CHECK constraint already guarantees the shape) and falls
+back to `DEFAULT_AVATAR` for anything else, including null. `topper` draws a bold crest above the
+base circle (a crown, an arch, a star burst, a stalked ball, a chevron banner); `face` — the stored
+field name is unchanged, but it now draws a single geometric band across the circle (a solid bar,
+a diagonal sash, a zigzag, a double bar, three notches), never eyes or a mouth; `accent` is a small
+badge bottom-right. The whole SVG carries one drop shadow keyed to the base colour's own `-d` token
+(`filter: drop-shadow(0 3px 0 var(--{base}-d))`), the same candy-lip lift every other circular icon
+in the app has (`.lp-callout-icon`, `.lp-medallion`) — it no longer sits flat. Every shape was
+checked at both full profile size (96–120px) and the actual ~28px nav-tab render size; where a
+shape got muddy that small the fix was a bolder/simpler geometry, not a smaller stroke. The profile
+page's own edit-pencil badge sits top-right (`.kp-avatar-edit`) opposite the SVG's own accent badge
+(bottom-right), so the two never overlap.
 - **The builder** (`AvatarBuilder`): a large live preview, a Shuffle button (one random pick per
   category), then one horizontally-scrolling row per category — each chip IS the full avatar with
   only that category swapped in, not an abstract swatch, so the choice is exactly what tapping it
@@ -244,6 +258,14 @@ already guarantees the shape) and falls back to `DEFAULT_AVATAR` for anything el
   instead of a second visual style. Save writes `profiles.avatar_config` and updates the shared
   `useKidProfile` cache immediately (`setQueryData` then `invalidateQueries`), so the nav tab and
   the profile page change together with no reload; Cancel discards the in-progress config.
+- **Stat cards** (Level/XP/Streak): each icon is now a solid colour-circle badge with a cream
+  icon and a `-d` shadow beneath — exactly `.lp-callout-icon`'s pattern (`.kp-stat-icon[data-color]`,
+  reusing its `--callout`/`--callout-d` custom-property trick), one distinct token per stat (teal,
+  plum, coral) so the three read as different things, not one repeated icon in three colours.
+- **Name/Email/Password buttons**: `.candy-btn` (the gold candy-3D fill-and-shadow button, the same
+  class the lesson completion CTA uses), not the plain outline pill. Log out stays `.candy-btn-quiet`
+  (already the app's own standard secondary-button treatment, used elsewhere for Cancel/lesson-bar
+  actions — deliberately quieter, not unstyled).
 - **Name**: a plain field bound to `profiles.display_name`, saved directly, no confirmation —
   reuses `AuthField`/`.auth-field-error` (`styles.css`, the login/signup pages' own error style) so
   a validation message never needed a second look.
@@ -258,11 +280,20 @@ already guarantees the shape) and falls back to `DEFAULT_AVATAR` for anything el
   `updateUser({ password })`; the minimum length (8) reuses `SignupPage`'s own rule rather than a
   second one. A wrong current password shows "That isn't your current password." and changes
   nothing.
+- **Account card structure**: the three actions are visually bounded sub-sections
+  (`.kp-subsection`: a faint ink-tinted panel plus top spacing), each with its own small-caps label
+  (`.kp-subsection-title`, muted, uppercase) distinct from the `AuthField` labels beneath it — the
+  card no longer reads as one long form.
 - **Streak calendar** (`StreakCalendar`): 5 weeks, 7 columns aligned Sun-Sat (leading cells padded
-  to the first day's real weekday), oldest day top-left. A filled cell is `--teal-d` (a graphic, not
-  text, so 3:1 is the bar, not 4.5:1); today gets an ink ring whether or not it is filled, so the
-  child can find "today" before earning anything. No streak-broken language anywhere — a quiet
-  pattern of good days, not a report card.
+  to the first day's real weekday), oldest day top-left. A filled cell is now solid `--teal` with
+  its own `-d` shadow (`.kp-cal-cell[data-active='true']`) rather than a flat `--teal-d` fill, so
+  active reads as a distinct colour-plus-weight, not a darker shade of the same muted tan; today
+  still gets an ink ring whether or not it is filled, so the child can find "today" before earning
+  anything. No streak-broken language anywhere — a quiet pattern of good days, not a report card.
+  The card sits in normal document flow below `.kp-stats` and above the Account card, and
+  `.kid-main`'s bottom padding already reserves `--kid-bottom-inset` for the nav — checked
+  empirically at 360–430px width (640–932px tall, including a short 375×667 case) with nothing
+  clipped behind the nav in the settled render.
 - **Natural next step, not built**: no avatar option is unlocked by XP or progress — pure
   customization today, same as the brief asked; a later task could gate a topper or accent behind a
   badge or a level.

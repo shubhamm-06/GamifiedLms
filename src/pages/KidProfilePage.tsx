@@ -86,17 +86,23 @@ export function KidProfilePage() {
 
       <ul className="kp-stats">
         <li className="kid-card kp-stat" data-testid="stat-level">
-          <Trophy className="size-6" aria-hidden />
+          <span className="kp-stat-icon" data-color="teal">
+            <Trophy className="size-5" aria-hidden />
+          </span>
           <span className="kp-stat-num kid-num">{p.level}</span>
           <span className="kp-stat-label">Level</span>
         </li>
         <li className="kid-card kp-stat" data-testid="stat-xp">
-          <Sparkles className="size-6" aria-hidden />
+          <span className="kp-stat-icon" data-color="plum">
+            <Sparkles className="size-5" aria-hidden />
+          </span>
           <span className="kp-stat-num kid-num">{p.totalXp}</span>
           <span className="kp-stat-label">XP</span>
         </li>
         <li className="kid-card kp-stat" data-testid="stat-streak">
-          <Flame className="size-6" aria-hidden />
+          <span className="kp-stat-icon" data-color="coral">
+            <Flame className="size-5" aria-hidden />
+          </span>
           <span className="kp-stat-num kid-num">{p.currentStreak}</span>
           <span className="kp-stat-label">Day streak</span>
         </li>
@@ -133,9 +139,18 @@ function AccountSection({ profile }: { profile: KidProfile }) {
   return (
     <section className="kid-card kp-card" aria-label="Account">
       <h2 className="kp-card-title">Account</h2>
-      <NameForm current={profile.displayName} />
-      <EmailForm current={profile.email} />
-      <PasswordForm />
+      <div className="kp-subsection">
+        <h3 className="kp-subsection-title">Name</h3>
+        <NameForm current={profile.displayName} />
+      </div>
+      <div className="kp-subsection">
+        <h3 className="kp-subsection-title">Email</h3>
+        <EmailForm current={profile.email} />
+      </div>
+      <div className="kp-subsection">
+        <h3 className="kp-subsection-title">Password</h3>
+        <PasswordForm />
+      </div>
     </section>
   )
 }
@@ -170,7 +185,7 @@ function NameForm({ current }: { current: string }) {
         }}
         error={error ?? undefined}
       />
-      <button type="submit" className="candy-btn-quiet kid-tap kp-form-btn" disabled={update.isPending} data-testid="save-name">
+      <button type="submit" className="candy-btn kid-tap kp-form-btn" disabled={update.isPending} data-testid="save-name">
         {update.isPending ? 'Saving…' : 'Save name'}
       </button>
       {saved ? (
@@ -221,7 +236,7 @@ function EmailForm({ current }: { current: string }) {
             onChange={(e) => setEmail(e.target.value)}
             error={error ?? undefined}
           />
-          <button type="submit" className="candy-btn-quiet kid-tap kp-form-btn" disabled={request.isPending} data-testid="save-email">
+          <button type="submit" className="candy-btn kid-tap kp-form-btn" disabled={request.isPending} data-testid="save-email">
             {request.isPending ? 'Sending…' : 'Change email'}
           </button>
         </>
@@ -302,7 +317,7 @@ function PasswordForm() {
         }}
         error={errors.confirm}
       />
-      <button type="submit" className="candy-btn-quiet kid-tap kp-form-btn" disabled={change.isPending} data-testid="save-password">
+      <button type="submit" className="candy-btn kid-tap kp-form-btn" disabled={change.isPending} data-testid="save-password">
         {change.isPending ? 'Saving…' : 'Change password'}
       </button>
       {saved ? (
