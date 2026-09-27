@@ -63,16 +63,18 @@ const SETTING_CHIP =
  * Compact readout of a lesson's stored settings on a curriculum row: a clock
  * and the minimum time ("1:30") when it is above 0, and "Pass 60%" for a quiz.
  * Purely informational spans — no handlers, so they can't interfere with the
- * drag handle or the selection checkbox beside them. The settings are stored
- * only; nothing enforces them yet (docs/rules.md).
+ * drag handle or the selection checkbox beside them. `min_time_seconds` is
+ * stored only (docs/rules.md); `pass_percentage` is enforced server-side by
+ * `fn_submit_quiz` and, since migration 028, NULL for every non-quiz lesson —
+ * the chip only ever renders for a quiz, where it is guaranteed a value.
  */
 export function LessonSettingChips({
   lesson,
 }: {
-  lesson: { content_type: string; min_time_seconds: number; pass_percentage: number }
+  lesson: { content_type: string; min_time_seconds: number; pass_percentage: number | null }
 }) {
   const hasTime = lesson.min_time_seconds > 0
-  const isQuiz = lesson.content_type === 'quiz'
+  const isQuiz = lesson.content_type === 'quiz' && lesson.pass_percentage != null
   if (!hasTime && !isQuiz) return null
 
   return (

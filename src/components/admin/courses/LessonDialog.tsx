@@ -36,6 +36,7 @@ import {
 } from '@/lib/lessonSettings'
 import { cn } from '@/lib/utils'
 import { isEmbedUrl, normalizeEmbedUrl } from '@/lib/video'
+import { DocBlocksEditor } from './DocBlocksEditor'
 import { MinTimeField } from './MinTimeField'
 import { QuizQuestionsEditor } from './QuizQuestionsEditor'
 
@@ -75,7 +76,10 @@ function lessonToFormValues(lesson: Lesson): LessonFormValues {
     duration_seconds: lesson.duration_seconds == null ? '' : String(lesson.duration_seconds),
     xp_reward: lesson.xp_reward == null ? '' : String(lesson.xp_reward),
     min_time_seconds: String(lesson.min_time_seconds),
-    pass_percentage: String(lesson.pass_percentage),
+    // NULL for every non-quiz lesson (migration 028) — the form still shows
+    // the same 70% pre-fill a brand-new quiz lesson gets, in case this
+    // lesson's type is switched to quiz, rather than a literal "null".
+    pass_percentage: lesson.pass_percentage == null ? String(DEFAULT_PASS_PERCENTAGE) : String(lesson.pass_percentage),
     is_preview: lesson.is_preview,
     status: lesson.status,
   }
@@ -335,7 +339,7 @@ function LessonForm({
               id="lesson-pass"
               type="number"
               inputMode="numeric"
-              min={1}
+              min={0}
               max={100}
               step={1}
               className="w-28"
@@ -413,13 +417,20 @@ function LessonForm({
         />
       </div>
 
-      {/* Questions live in the same dialog rather than a separate route —
-          but only exist once the lesson does, and only for quiz lessons. */}
+      {/* Questions/blocks live in the same dialog rather than a separate
+          route — but only exist once the lesson does, since both need a
+          lesson_id. */}
       {values.content_type === 'quiz' && lesson ? (
         <QuizQuestionsEditor lessonId={lesson.id} />
       ) : values.content_type === 'quiz' ? (
         <p className="text-muted-foreground border-t pt-4 text-sm">
           Save the lesson first, then reopen it to add questions.
+        </p>
+      ) : values.content_type === 'text' && lesson ? (
+        <DocBlocksEditor lessonId={lesson.id} />
+      ) : values.content_type === 'text' ? (
+        <p className="text-muted-foreground border-t pt-4 text-sm">
+          Save the lesson first, then reopen it to add content blocks.
         </p>
       ) : null}
 

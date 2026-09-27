@@ -939,6 +939,65 @@ touches the enrollment.
     `GameDialog` with the helper text "Landscape games will ask kids to rotate
     their phone." — still stored only (nothing reads it; there is no game player),
     and not a column on the games list.
+- **Quiz questions and doc content blocks (2026-09-28): drag-reorder, delete
+  confirmation, and a real doc-block editor where only direct SQL existed
+  before.** Both are nested in the same `LessonDialog` a lesson's own edit
+  already opens — no new route, matching the "one level deep in a Dialog, not
+  a new route" rule above — and both only exist once the lesson row does
+  (`lesson_id`), same as the quiz question editor always required.
+  - **`SimpleSortableList.tsx`** generalises `CurriculumTab`'s drag machinery
+    for the simple case it doesn't itself need: one flat, single-container
+    list. Same sensors (`PointerSensor` with a small activation distance,
+    `KeyboardSensor`), the same zero-animation convention (`transition: null`,
+    `animateLayoutChanges: () => false` on `useSortable`; `dropAnimation={null}
+    transition={() => undefined}` on `<DragOverlay>` — `rules.md`'s invariant,
+    unchanged), and the same generalised `computeChangedPositions` (every row
+    whose `position` actually changed, not just the drag's two endpoints) feeding
+    a batched `upsert` plus an optimistic `onMutate` cache write, so the list
+    doesn't snap back and re-jump while the round trip resolves. `QuizQuestionsEditor`
+    and `DocBlocksEditor` each own their row's own layout (a truncated prompt vs.
+    a type-specific preview) through a render prop; the component itself only
+    owns the drag mechanics.
+  - **Quiz questions**: the up/down chevron buttons are gone, replaced by the
+    same drag handle as everywhere else in the builder. Delete now goes through
+    a confirm `AlertDialog` (the same pattern `CurrenciesSection.tsx`'s currency
+    delete already uses) instead of an immediate, unconfirmed delete. The
+    add/edit form, its options list and its "exactly one correct answer that
+    must match a current option" validation are unchanged — they already did
+    everything this task asked for.
+  - **Pass threshold, reused rather than duplicated.** The brief asked for a
+    new nullable `lessons.quiz_pass_threshold` percentage column, "null for
+    every non-quiz lesson" — which is exactly what `lessons.pass_percentage`
+    (migration 015) already was in spirit, already read by real grading
+    (`fn_submit_quiz`, 017) and already the "Pass mark" field in `LessonDialog`.
+    Migration 028 reshapes that column instead of adding a second one that
+    would mean the same thing: it is now nullable, `0–100` (was `1–100`), NULL
+    for every non-quiz lesson and required for a quiz one (a bidirectional
+    CHECK, not just convention). The 70% pre-fill for a new/never-set quiz
+    lesson moved out of the column's own default and into the client
+    (`DEFAULT_PASS_PERCENTAGE`, `lib/lessonSettings.ts`) — see `schema.md` for
+    the full reasoning and the "why not just add the column" call.
+  - **`DocBlocksEditor.tsx`** — the first UI for `lesson_content_blocks`
+    (migration 023's 13 seeded rows existed only because that migration wrote
+    them directly; there was no way to add a 14th). A labeled type picker
+    (Paragraph / Callout / Image, not a `Select` — three options read better
+    all at once, the same reasoning as the video-link mode switch) reveals
+    only the fields valid for the chosen type; switching type clears the
+    other type's fields rather than leaving something stale that a later save
+    could turn into a constraint violation — the form is built to only ever
+    produce one of `lesson_content_blocks_shape_check`'s three shapes, never to
+    be caught by it. Callout colour is four labeled swatches (`bg-gold` /
+    `bg-teal` / `bg-coral` / `bg-plum` — the brand tokens' Tailwind utilities,
+    2026-09-09 — spelled out as static class names, since Tailwind's scanner
+    can't see a template-literal `` `bg-${color}` ``); callout icon is five
+    labeled buttons using the identical icon set the kid renderer
+    (`DocBlocks.tsx`) already maps `CalloutIcon` to, kept as its own small
+    lookup rather than an import across the admin/kid boundary. An image
+    block's URL is checked against `^https?://` client-side before save, so a
+    bad paste reads as a form error, never a raw Postgres constraint message.
+    The row list shows a compact preview per block: truncated text for
+    paragraph, the coloured icon badge plus truncated text for callout, a
+    small thumbnail (or a placeholder icon before one loads) for image.
 - **Destructive copy states the actual consequence.** Deleting a topic says
   its lessons move to Ungrouped (the FK is `SET NULL`, so they genuinely
   survive); deleting a lesson warns that its questions go with it and that

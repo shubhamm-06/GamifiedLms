@@ -584,7 +584,7 @@ export type Database = {
           is_preview: boolean
           min_time_seconds: number
           module_id: string | null
-          pass_percentage: number
+          pass_percentage: number | null
           position: number
           status: string
           summary: string | null
@@ -605,7 +605,7 @@ export type Database = {
           is_preview?: boolean
           min_time_seconds?: number
           module_id?: string | null
-          pass_percentage?: number
+          pass_percentage?: number | null
           position: number
           status?: string
           summary?: string | null
@@ -626,7 +626,7 @@ export type Database = {
           is_preview?: boolean
           min_time_seconds?: number
           module_id?: string | null
-          pass_percentage?: number
+          pass_percentage?: number | null
           position?: number
           status?: string
           summary?: string | null

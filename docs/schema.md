@@ -134,14 +134,22 @@ enforces that — see `rules.md` before writing it.
 **Lesson time and pass-mark settings (migration 015) — enforced by the lesson engine (migration 017).**
 `lessons.min_time_seconds` is `integer not null default 90` with
 `lessons_min_time_seconds_check` (0–3600); 0 means no minimum time.
-`lessons.pass_percentage` is `integer not null default 60` with
-`lessons_pass_percentage_check` (1–100) and only means something for a quiz
-lesson — the quiz **is** the lesson (`quiz_questions.lesson_id` and
-`quiz_attempts.lesson_id` reference `lessons(id)`), so there is no separate quiz
-table to hold it; other types store it and ignore it. Migration 015 only stored the two
-values; since 017 `fn_complete_lesson` and `fn_submit_quiz` read them on every
-call (*Lesson engine*, below), so an admin's edit takes effect on the next call,
-including for a lesson a student already has open. The migration set
+`lessons.pass_percentage` only means something for a quiz lesson — the quiz
+**is** the lesson (`quiz_questions.lesson_id` and `quiz_attempts.lesson_id`
+reference `lessons(id)`), so there is no separate quiz table to hold it.
+**Reshaped by migration 028** (the admin quiz-authoring task) from `integer
+not null default 60` / `lessons_pass_percentage_check (1–100)`, stored (and
+ignored) for every lesson type, to: nullable, `lessons_pass_percentage_check
+(0–100 or null)`, plus a second, bidirectional
+`lessons_pass_percentage_quiz_only_check ((content_type = 'quiz') =
+(pass_percentage is not null))` — NULL for every non-quiz lesson, required
+for a quiz one. The column's own `DEFAULT 60` is gone; a new/never-set quiz
+lesson's 70% pre-fill now lives only in the client
+(`DEFAULT_PASS_PERCENTAGE`, `lib/lessonSettings.ts`), so it can never leak
+onto a non-quiz row again. Since 017 `fn_complete_lesson` and `fn_submit_quiz`
+read it on every call (*Lesson engine*, below), so an admin's edit takes
+effect on the next call, including for a lesson a student already has open.
+Migration 015 set
 `min_time_seconds = 0` on existing quiz lessons (there were none at the time, so
 it touched 0 rows); every other lesson kept the default of 90 — `text` lessons
 included, since the spec named only video, game and quiz. The two real lessons
@@ -227,6 +235,19 @@ Verified with real JWTs (not `execute_sql`): an enrolled student reads exactly t
 `anon` read 0 (also when filtering by a lesson id), and a student INSERT is refused (`42501`) while
 UPDATE and DELETE touch no rows.
 
+**Admin authoring** (`DocBlocksEditor.tsx`, nested in `LessonDialog` for a
+`content_type = 'text'` lesson, 2026-09-28 — until now these 13 rows only
+existed because they were seeded directly by migration 023's own SQL, with
+no UI to add more). The form only ever produces one of the three shapes
+`lesson_content_blocks_shape_check` allows — switching a block's type clears
+every field that doesn't belong to the new type, rather than leaving a stale
+value that a later save could turn into a constraint violation. Colour and
+icon are labeled swatch/icon pickers (never a raw text input), and an image
+URL is checked against `^https?://` client-side before save, so a bad paste
+gets a readable message instead of a raw Postgres error. Same
+drag-reorder/confirm-delete conventions as the quiz questions above,
+including the same `SimpleSortableList.tsx` primitive.
+
 ### 3. Learner activity
 
 **`enrollments`** — access is a row here, not a flag on `profiles`. `id`,
@@ -281,7 +302,13 @@ completion XP, since nothing stops a row leaving and re-entering
 client unstripped**), `explanation`, `position`. `correct_option` stores an
 option's **`id`**, not its text, so rewording an option can't orphan the
 answer key; the admin UI only ever offers the current options as choices and
-refuses to save a mismatch.
+refuses to save a mismatch. **Admin authoring** (`QuizQuestionsEditor.tsx`,
+nested in `LessonDialog`, 2026-09-28): drag-reorder via the same
+`@dnd-kit`/zero-animation convention as `CurriculumTab` (generalised into
+`SimpleSortableList.tsx` for this single-container case), one batched
+`upsert` writing every changed `position`; delete goes through a confirm
+`AlertDialog`, the same pattern `CurrenciesSection.tsx` already uses. Full
+write-up in `ui.md`.
 
 ⚠️ **`lessons` has no `slug` column.** The original plan called for one and
 this file claimed it until 2026-09-09 — the live table has never had it.
@@ -1011,6 +1038,7 @@ table.
 | 025 | `20260926210000_025_game_completion.sql` | 2026-09-26 (live version in `list_migrations`) | `fn_complete_game(uuid, numeric)`: server-clamped score XP for game lessons (`SECURITY DEFINER`, `search_path = ''`, shared guard, `authenticated` only, new error code `invalid_score`); `fn_award_lesson_xp` skips game lessons that have a live game; `fn_complete_lesson` refuses them. No table, column, policy or view changed |
 | 026 | `20260927000000_026_avatar_config.sql` | 2026-09-27 (live version in `list_migrations`; applied via the CLI `--db-url` fallback, `env-deploy.md`, the MCP connector was unavailable this session) | `profiles.avatar_config jsonb`, nullable, with a shape CHECK requiring exactly the four keys `base`/`topper`/`face`/`accent` (both directions — missing AND extra keys refused, caught in testing: `->>` on a missing key is SQL NULL and `NULL = ANY(...)` is NULL, not FALSE, so a CHECK checking only "no extra keys" would have silently accepted a partial config) and each value from its fixed set (`src/lib/avatar.ts`). No RLS change: covered by the existing whole-row `profiles_select_self_or_admin`/`profiles_update_self` policies |
 | 027 | `20260927010000_027_deletion_requests.sql` | 2026-09-27 (applied via the CLI `--db-url` fallback, one statement per call — the pooler's transaction mode refused the whole file as one prepared statement) | New `deletion_requests` table (`id`, `user_id` → `profiles(id)` `ON DELETE CASCADE`, `requested_at`): a student's self-service "please delete my account" request, recorded only — no automatic action. RLS: self SELECT/INSERT (the migration-014 "own row, minus a trashed caller's stale token" shape) or admin SELECT; no UPDATE or DELETE policy for any client role, so a request is a permanent record. Not on the Edge Function's `delete` blocker list (schema.md section 7) — a request row cascades away silently if that student is later hard-deleted, acceptable since the request is moot once fulfilled |
+| 028 | `20260928000000_028_quiz_pass_percentage_quiz_only.sql` | 2026-09-28 (applied via the CLI `--db-url` fallback, one statement per call) | Reshapes `lessons.pass_percentage` rather than adding a second, functionally-identical column (the admin quiz-authoring task asked for a new nullable `quiz_pass_threshold`, which is exactly what this column already was): dropped `NOT NULL`/`DEFAULT 60`, backfilled every non-quiz lesson's value to `NULL` (13 rows — all still at the old blanket default, never meaningful), replaced `lessons_pass_percentage_check` with a `0–100 or null` range check plus a new bidirectional `lessons_pass_percentage_quiz_only_check ((content_type = 'quiz') = (pass_percentage is not null))`. `fn_submit_quiz` untouched — every quiz lesson keeps a concrete value under the new CHECK, so its existing grading arithmetic never sees a NULL; `app_settings.quiz_pass_threshold_percent` (010, still read by nothing) untouched too, wiring it in as a site-wide fallback is a separate later change |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named

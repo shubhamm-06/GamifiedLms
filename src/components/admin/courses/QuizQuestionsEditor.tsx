@@ -1,6 +1,17 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Trash2, X } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { DragHandle, SimpleSortableList } from '@/components/admin/dnd/SimpleSortableList'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -190,11 +201,26 @@ function toFormValues(question: QuizQuestion): QuestionFormValues {
   }
 }
 
+function QuestionRowPreview({ question }: { question: QuizQuestion }) {
+  return (
+    <div className="bg-background flex items-center gap-2 rounded-md border px-2.5 py-2 text-sm shadow-md">
+      <GripPlaceholder />
+      <span className="min-w-0 flex-1 truncate">{question.prompt}</span>
+    </div>
+  )
+}
+
+/** A static stand-in for the drag handle inside the floating overlay copy — not interactive, so no attributes/listeners belong on it. */
+function GripPlaceholder() {
+  return <span className="text-muted-foreground size-4 shrink-0" aria-hidden />
+}
+
 export function QuizQuestionsEditor({ lessonId }: { lessonId: string }) {
   const { data: questions, isPending } = useQuizQuestions(lessonId)
   const mutations = useQuestionMutations(lessonId)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [isAdding, setIsAdding] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<QuizQuestion | null>(null)
 
   const rows = questions ?? []
 
@@ -213,12 +239,13 @@ export function QuizQuestionsEditor({ lessonId }: { lessonId: string }) {
         <p className="text-muted-foreground text-sm">
           No questions yet — add the first one below.
         </p>
-      ) : null}
-
-      <ul className="space-y-2">
-        {rows.map((question, index) =>
-          editingId === question.id ? (
-            <li key={question.id}>
+      ) : (
+        <SimpleSortableList
+          items={rows}
+          onReorder={(changed) => mutations.reorder.mutate(changed)}
+          renderOverlay={(question) => <QuestionRowPreview question={question} />}
+          renderRow={(question, { attributes, listeners }) =>
+            editingId === question.id ? (
               <QuestionForm
                 initial={toFormValues(question)}
                 isSubmitting={mutations.update.isPending}
@@ -230,60 +257,36 @@ export function QuizQuestionsEditor({ lessonId }: { lessonId: string }) {
                   )
                 }
               />
-            </li>
-          ) : (
-            <li
-              key={question.id}
-              className="flex items-center gap-2 rounded-md border px-2.5 py-2 text-sm"
-            >
-              <div className="flex flex-col">
+            ) : (
+              <div className="flex items-center gap-2 rounded-md border px-2.5 py-2 text-sm">
+                <DragHandle attributes={attributes} listeners={listeners} label={`Reorder ${question.prompt}`} />
+                <span className="min-w-0 flex-1 truncate">{question.prompt}</span>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-xs"
-                  aria-label="Move question up"
-                  disabled={index === 0 || mutations.swap.isPending}
-                  onClick={() => mutations.swap.mutate({ a: question, b: rows[index - 1] })}
+                  size="icon-sm"
+                  aria-label="Edit question"
+                  onClick={() => {
+                    setIsAdding(false)
+                    setEditingId(question.id)
+                  }}
                 >
-                  <ChevronUp />
+                  <Pencil />
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
-                  size="icon-xs"
-                  aria-label="Move question down"
-                  disabled={index === rows.length - 1 || mutations.swap.isPending}
-                  onClick={() => mutations.swap.mutate({ a: question, b: rows[index + 1] })}
+                  size="icon-sm"
+                  aria-label="Delete question"
+                  onClick={() => setDeleteTarget(question)}
                 >
-                  <ChevronDown />
+                  <Trash2 />
                 </Button>
               </div>
-              <span className="min-w-0 flex-1 truncate">{question.prompt}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Edit question"
-                onClick={() => {
-                  setIsAdding(false)
-                  setEditingId(question.id)
-                }}
-              >
-                <Pencil />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label="Delete question"
-                onClick={() => mutations.remove.mutate(question.id)}
-              >
-                <Trash2 />
-              </Button>
-            </li>
-          ),
-        )}
-      </ul>
+            )
+          }
+        />
+      )}
 
       {isAdding ? (
         <QuestionForm
@@ -311,6 +314,31 @@ export function QuizQuestionsEditor({ lessonId }: { lessonId: string }) {
           Add question
         </Button>
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this question?</AlertDialogTitle>
+            <AlertDialogDescription>
+              “{deleteTarget?.prompt}” will be removed for good — there&rsquo;s no undo.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={mutations.remove.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={mutations.remove.isPending}
+              onClick={(event) => {
+                event.preventDefault()
+                if (!deleteTarget) return
+                mutations.remove.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) })
+              }}
+            >
+              {mutations.remove.isPending ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   )
 }

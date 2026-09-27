@@ -12,6 +12,7 @@ import {
 } from '@/lib/lessonEngine'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { clockText, type LessonContent } from '@/lib/lessonPlayer'
+import { DEFAULT_PASS_PERCENTAGE } from '@/lib/lessonSettings'
 import { playerCopy } from '@/lib/playerCopy'
 import { PlayerBar } from './PlayerBar'
 import { PlayerError } from './PlayerError'
@@ -205,7 +206,9 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
             score={result.score}
             maxScore={result.maxScore}
             passed={result.passed}
-            passPercentage={lesson.passPercentage}
+            // Defensive fallback only — `lessons_pass_percentage_quiz_only_check`
+            // (migration 028) guarantees a quiz lesson always has a real value.
+            passPercentage={lesson.passPercentage ?? DEFAULT_PASS_PERCENTAGE}
             practice={practice}
           />
           {result.passed && !practice && result.xpAwarded > 0 ? (

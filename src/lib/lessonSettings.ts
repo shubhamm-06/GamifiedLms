@@ -1,15 +1,21 @@
 /**
- * Admin-configurable lesson and game settings (migration 015). These are
- * STORED SETTINGS ONLY: nothing enforces them yet — the kid-side completion
- * function that will read `min_time_seconds` and `pass_percentage` does not
- * exist. See `docs/rules.md`.
+ * Admin-configurable lesson and game settings (migration 015). `min_time_seconds`
+ * is still stored-only. `pass_percentage` is enforced server-side by
+ * `fn_submit_quiz` (migration 017) and is now quiz-only (migration 028):
+ * NULL for every non-quiz lesson, required for a quiz one — see `schema.md`.
  */
 
 /** Mirrors `lessons_min_time_seconds_check`. */
 export const MIN_TIME_MAX_SECONDS = 3600
-/** Mirrors the column defaults. */
+/** Mirrors the `min_time_seconds` column default (still a real column default; `pass_percentage` no longer has one — see below). */
 export const DEFAULT_MIN_TIME_SECONDS = 90
-export const DEFAULT_PASS_PERCENTAGE = 60
+/**
+ * What a new (or never-set) quiz lesson's pass mark starts at. Migration 028
+ * dropped the column's own `DEFAULT 60`, since that default used to apply to
+ * every lesson type, not just quizzes — this is now purely a client-side
+ * pre-fill for the form, applied only while the lesson is a quiz.
+ */
+export const DEFAULT_PASS_PERCENTAGE = 70
 
 export const GAME_ORIENTATIONS = [
   { value: 'any', label: 'Any' },
@@ -60,13 +66,13 @@ export function validateMinTime(text: string): string | null {
   return null
 }
 
-/** Same range as `lessons_pass_percentage_check`. */
+/** Same range as `lessons_pass_percentage_check` (only called for a quiz lesson — see `lessons_pass_percentage_quiz_only_check`). */
 export function validatePassPercentage(text: string): string | null {
   const value = text.trim()
-  if (value === '') return 'Enter a pass mark from 1 to 100.'
-  if (!WHOLE_NUMBER.test(value)) return 'Enter a whole percent, like 60.'
+  if (value === '') return 'Enter a pass mark from 0 to 100.'
+  if (!WHOLE_NUMBER.test(value)) return 'Enter a whole percent, like 70.'
   const n = Number(value)
-  if (n < 1 || n > 100) return 'Must be between 1 and 100.'
+  if (n < 0 || n > 100) return 'Must be between 0 and 100.'
   return null
 }
 

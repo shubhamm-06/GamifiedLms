@@ -230,13 +230,15 @@ export interface LessonFormValues {
 }
 
 /**
- * The pass mark only means something for a quiz, so every other type keeps
- * whatever the form holds (the stored value, or the default for a new lesson):
- * switching a lesson's type never silently rewrites it.
+ * `pass_percentage` is quiz-only now (migration 028,
+ * `lessons_pass_percentage_quiz_only_check`): every other type must save
+ * NULL regardless of what the form field holds, since the field isn't even
+ * rendered for them, and a quiz always saves a concrete value.
  */
-function passPercentageForSave(values: LessonFormValues): number {
+function passPercentageForSave(values: LessonFormValues): number | null {
+  if (values.content_type !== 'quiz') return null
   const n = Number(values.pass_percentage)
-  return Number.isInteger(n) && n >= 1 && n <= 100 ? n : DEFAULT_PASS_PERCENTAGE
+  return Number.isInteger(n) && n >= 0 && n <= 100 ? n : DEFAULT_PASS_PERCENTAGE
 }
 
 /** Only the column matching the chosen content_type is persisted. */
@@ -268,7 +270,7 @@ const INSUFFICIENT_PRIVILEGE = '42501'
 function lessonWriteError(error: { code?: string; message: string }): Error {
   if (error.code === CHECK_VIOLATION) {
     return new Error(
-      'A setting is out of range — minimum time is 0 to 3600 seconds and the pass mark is 1 to 100.',
+      'A setting is out of range — minimum time is 0 to 3600 seconds and the pass mark is 0 to 100.',
     )
   }
   return new Error(error.message)
@@ -525,18 +527,184 @@ export function useQuestionMutations(lessonId: string) {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const swap = useMutation({
-    mutationFn: async ({ a, b }: { a: QuizQuestion; b: QuizQuestion }) => {
-      const [first, second] = await Promise.all([
-        supabase.from('quiz_questions').update({ position: b.position }).eq('id', a.id),
-        supabase.from('quiz_questions').update({ position: a.position }).eq('id', b.id),
-      ])
-      if (first.error) throw new Error(first.error.message)
-      if (second.error) throw new Error(second.error.message)
+  /**
+   * Drag reorder, same batch-upsert-plus-optimistic-cache shape as
+   * `useModuleMutations`/`useLessonMutations` — a single flat list here, so
+   * there's no cross-container merge to do, just a straight cache
+   * replacement sorted by `position`.
+   */
+  const reorder = useMutation({
+    mutationFn: async (changed: QuizQuestion[]) => {
+      if (changed.length === 0) return
+      const { error } = await supabase.from('quiz_questions').upsert(changed, { onConflict: 'id' })
+      if (error) throw new Error(error.message)
     },
-    onSuccess: invalidate,
+    onMutate: async (changed) => {
+      await queryClient.cancelQueries({ queryKey: curriculumKeys.questions(lessonId) })
+      const previous = queryClient.getQueryData<QuizQuestion[]>(curriculumKeys.questions(lessonId))
+      if (previous) {
+        const changedById = new Map(changed.map((item) => [item.id, item]))
+        queryClient.setQueryData<QuizQuestion[]>(
+          curriculumKeys.questions(lessonId),
+          previous
+            .map((item) => changedById.get(item.id) ?? item)
+            .sort((a, b) => a.position - b.position),
+        )
+      }
+      return { previous }
+    },
+    onError: (e: Error, _changed, context) => {
+      if (context?.previous) queryClient.setQueryData(curriculumKeys.questions(lessonId), context.previous)
+      toast.error(e.message)
+    },
+    onSettled: invalidate,
+  })
+
+  return { create, update, remove, reorder }
+}
+
+/* ------------------------------------------------------------------ */
+/* Doc (text) lesson content blocks                                    */
+/* ------------------------------------------------------------------ */
+
+export type ContentBlock = Tables<'lesson_content_blocks'>
+export type BlockType = 'paragraph' | 'callout' | 'image'
+
+export const blockKeys = {
+  blocks: (lessonId: string) => ['admin', 'curriculum', 'blocks', lessonId] as const,
+}
+
+export function useContentBlocks(lessonId: string | null) {
+  return useQuery({
+    queryKey: blockKeys.blocks(lessonId ?? 'none'),
+    enabled: !!lessonId,
+    queryFn: async (): Promise<ContentBlock[]> => {
+      const { data, error } = await supabase
+        .from('lesson_content_blocks')
+        .select('*')
+        .eq('lesson_id', lessonId!)
+        .order('position', { ascending: true })
+      if (error) throw new Error(error.message)
+      return data ?? []
+    },
+  })
+}
+
+/**
+ * Exactly one shape per type, mirroring `lesson_content_blocks_shape_check`
+ * (`schema.md`) so the form can never produce a row the database would
+ * refuse — the columns that don't belong to `type` are always `null`, never
+ * left over from switching a block's type mid-edit.
+ */
+export type BlockFormValues =
+  | { type: 'paragraph'; text: string }
+  | { type: 'callout'; text: string; color: string; icon: string }
+  | { type: 'image'; url: string; alt: string }
+
+function blockFormToRow(values: BlockFormValues) {
+  switch (values.type) {
+    case 'paragraph':
+      return {
+        block_type: 'paragraph',
+        text_content: values.text.trim(),
+        callout_color: null,
+        callout_icon: null,
+        image_url: null,
+        image_alt: null,
+      }
+    case 'callout':
+      return {
+        block_type: 'callout',
+        text_content: values.text.trim(),
+        callout_color: values.color,
+        callout_icon: values.icon,
+        image_url: null,
+        image_alt: null,
+      }
+    case 'image':
+      return {
+        block_type: 'image',
+        text_content: null,
+        callout_color: null,
+        callout_icon: null,
+        image_url: values.url.trim(),
+        image_alt: values.alt.trim() || null,
+      }
+  }
+}
+
+export function useBlockMutations(lessonId: string) {
+  const queryClient = useQueryClient()
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: blockKeys.blocks(lessonId) })
+
+  const create = useMutation({
+    mutationFn: async ({ values, position }: { values: BlockFormValues; position: number }) => {
+      const { error } = await supabase
+        .from('lesson_content_blocks')
+        .insert({ lesson_id: lessonId, position, ...blockFormToRow(values) })
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      invalidate()
+      toast.success('Block added.')
+    },
     onError: (e: Error) => toast.error(e.message),
   })
 
-  return { create, update, remove, swap }
+  const update = useMutation({
+    mutationFn: async ({ id, values }: { id: string; values: BlockFormValues }) => {
+      const { error } = await supabase
+        .from('lesson_content_blocks')
+        .update(blockFormToRow(values))
+        .eq('id', id)
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      invalidate()
+      toast.success('Block saved.')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('lesson_content_blocks').delete().eq('id', id)
+      if (error) throw new Error(error.message)
+    },
+    onSuccess: () => {
+      invalidate()
+      toast.success('Block deleted.')
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  /** Same batch-upsert-plus-optimistic-cache shape as the quiz questions' own `reorder`. */
+  const reorder = useMutation({
+    mutationFn: async (changed: ContentBlock[]) => {
+      if (changed.length === 0) return
+      const { error } = await supabase.from('lesson_content_blocks').upsert(changed, { onConflict: 'id' })
+      if (error) throw new Error(error.message)
+    },
+    onMutate: async (changed) => {
+      await queryClient.cancelQueries({ queryKey: blockKeys.blocks(lessonId) })
+      const previous = queryClient.getQueryData<ContentBlock[]>(blockKeys.blocks(lessonId))
+      if (previous) {
+        const changedById = new Map(changed.map((item) => [item.id, item]))
+        queryClient.setQueryData<ContentBlock[]>(
+          blockKeys.blocks(lessonId),
+          previous
+            .map((item) => changedById.get(item.id) ?? item)
+            .sort((a, b) => a.position - b.position),
+        )
+      }
+      return { previous }
+    },
+    onError: (e: Error, _changed, context) => {
+      if (context?.previous) queryClient.setQueryData(blockKeys.blocks(lessonId), context.previous)
+      toast.error(e.message)
+    },
+    onSettled: invalidate,
+  })
+
+  return { create, update, remove, reorder }
 }

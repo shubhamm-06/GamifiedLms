@@ -20,7 +20,8 @@ export interface LessonContent {
   contentHtml: string | null
   gameId: string | null
   minTimeSeconds: number
-  passPercentage: number
+  /** NULL for every non-quiz lesson (migration 028) — a quiz lesson always has a value. */
+  passPercentage: number | null
   /** Effective XP from `lesson_effective_xp`; null when unknown. */
   xp: number | null
   gamificationEnabled: boolean

@@ -37,7 +37,10 @@ the edit route's search type, every `navigate` to it must pass one.
 
 There is deliberately **no `/admin/courses/$courseId` index route** —
 `$courseId/edit` stands alone, and the builder's Curriculum tab is where
-modules, lessons and quiz questions are managed.
+modules, lessons, quiz questions and (2026-09-28) doc lesson content blocks
+are managed — the last two nested inside the same lesson `Dialog`, not a
+further route, consistent with the "no new route" pattern every other
+nested-editing decision here follows.
 
 **`?view=` search param.** `/admin/orders` takes `view=active|trash`
 (`validateSearch` coerces anything else to `active`), the same
