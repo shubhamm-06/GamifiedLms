@@ -92,7 +92,7 @@ nav entry is a real route):
   (`lib/lessonEngine.ts`, `hooks/useLessonEngine.ts`) are now exercised through
   the course roadmap, both directly (real JWTs against the REST API) and via
   the real UI (Chromium) — see the changelog.
-- Schema through migration 025 (`schema.md`; 020 is written but deliberately
+- Schema through migration 026 (`schema.md`; 020 is written but deliberately
   unapplied, see below), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
@@ -128,8 +128,9 @@ The schema or docs anticipate each of these; no working code exists for any.
   iOS native fullscreen path have not been run on a real device.
 - **Gems and hearts/energy** in Home's stat bar. Streak and lifetime XP shipped there on
   2026-09-26; the other two are still deferred and have no placeholders.
-- **A real design for Badges and Profile.** Both shipped 2026-09-26 as minimal functional
-  screens (no celebration or animation, no avatar upload or editing, no per-badge detail).
+- **A real design for Badges.** Shipped 2026-09-26 as a minimal functional screen (no celebration
+  or animation, no per-badge detail); Profile was rebuilt 2026-09-27 (avatar, account editing, a
+  streak calendar — `ui.md`) and is no longer on this list.
 - **On-device bottom nav.** The nav's safe-area padding (`env(safe-area-inset-bottom)`) was
   checked in CSS and at 360 to 430px in Chromium, where the inset is 0; a real iPhone or the
   Capacitor webview has not been exercised.

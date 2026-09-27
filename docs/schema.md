@@ -32,8 +32,9 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | id | uuid | PK, FK → `auth.users.id` | Same id as the Supabase auth user |
-| display_name | text | not null | Shown on leaderboards |
-| avatar_url | text | nullable | |
+| display_name | text | not null | Shown on leaderboards; the student's own kid-facing name field |
+| avatar_url | text | nullable | Paste-a-URL image, unused by the kid app since migration 026 (see `avatar_config`) |
+| avatar_config | jsonb | nullable, CHECK (migration 026) | The procedural avatar: `{base, topper, face, accent}`, each from a small fixed set (`src/lib/avatar.ts`, the one place the sets are defined; the CHECK mirrors them exactly). `NULL` = never customized; the kid app renders `DEFAULT_AVATAR` for that case, nothing here defaults it. Self-read/write under the existing whole-row policies below — no RLS change. Not on `profiles_public` (nothing shows another student's avatar yet) |
 | email | text | unique, not null | **Not kept in sync by any trigger** after signup — see below. Stays a plain unique constraint even though profiles can be trashed (section 7) |
 | phone_number | text | nullable | |
 | role | text | not null, default `'student'` | `CHECK (role IN ('student','admin'))` — plain text, not an enum |
@@ -54,7 +55,24 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 - `email` is populated once at signup by `fn_handle_new_user` and never
   touched again automatically — `admin-user-management`'s `update_email`
   action updates it explicitly alongside the Auth email change, or the two
-  drift.
+  drift. The kid-facing profile page (2026-09-27) closes this same gap for a
+  self-service email change a different way: `useKidProfile` compares the
+  confirmed `session.user.email` against this column on every read and
+  updates it to match when they differ (the existing `profiles_update_self`
+  policy already allows this), which only happens once the student has
+  clicked Supabase Auth's confirmation link — until then `session.user.email`
+  is still the old address, so this column never changes early.
+- **Streak calendar reads `xp_transactions.created_at` directly, not a new
+  log table.** The kid profile page's 5-week activity grid (2026-09-27) is a
+  plain query, self-read under the existing `xp_transactions_select_self`
+  policy, grouping the caller's own rows by UTC day. Chosen over a dedicated
+  day-log table because `xp_transactions` is already exactly the signal
+  `fn_process_xp_transaction` uses to advance `user_stats.current_streak` and
+  `last_activity_date` (section 5), so the calendar and the streak number can
+  never disagree, and it needed no migration. Inherits one gap from the
+  counter it mirrors: a lesson completed in a `gamification_enabled = false`
+  course awards no XP and so lights up no day either, same as it does not
+  advance the streak.
 
 ### 2. Course content
 
@@ -977,6 +995,7 @@ table.
 | 023 | `20260926100000_023_lesson_content_blocks.sql` | 2026-09-26 17:21:12 (live version `20260926172112`) | `lesson_content_blocks` (typed block rows with shape CHECKs, fixed colour and icon sets, cascade on lesson delete), its RLS (published-lesson enrolled read, admin writes) and 13 demo blocks for the three doc lessons of the demo course |
 | 024 | `20260926200000_024_check_quiz_answer.sql` | 2026-09-26 (live version in `list_migrations`) | `fn_check_quiz_answer(uuid, uuid, text)`: the per-question quiz feedback path (`SECURITY DEFINER`, `search_path = ''`, shared `fn_engine_guard`, `EXECUTE` for `authenticated` only, writes nothing). No table, column, policy or view changed: the per-quiz pass mark is `lessons.pass_percentage` (015) and students already read questions through `quiz_questions_public` (017/018, no `correct_option`) |
 | 025 | `20260926210000_025_game_completion.sql` | 2026-09-26 (live version in `list_migrations`) | `fn_complete_game(uuid, numeric)`: server-clamped score XP for game lessons (`SECURITY DEFINER`, `search_path = ''`, shared guard, `authenticated` only, new error code `invalid_score`); `fn_award_lesson_xp` skips game lessons that have a live game; `fn_complete_lesson` refuses them. No table, column, policy or view changed |
+| 026 | `20260927000000_026_avatar_config.sql` | 2026-09-27 (live version in `list_migrations`; applied via the CLI `--db-url` fallback, `env-deploy.md`, the MCP connector was unavailable this session) | `profiles.avatar_config jsonb`, nullable, with a shape CHECK requiring exactly the four keys `base`/`topper`/`face`/`accent` (both directions — missing AND extra keys refused, caught in testing: `->>` on a missing key is SQL NULL and `NULL = ANY(...)` is NULL, not FALSE, so a CHECK checking only "no extra keys" would have silently accepted a partial config) and each value from its fixed set (`src/lib/avatar.ts`). No RLS change: covered by the existing whole-row `profiles_select_self_or_admin`/`profiles_update_self` policies |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named

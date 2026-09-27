@@ -48,6 +48,7 @@ build/
 .next/
 out/
 .supabase/
+supabase/.temp/
 .turbo/
 .cache/
 coverage/

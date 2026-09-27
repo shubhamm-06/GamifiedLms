@@ -1982,21 +1982,36 @@
     padding-top: 0.5rem;
   }
 
-  .kp-avatar {
+  /* The avatar button: the rendered SVG plus a small pencil badge, both inside
+     one tap target. box-shadow substitutes for the old solid fill's candy lip,
+     since the avatar itself now carries its own colour. */
+  .kp-avatar-btn {
+    position: relative;
     display: grid;
     place-items: center;
     width: 6rem;
     height: 6rem;
-    overflow: hidden;
+    padding: 0;
+    border: 0;
     border-radius: 999px;
-    background: var(--teal-d);
-    color: var(--cream);
-    box-shadow: 0 6px 0 color-mix(in srgb, var(--teal-d) 70%, var(--ink));
-    font-size: 2.5rem;
-    font-weight: 800;
+    background: none;
+    box-shadow: var(--kid-shadow);
+    cursor: pointer;
   }
 
-  .kp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .kp-avatar-edit {
+    position: absolute;
+    right: -0.125rem;
+    bottom: -0.125rem;
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--ink) 22%, var(--surface));
+  }
 
   .kp-name {
     margin: 0;
@@ -2040,6 +2055,192 @@
   }
 
   .kp-logout { margin-top: 1rem; }
+
+  /* The streak and account cards: full-width within the profile column, the
+     app's own card surface/shadow, left-aligned text (the page above it is
+     centred, these read as content, not a hero). */
+  .kp-card {
+    width: 100%;
+    padding: 1.25rem;
+    text-align: left;
+  }
+
+  .kp-card-title {
+    margin: 0 0 0.75rem;
+    font-size: var(--kid-text-heading);
+    line-height: var(--kid-leading-heading);
+    font-weight: 800;
+  }
+
+  .kp-card-note {
+    margin: 0;
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    color: var(--kid-muted-fg);
+  }
+
+  /* The streak calendar: 7 columns (Sun..Sat), oldest day top-left. Filled cells
+     are teal-d (a graphic, not text, so 2.88 vs 6.2:1 doesn't apply); today gets
+     an ink ring whether or not it is filled yet, so the child can find it. */
+  .kp-cal-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 0.375rem;
+    color: var(--kid-muted-fg);
+    font-size: var(--kid-text-caption);
+    line-height: var(--kid-leading-caption);
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .kp-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.375rem;
+  }
+
+  .kp-cal-cell {
+    aspect-ratio: 1;
+    border-radius: 8px;
+    background: var(--kid-muted);
+  }
+
+  .kp-cal-cell[data-pad='true'] { background: none; }
+
+  .kp-cal-cell[data-active='true'] { background: var(--teal-d); }
+
+  .kp-cal-cell[data-today='true'] { box-shadow: inset 0 0 0 2px var(--ink); }
+
+  /* Account forms: stacked fields, the app's own quiet button, reusing
+     .auth-field/.auth-field-error (styles.css) for inputs and error text
+     rather than a second error style. */
+  .kp-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin-top: 1rem;
+  }
+
+  .kp-form:first-of-type { margin-top: 0; }
+
+  .kp-form-btn { align-self: flex-start; }
+
+  .kp-form-current {
+    margin: 0;
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+  }
+
+  .kp-form-note {
+    margin: 0;
+    color: var(--teal-d);
+    font-size: var(--kid-text-label);
+    font-weight: 700;
+  }
+
+  .kp-form-pending {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--gold) 20%, var(--surface));
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    font-weight: 600;
+  }
+
+  /* --------------------------------------------------------- avatar builder */
+
+  .av-builder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 26rem;
+    margin-inline: auto;
+    padding-top: 0.5rem;
+  }
+
+  .av-preview {
+    display: grid;
+    place-items: center;
+    padding: 0.5rem;
+    border-radius: 999px;
+    box-shadow: var(--kid-shadow);
+  }
+
+  .av-category { width: 100%; }
+
+  .av-category-label {
+    margin: 0 0 0.5rem;
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    font-weight: 700;
+  }
+
+  /* One row per category: tap or swipe, snapping per chip. */
+  .av-row {
+    display: flex;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .av-chip {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 4rem;
+    height: 4rem;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 18%, var(--surface));
+    scroll-snap-align: start;
+    transform: translateY(0);
+    transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+    cursor: pointer;
+  }
+
+  .av-chip:active {
+    transform: translateY(4px);
+    box-shadow: 0 0 0 transparent;
+  }
+
+  .av-chip[data-chosen='true'] { box-shadow: 0 0 0 3px var(--teal-d), 0 4px 0 color-mix(in srgb, var(--ink) 18%, var(--surface)); }
+
+  .av-chip-check {
+    position: absolute;
+    right: -0.25rem;
+    bottom: -0.25rem;
+    display: grid;
+    place-items: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 999px;
+    background: var(--teal-d);
+    color: var(--cream);
+    box-shadow: 0 2px 0 color-mix(in srgb, var(--teal-d) 70%, var(--ink));
+  }
+
+  .av-shuffle { align-self: center; }
+
+  .av-actions {
+    display: flex;
+    gap: 0.75rem;
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .av-actions .candy-btn,
+  .av-actions .candy-btn-quiet { flex: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .av-chip { transition: none; }
+  }
 
   @media (min-width: 640px) {
     .kb-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

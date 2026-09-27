@@ -1,19 +1,28 @@
 import { Link } from '@tanstack/react-router'
+import { Avatar } from './Avatar'
 import { KID_TABS } from './kidTabs'
+import { DEFAULT_AVATAR, useKidProfile } from '@/hooks/useKidProfile'
 
 /**
  * The bottom navigation: Home, Badges, Courses, Profile. Fixed to the bottom of
  * the viewport with the safe-area inset in its own padding (the iOS home
  * indicator never covers a tab). The active tab is ink with a soft teal pill
  * behind its icon; gold stays with "the next action" and is not used here.
- * Tapping the active tab does nothing (no navigation, no remount).
+ * Tapping the active tab does nothing (no navigation, no remount). The Profile
+ * tab renders the student's own avatar (shared `useKidProfile` cache, so a save
+ * in the builder updates it here immediately) in place of the generic icon,
+ * behind the same active-state pill; `DEFAULT_AVATAR` covers the gap before it
+ * loads and a student who has never customized one, so this tab is never blank.
  */
 export function KidNav({ activeTo }: { activeTo: string }) {
+  const profile = useKidProfile()
+  const avatarConfig = profile.data?.avatarConfig ?? DEFAULT_AVATAR
   return (
     <nav className="kid-nav" aria-label="Main" data-testid="kid-nav">
       <ul className="kid-nav-list">
         {KID_TABS.map(({ to, label, Icon }) => {
           const active = to === activeTo
+          const isProfile = to === '/profile'
           return (
             <li key={to}>
               <Link
@@ -26,7 +35,11 @@ export function KidNav({ activeTo }: { activeTo: string }) {
                 }}
               >
                 <span className="kid-nav-icon">
-                  <Icon className="size-6" strokeWidth={active ? 2.75 : 2.25} aria-hidden />
+                  {isProfile ? (
+                    <Avatar config={avatarConfig} size={28} data-testid="nav-avatar" />
+                  ) : (
+                    <Icon className="size-6" strokeWidth={active ? 2.75 : 2.25} aria-hidden />
+                  )}
                 </span>
                 <span className="kid-nav-label">{label}</span>
               </Link>

@@ -211,9 +211,61 @@ comes from `fn_course_lesson_states` (published lessons only) under the roadmap'
 tapping a row calls `fn_touch_enrollment`, seeds the Home query with that course, and goes Home.
 Zero courses reuses `NoCoursesScreen`. Badges: a two-column grid (three from 640px) of every
 active badge, earned ones with a coral medallion and "Earned", the rest muted with a lock and "Not
-yet", plus "N of M earned"; no animation. Profile: initial or avatar, name, Level, XP and Day
-streak cards, and a quiet Log out button (signs out, clears the query cache, goes to `/login`).
-**Badges and Profile are intentionally minimal and need a real design pass.**
+yet", plus "N of M earned"; no animation. **Badges is still intentionally minimal and needs a real
+design pass.** Profile was rebuilt 2026-09-27 (below); "initial or avatar, name, Level, XP and Day
+streak cards, and a quiet Log out button" is what it looked like before that.
+
+### Profile (2026-09-27): avatar, editable account, a real streak view
+
+Same page (`KidProfilePage`), no longer minimal: a tappable avatar that opens the builder, the
+Level/XP/streak cards (unchanged), a streak calendar, an account card (name, email, password) and
+Log out. Two decisions, both explained in `schema.md`: the streak calendar reads
+`xp_transactions.created_at` directly rather than a new log table, and the email address changes
+by syncing against the confirmed Auth session on read, rather than a client-held pending flag.
+
+**The avatar is procedural, never an image.** `AvatarConfig` (`src/lib/avatar.ts`) is
+`{ base, topper, face, accent }`, each from a small fixed set — `base` reuses the roadmap's own
+four module colours (gold, teal, coral, plum; `MODULE_COLOR_COUNT` in `lib/roadmap.ts`), `topper`
+is spiky/round/star/antenna/bow/none, `face` is happy/wink/silly/cool/sleepy, `accent` is
+star/stripe/dot/heart/none. `DEFAULT_AVATAR` (teal, round, happy, none) is what a student who has
+never customized one sees — fixed, not random, so it doesn't flicker between visits. **One shared
+component draws it everywhere**: `Avatar` (`components/kid/Avatar.tsx`), a 100x100 viewBox SVG of
+plain shapes (circle, path, polygon), coloured only through `style={{ fill: 'var(--x)' }}` (an SVG
+presentation attribute can't resolve `var()`; an inline style property can) — used in the builder's
+live preview, the profile page and the bottom nav's Profile tab (behind the same teal active pill
+the other tabs use, at both states; nothing else about the nav changed). `parseAvatarConfig`
+validates whatever comes back from the database (defensive, even though the CHECK constraint
+already guarantees the shape) and falls back to `DEFAULT_AVATAR` for anything else, including null.
+- **The builder** (`AvatarBuilder`): a large live preview, a Shuffle button (one random pick per
+  category), then one horizontally-scrolling row per category — each chip IS the full avatar with
+  only that category swapped in, not an abstract swatch, so the choice is exactly what tapping it
+  gives. The candy 3D press (a `--ink` 18%-tint bottom lip that flattens on tap, `.av-chip`) is the
+  same physical feedback as the app's other buttons; the chosen chip gets a small teal check
+  instead of a second visual style. Save writes `profiles.avatar_config` and updates the shared
+  `useKidProfile` cache immediately (`setQueryData` then `invalidateQueries`), so the nav tab and
+  the profile page change together with no reload; Cancel discards the in-progress config.
+- **Name**: a plain field bound to `profiles.display_name`, saved directly, no confirmation —
+  reuses `AuthField`/`.auth-field-error` (`styles.css`, the login/signup pages' own error style) so
+  a validation message never needed a second look.
+- **Email**: `supabase.auth.updateUser({ email })`, which only asks Supabase Auth to send a
+  confirmation link; the form then shows "Check `<new>` to confirm the change. Your email stays
+  `<old>` until you do." and nothing in `profiles` changes yet (`schema.md`'s sync note). A failed
+  send (this shared test project's built-in mailer is rate-limited; verified by mocking the auth
+  call's response rather than exhausting the real quota further) shows the same `.auth-field-error`
+  text as the other two forms.
+- **Password**: current password first, checked by calling `signInWithPassword` with it (a
+  lightweight safeguard against a shared or left-open device, not full reauthentication) before
+  `updateUser({ password })`; the minimum length (8) reuses `SignupPage`'s own rule rather than a
+  second one. A wrong current password shows "That isn't your current password." and changes
+  nothing.
+- **Streak calendar** (`StreakCalendar`): 5 weeks, 7 columns aligned Sun-Sat (leading cells padded
+  to the first day's real weekday), oldest day top-left. A filled cell is `--teal-d` (a graphic, not
+  text, so 3:1 is the bar, not 4.5:1); today gets an ink ring whether or not it is filled, so the
+  child can find "today" before earning anything. No streak-broken language anywhere — a quiet
+  pattern of good days, not a report card.
+- **Natural next step, not built**: no avatar option is unlocked by XP or progress — pure
+  customization today, same as the brief asked; a later task could gate a topper or accent behind a
+  badge or a level.
 
 **Module divider** (`ModuleDivider`, `.rm-divider`, 2026-09-26). Before the first node of every
 module after the first: a short rule, the module's name (`section.title`, the same text as the

@@ -802,6 +802,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_config: Json | null
           avatar_url: string | null
           created_at: string
           deleted_at: string | null
@@ -813,6 +814,7 @@ export type Database = {
           role: string
         }
         Insert: {
+          avatar_config?: Json | null
           avatar_url?: string | null
           created_at?: string
           deleted_at?: string | null
@@ -824,6 +826,7 @@ export type Database = {
           role?: string
         }
         Update: {
+          avatar_config?: Json | null
           avatar_url?: string | null
           created_at?: string
           deleted_at?: string | null
