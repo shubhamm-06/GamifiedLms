@@ -459,9 +459,11 @@ via `/admin/gamification` (RLS: `badges_admin_insert/update/delete`,
 only (`uq_badges_slug_live`) — already in place since migration 013, so the
 2026-09-28 badge-icon-builder task needed no new uniqueness migration, only
 a friendlier client-side message (`SLUG_TAKEN`, `useBadges.ts`) on the
-`23505` it already threw. `icon_url` is a `data:image/svg+xml;base64,` URI
-built client-side from a closed colour+glyph set (`lib/badgeIcon.ts`), not a
-free-form pasted link — see `ui.md`. **Archiving never touches
+`23505` it already threw. `icon_url` is a `data:` URI built client-side —
+either generated from a closed colour+glyph set, or (added the same day)
+read from an uploaded image file capped at 100 KB and a fixed type allow-list
+(`lib/badgeIcon.ts`) — never a free-form pasted link, and never a Storage
+object (no bucket exists in this project). See `ui.md`. **Archiving never touches
 `user_badges`**: `deleted_at`/`deleted_by` are plain column writes on
 `badges` itself, no cascade or trigger reaches the other table, so a
 student's earned-badge row survives an archive by construction — verified

@@ -71,9 +71,7 @@ export function buildBadgeIconDataUri(color: BadgeColor, glyph: BadgeGlyph): str
  * it), so the picker can preselect the real combination. A badge whose icon
  * predates the builder (the six hand-seeded rows, or anything pasted in
  * directly) won't match anything here — there is no reliable way to guess a
- * colour+glyph back out of an arbitrary image. The caller defaults the
- * picker in that case; saving then normalises that badge onto the builder's
- * output, a deliberate consequence of moving off ad-hoc icon_url values.
+ * colour+glyph back out of an arbitrary image.
  */
 export function detectBadgeIcon(iconUrl: string | null): { color: BadgeColor; glyph: BadgeGlyph } | null {
   if (!iconUrl) return null
@@ -83,4 +81,66 @@ export function detectBadgeIcon(iconUrl: string | null): { color: BadgeColor; gl
     }
   }
   return null
+}
+
+/**
+ * The icon field's two modes: the closed colour+glyph builder above, or an
+ * uploaded image — its own `data:` URI, read client-side (no Storage bucket
+ * exists in this project; every other pasted-image field, e.g.
+ * `lesson_content_blocks.image_url`, is paste-only for the same reason).
+ * `icon_url` doesn't distinguish the two once saved — both are just a
+ * `data:` URI in the same column — so `BadgeIconState` only exists in the
+ * form, not the database.
+ */
+export type BadgeIconState =
+  | { mode: 'builder'; color: BadgeColor; glyph: BadgeGlyph }
+  | { mode: 'upload'; dataUri: string }
+
+/** The exact `icon_url` a save would write for either mode. */
+export function badgeIconToUrl(icon: BadgeIconState): string {
+  return icon.mode === 'builder' ? buildBadgeIconDataUri(icon.color, icon.glyph) : icon.dataUri
+}
+
+/**
+ * The form's starting icon state for a badge being edited (or a brand new
+ * one). A builder-made icon preselects its real colour+glyph; anything else
+ * that already has an `icon_url` (the six hand-seeded rows, or a previous
+ * upload) opens in upload mode showing that same image, so editing an
+ * unrelated field never silently swaps out an icon nobody asked to change.
+ * A genuinely new badge starts with a real icon already selected (gold +
+ * star), not blank.
+ */
+export function initialBadgeIconState(iconUrl: string | null): BadgeIconState {
+  const detected = detectBadgeIcon(iconUrl)
+  if (detected) return { mode: 'builder', ...detected }
+  if (iconUrl) return { mode: 'upload', dataUri: iconUrl }
+  return { mode: 'builder', color: 'gold', glyph: 'star' }
+}
+
+/** Accepted upload types — a fixed allow-list, not a bare `image/*`, so a file's actual bytes (checked below) can only ever claim to be one of these. */
+export const BADGE_ICON_UPLOAD_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'] as const
+
+/** Kept small deliberately: the file becomes a base64 `data:` URI stored inline in the `badges` row, not a Storage object. */
+export const BADGE_ICON_MAX_BYTES = 100 * 1024
+
+/**
+ * Reads a chosen file into a `data:` URI for the icon field, or a readable
+ * reason it was refused. An SVG upload is safe to render the same way every
+ * other badge icon already is (`<img src>`, never inline-injected markup or
+ * `<object>`) — browsers run an `<img>`'s SVG in "image mode", which never
+ * executes embedded scripts, unlike an inline `<svg>` or an `<object>`.
+ */
+export function readBadgeIconFile(file: File): Promise<{ dataUri: string } | { error: string }> {
+  if (!(BADGE_ICON_UPLOAD_TYPES as readonly string[]).includes(file.type)) {
+    return Promise.resolve({ error: 'Use a PNG, JPEG, WebP, GIF or SVG image.' })
+  }
+  if (file.size > BADGE_ICON_MAX_BYTES) {
+    return Promise.resolve({ error: `Keep it under ${Math.round(BADGE_ICON_MAX_BYTES / 1024)} KB — this is a small badge icon, not a hosted image.` })
+  }
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve({ dataUri: String(reader.result) })
+    reader.onerror = () => resolve({ error: "Couldn't read that file. Please try again." })
+    reader.readAsDataURL(file)
+  })
 }

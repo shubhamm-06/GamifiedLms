@@ -28,13 +28,9 @@ import {
   type BadgeConditionType,
   type BadgeFormValues,
 } from '@/hooks/admin/useBadges'
-import { buildBadgeIconDataUri, detectBadgeIcon, type BadgeColor, type BadgeGlyph } from '@/lib/badgeIcon'
+import { badgeIconToUrl, initialBadgeIconState } from '@/lib/badgeIcon'
 import { slugify } from '@/lib/slug'
 import { cn } from '@/lib/utils'
-
-// A brand-new badge starts with a real icon already selected (gold + star)
-// rather than blank — every badge gets a live preview from the first paint.
-const DEFAULT_ICON: { color: BadgeColor; glyph: BadgeGlyph } = { color: 'gold', glyph: 'star' }
 
 const EMPTY_BADGE: BadgeFormValues = {
   name: '',
@@ -93,12 +89,12 @@ function BadgeForm({
   // someone tweaked the name, so edit starts "touched" — same rule as
   // GameForm/CourseForm.
   const [slugTouched, setSlugTouched] = useState(!!badge)
-  // An exact match means this icon was already produced by the builder
-  // (including the badge being edited right now); anything else — the six
-  // hand-seeded rows, or a pasted URL from before this screen existed —
-  // falls back to a real default rather than a blank picker. Saving then
-  // normalises that badge's icon onto the builder's output.
-  const [icon, setIcon] = useState(() => detectBadgeIcon(badge?.icon_url ?? null) ?? DEFAULT_ICON)
+  // A builder-made icon preselects its real colour+glyph; any other existing
+  // icon (the six hand-seeded rows, or a previous upload) opens in upload
+  // mode showing that same image, so editing an unrelated field never
+  // silently swaps out an icon nobody asked to change. A new badge starts
+  // with a real icon already selected (gold + star), not blank.
+  const [icon, setIcon] = useState(() => initialBadgeIconState(badge?.icon_url ?? null))
 
   function set<K extends keyof BadgeFormValues>(field: K, value: BadgeFormValues[K]) {
     setValues((prev) => ({ ...prev, [field]: value }))
@@ -141,7 +137,7 @@ function BadgeForm({
       name,
       slug,
       condition_value: isCourseComplete ? '1' : values.condition_value,
-      icon_url: buildBadgeIconDataUri(icon.color, icon.glyph),
+      icon_url: badgeIconToUrl(icon),
     })
   }
 
@@ -190,7 +186,7 @@ function BadgeForm({
 
       <div className="space-y-1.5">
         <Label>Icon</Label>
-        <BadgeIconPicker color={icon.color} glyph={icon.glyph} onChange={(color, glyph) => setIcon({ color, glyph })} />
+        <BadgeIconPicker icon={icon} onChange={setIcon} />
       </div>
 
       <div className={cn('grid gap-4', !isCourseComplete && 'sm:grid-cols-2')}>

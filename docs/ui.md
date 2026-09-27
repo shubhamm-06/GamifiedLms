@@ -1326,29 +1326,40 @@ not implemented.**
   `useBadges.ts`'s `CONDITION_TYPES`, so the table's "Unlocks at" column and
   the form can't drift). A bare "Condition value" over four different units
   would be a guessing game.
-- **Badge icons are a closed colour+glyph picker (2026-09-28), never a pasted
-  URL — `BadgeIconPicker.tsx`, `lib/badgeIcon.ts`.** The six original badges
-  (seeded directly by migration, no admin UI existed for them until now) are
-  all the same visual formula: a filled circle, a darker stroke ring, one
-  cream glyph. `buildBadgeIconSvg`/`buildBadgeIconDataUri` reproduce that
-  formula from a fixed set — four colours (gold/teal/coral/plum, labeled
-  swatches, `bg-{token}` spelled out as static Tailwind classes since the
-  scanner can't see a template literal) and six glyphs (checkmark, flame,
-  spark, trophy, star, dots — checkmark/flame/spark/dots reuse the *exact*
-  path data the real seeded rows already draw; trophy and star are new,
-  drawn in the same style). The live preview renders the identical data URI
-  a save would write (never a CSS/React re-implementation of the same
-  shapes), so preview and saved output can't drift apart. A data URI has no
-  access to CSS custom properties, so the four tokens' hex values are
-  necessarily inlined in `badgeIcon.ts` — the one deliberate exception to
-  "never hardcode hex," clearly commented as such. `detectBadgeIcon` lets
-  editing an existing badge preselect its real colour+glyph when the icon
-  was already builder-made; a badge whose icon predates the builder (the six
-  hand-seeded rows, or anything pasted in directly) has no reliable reverse
-  mapping, so it falls back to a real default (gold+star) — saving over one
-  of those six then normalises its icon onto the builder's output, a
-  deliberate consequence of moving off ad-hoc `icon_url` values rather than
-  preserving them forever.
+- **Badge icons have two modes — a closed colour+glyph picker, or an upload —
+  never a bare pasted URL (`BadgeIconPicker.tsx`, `lib/badgeIcon.ts`).**
+  **Picker** (2026-09-28): the six original badges (seeded directly by
+  migration, no admin UI existed for them until now) are all the same visual
+  formula — a filled circle, a darker stroke ring, one cream glyph.
+  `buildBadgeIconSvg`/`buildBadgeIconDataUri` reproduce that formula from a
+  fixed set: four colours (gold/teal/coral/plum, labeled swatches,
+  `bg-{token}` spelled out as static Tailwind classes since the scanner can't
+  see a template literal) and six glyphs (checkmark, flame, spark, trophy,
+  star, dots — checkmark/flame/spark/dots reuse the *exact* path data the
+  real seeded rows already draw; trophy and star are new, in the same
+  style). A data URI has no access to CSS custom properties, so the four
+  tokens' hex values are necessarily inlined in `badgeIcon.ts` — the one
+  deliberate exception to "never hardcode hex," clearly commented as such.
+  **Upload** (2026-09-28, added same day): a compact drop-zone (the same
+  hidden-input-plus-label pattern as `ImportDropZone.tsx`, scaled down),
+  `readBadgeIconFile` reads the chosen file into its own `data:` URI —
+  client-side, no Storage bucket exists in this project (the same reason
+  `lesson_content_blocks.image_url` is paste-only), capped at 100 KB since
+  it lands inline in the `badges` row, not an object store, and restricted
+  to a fixed image-type allow-list (PNG/JPEG/WebP/GIF/SVG) rather than a
+  bare `image/*`. An uploaded SVG is safe to render exactly like every other
+  badge icon (`<img src>`, never inline-injected or `<object>`) — an
+  `<img>` runs SVG in "image mode," which never executes embedded scripts.
+  Either mode's live preview renders the identical `data:` URI a save would
+  write (`badgeIconToUrl`, never a CSS/React re-implementation of the same
+  shapes), so preview and saved output can't drift apart.
+  **`initialBadgeIconState`** decides which mode a badge opens in: an exact
+  match against the picker's own output opens in picker mode with that real
+  colour+glyph preselected; any other existing icon (the six hand-seeded
+  rows, or a previous upload) opens in upload mode showing that same image,
+  so switching tabs or editing an unrelated field never silently swaps out
+  an icon nobody asked to change; a genuinely new badge starts in picker
+  mode with gold+star already selected, not blank.
 - **`condition_value` has no visible field at all for `course_complete`.**
   `fn_evaluate_badges` only ever checks "at least one course finished" for
   that type, so a number input with nothing meaningful to type into it would
