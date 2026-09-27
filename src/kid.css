@@ -704,6 +704,7 @@
       animation: none;
     }
     .rm-node, .candy-btn { transition: none; }
+    .kp-collapse, .kp-collapse-chevron, .kp-toggle, .kp-toggle-thumb { transition: none; }
   }
 
   .rm-badge {
@@ -2193,6 +2194,176 @@
     font-size: var(--kid-text-label);
     line-height: var(--kid-leading-label);
     font-weight: 600;
+  }
+
+  /* Account & Security: collapsed by default. The trigger is a button living
+     inside the card's own <h2> (the WAI-ARIA disclosure pattern — a heading
+     wrapping the interactive control), so it reads as a heading either way. */
+  .kp-collapse-heading { margin: 0; }
+
+  .kp-collapse-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-weight: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .kp-collapse-chevron {
+    flex: none;
+    color: var(--kid-muted-fg);
+    transition: transform 0.2s ease;
+  }
+
+  .kp-collapse-chevron[data-open='true'] { transform: rotate(90deg); }
+
+  /* A CSS-only expand animation (grid-template-rows 0fr -> 1fr) rather than
+     measuring heights in JS; the inner wrapper clips the content while it grows. */
+  .kp-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.25s ease;
+  }
+
+  .kp-collapse[data-open='true'] { grid-template-rows: 1fr; }
+
+  .kp-collapse > div { overflow: hidden; }
+
+  /* The deletion request: a low-emphasis coral text action, not a button —
+     deliberately quieter than every other action on this page. */
+  .kp-subsection[data-tone='danger'] {
+    margin-top: 1rem;
+    padding: 1rem 0.875rem 0.25rem;
+    border-top: 1px solid var(--kid-line);
+    border-radius: 0;
+    background: none;
+  }
+
+  .kp-danger-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0;
+    border: 0;
+    background: none;
+    color: var(--coral-d);
+    font-family: inherit;
+    font-size: var(--kid-text-label);
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  @media (hover: hover) {
+    .kp-danger-link:hover { text-decoration: underline; }
+  }
+
+  .kp-danger-note {
+    margin: 0;
+    color: var(--coral-d);
+    font-size: var(--kid-text-label);
+    font-weight: 700;
+  }
+
+  /* The coral confirm button inside the delete dialog: same .candy-btn shape,
+     a different token pair via data-tone, same as .lp-callout-icon's trick. */
+  .candy-btn[data-tone='coral'] { --c: var(--coral); --c-d: var(--coral-d); }
+
+  /* Preferences & Support: a settings-row list, reusing .kp-subsection for
+     the same bounded-group look Account already has. */
+  .kp-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+
+  .kp-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: var(--kid-text-body);
+    font-weight: 600;
+  }
+
+  .kp-toggle {
+    flex: none;
+    position: relative;
+    width: 3rem;
+    height: 1.75rem;
+    padding: 0.1875rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--kid-muted);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+
+  .kp-toggle[data-on='true'] { background: var(--teal); }
+
+  .kp-toggle-thumb {
+    display: block;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 999px;
+    background: var(--cream);
+    box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 22%, transparent);
+    transition: transform 0.15s ease;
+  }
+
+  .kp-toggle[data-on='true'] .kp-toggle-thumb { transform: translateX(1.25rem); }
+
+  .kp-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .kp-row + .kp-row { border-top: 1px solid var(--kid-line); }
+
+  .kp-row-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 999px;
+    color: var(--cream);
+    background: var(--callout);
+    box-shadow: 0 2px 0 var(--callout-d);
+  }
+
+  .kp-row-icon[data-color='gold'] { --callout: var(--gold); --callout-d: var(--gold-d); }
+  .kp-row-icon[data-color='teal'] { --callout: var(--teal); --callout-d: var(--teal-d); }
+  .kp-row-icon[data-color='plum'] { --callout: var(--plum); --callout-d: var(--plum-d); }
+
+  .kp-row-text {
+    flex: 1;
+    font-size: var(--kid-text-body);
+    font-weight: 600;
+  }
+
+  .kp-row-chevron { flex: none; color: var(--kid-muted-fg); }
+
+  @media (hover: hover) {
+    .kp-row:hover .kp-row-text { text-decoration: underline; }
+  }
+
+  .kp-about-version {
+    margin: 0 0 0.5rem;
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    color: var(--kid-muted-fg);
   }
 
   /* --------------------------------------------------------- avatar builder */

@@ -284,6 +284,43 @@ page's own edit-pencil badge sits top-right (`.kp-avatar-edit`) opposite the SVG
   (`.kp-subsection`: a faint ink-tinted panel plus top spacing), each with its own small-caps label
   (`.kp-subsection-title`, muted, uppercase) distinct from the `AuthField` labels beneath it — the
   card no longer reads as one long form.
+- **Account & Security is collapsed by default** (2026-09-27). The card's `<h2>` wraps a button
+  (`.kp-collapse-trigger`, the WAI-ARIA disclosure pattern — a heading around the interactive
+  control, so it still reads as a heading either way) with a chevron that rotates 90° open; the
+  body (`.kp-collapse`) expands/collapses with a CSS-only `grid-template-rows: 0fr → 1fr`
+  transition (no JS height measurement), skipped under `prefers-reduced-motion`. Plain `useState`,
+  no route change — the three forms are the same ones described above, just hidden until opened.
+- **Preferences & Support** (2026-09-27, new card between the streak calendar and Account &
+  Security): three sub-sections in the same `.kp-subsection` pattern as Account, so it reads as
+  one more instance of a pattern already established, not a second visual language.
+  - **Sound effects**: a custom on/off switch (`.kp-toggle`, not the shadcn `Switch` — that
+    component is themed for admin's neutral palette via `bg-primary`/`bg-input`, which would have
+    looked out of place next to candy buttons). Persisted to `localStorage`
+    (`kid.soundEffectsEnabled`, `useSoundEffects`), not a `profiles` column: a pure per-device
+    convenience with no cross-device sync need, so it needed no migration. Defaults on. **No sound
+    effects are wired up anywhere in the app yet** — this ships the preference switch only, ready
+    for when they are.
+  - **Help & Support**: one row (`.kp-row`, a colour-circle icon badge + label + chevron, the same
+    icon-badge trick as `.lp-callout-icon`/`.kp-stat-icon`) that opens the device's mail client via
+    `mailto:`. **The address is a placeholder** (`support@wisdomhatch.example`, the `.example` TLD
+    reserved for exactly this) — needs the real support address before ship.
+  - **About**: the installed app version (`__APP_VERSION__`, a Vite `define` reading
+    `package.json`'s own `version` at build time — no second hardcoded copy to drift from it) plus
+    two more `.kp-row`s for Privacy Policy and Terms of Service. **Both URLs are placeholders**
+    (`https://wisdomhatch.example/privacy` and `/terms`) — need real legal pages before ship.
+- **Request account deletion** (2026-09-27, nested inside the expanded Account & Security, below
+  Password): a low-emphasis coral text action (`.kp-danger-link`, no button fill — deliberately
+  quieter than every gold action above it), not a self-serve hard delete. Tapping it opens a
+  confirm dialog (`Dialog`/`DialogContent`, `kid-card kid-font` styling — the same portaled-dialog
+  pattern `LessonCompleteSheet` already uses, since Radix portals it outside `.kid-app` where
+  `.kid-font` is what keeps it on Baloo 2 instead of falling back to admin's Geist) with a coral
+  confirm button (`.candy-btn[data-tone='coral']`, the same data-attribute token-swap trick as
+  `.lp-callout-icon[data-color]`) before anything happens. Confirming only inserts one row into
+  `deletion_requests` (`schema.md`, migration 027) — consistent with the app's archive-only
+  philosophy (section 7), never an immediate delete. Once a request exists, the row is replaced by
+  a plain "Deletion requested" note (`useDeletionRequest` reads the student's own existing row, so
+  this survives a reload and can't be double-submitted from the same UI). No admin-side action on
+  `deletion_requests` is built — a deliberate later task.
 - **Streak calendar** (`StreakCalendar`): 5 weeks, 7 columns aligned Sun-Sat (leading cells padded
   to the first day's real weekday), oldest day top-left. A filled cell is now solid `--teal` with
   its own `-d` shadow (`.kp-cal-cell[data-active='true']`) rather than a flat `--teal-d` fill, so

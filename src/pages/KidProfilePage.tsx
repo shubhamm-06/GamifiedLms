@@ -1,26 +1,46 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { Flame, LogOut, Pencil, Sparkles, Trophy } from 'lucide-react'
+import {
+  ChevronRight,
+  FileText,
+  Flame,
+  LifeBuoy,
+  LogOut,
+  Pencil,
+  Shield,
+  Sparkles,
+  Trash2,
+  Trophy,
+  Volume2,
+} from 'lucide-react'
 import { AuthField } from '@/components/auth/AuthField'
 import { Avatar } from '@/components/kid/Avatar'
 import { AvatarBuilder } from '@/components/kid/AvatarBuilder'
 import { StreakCalendar } from '@/components/kid/StreakCalendar'
 import { useKidHeader } from '@/components/kid/kidHeader'
 import { RetryScreen } from '@/components/kid/roadmap/StateScreens'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   useActivityDays,
   useChangePassword,
+  useDeletionRequest,
   useKidProfile,
+  useRequestDeletion,
   useRequestEmailChange,
   useUpdateAvatar,
   useUpdateDisplayName,
   type KidProfile,
 } from '@/hooks/useKidProfile'
+import { useSoundEffects } from '@/hooks/useSoundEffects'
 import { supabase } from '@/lib/supabase'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Placeholders — swap for the real address/URLs before ship (flagged again in the task summary).
+const SUPPORT_EMAIL = 'support@wisdomhatch.example'
+const PRIVACY_URL = 'https://wisdomhatch.example/privacy'
+const TERMS_URL = 'https://wisdomhatch.example/terms'
 
 /**
  * `/profile`: avatar (tap to open the builder), account info a student can
@@ -119,6 +139,8 @@ export function KidProfilePage() {
         )}
       </section>
 
+      <PreferencesSection />
+
       <AccountSection profile={p} />
 
       <button
@@ -135,23 +157,152 @@ export function KidProfilePage() {
   )
 }
 
+/** Collapsed by default — one tap reveals the three edit forms and the deletion request beneath them. */
 function AccountSection({ profile }: { profile: KidProfile }) {
+  const [open, setOpen] = useState(false)
   return (
     <section className="kid-card kp-card" aria-label="Account">
-      <h2 className="kp-card-title">Account</h2>
-      <div className="kp-subsection">
-        <h3 className="kp-subsection-title">Name</h3>
-        <NameForm current={profile.displayName} />
-      </div>
-      <div className="kp-subsection">
-        <h3 className="kp-subsection-title">Email</h3>
-        <EmailForm current={profile.email} />
-      </div>
-      <div className="kp-subsection">
-        <h3 className="kp-subsection-title">Password</h3>
-        <PasswordForm />
+      <h2 className="kp-card-title kp-collapse-heading">
+        <button
+          type="button"
+          className="kp-collapse-trigger kid-tap"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          data-testid="account-toggle"
+        >
+          Account & Security
+          <ChevronRight className="kp-collapse-chevron size-5" data-open={open} aria-hidden />
+        </button>
+      </h2>
+      <div className="kp-collapse" data-open={open}>
+        <div>
+          <div className="kp-subsection">
+            <h3 className="kp-subsection-title">Name</h3>
+            <NameForm current={profile.displayName} />
+          </div>
+          <div className="kp-subsection">
+            <h3 className="kp-subsection-title">Email</h3>
+            <EmailForm current={profile.email} />
+          </div>
+          <div className="kp-subsection">
+            <h3 className="kp-subsection-title">Password</h3>
+            <PasswordForm />
+          </div>
+          <div className="kp-subsection" data-tone="danger">
+            <DeleteAccountAction />
+          </div>
+        </div>
       </div>
     </section>
+  )
+}
+
+/** Sound preference, a mailto support row, and version/legal links — grouped under one card, same bounded-subsection pattern as Account. */
+function PreferencesSection() {
+  const [soundEnabled, setSoundEnabled] = useSoundEffects()
+  return (
+    <section className="kid-card kp-card" aria-label="Preferences">
+      <h2 className="kp-card-title">Preferences &amp; Support</h2>
+      <div className="kp-subsection">
+        <h3 className="kp-subsection-title">Sound</h3>
+        <div className="kp-toggle-row">
+          <span className="kp-toggle-label">
+            <Volume2 className="size-5" aria-hidden />
+            Sound effects
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={soundEnabled}
+            className="kp-toggle kid-tap"
+            data-on={soundEnabled}
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            data-testid="sound-toggle"
+          >
+            <span className="kp-toggle-thumb" />
+          </button>
+        </div>
+      </div>
+      <div className="kp-subsection">
+        <h3 className="kp-subsection-title">Help &amp; Support</h3>
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="kp-row kid-tap" data-testid="help-support">
+          <span className="kp-row-icon" data-color="teal">
+            <LifeBuoy className="size-4" aria-hidden />
+          </span>
+          <span className="kp-row-text">Email support</span>
+          <ChevronRight className="kp-row-chevron size-5" aria-hidden />
+        </a>
+      </div>
+      <div className="kp-subsection">
+        <h3 className="kp-subsection-title">About</h3>
+        <p className="kp-about-version">Version {__APP_VERSION__}</p>
+        <a href={PRIVACY_URL} target="_blank" rel="noreferrer" className="kp-row kid-tap" data-testid="privacy-link">
+          <span className="kp-row-icon" data-color="plum">
+            <Shield className="size-4" aria-hidden />
+          </span>
+          <span className="kp-row-text">Privacy Policy</span>
+          <ChevronRight className="kp-row-chevron size-5" aria-hidden />
+        </a>
+        <a href={TERMS_URL} target="_blank" rel="noreferrer" className="kp-row kid-tap" data-testid="terms-link">
+          <span className="kp-row-icon" data-color="gold">
+            <FileText className="size-4" aria-hidden />
+          </span>
+          <span className="kp-row-text">Terms of Service</span>
+          <ChevronRight className="kp-row-chevron size-5" aria-hidden />
+        </a>
+      </div>
+    </section>
+  )
+}
+
+/**
+ * Not a hard delete: consistent with the app's archive-only philosophy, this
+ * only inserts a row (`deletion_requests`, migration 027) after a confirm
+ * step. An admin acting on it is a separate, later task.
+ */
+function DeleteAccountAction() {
+  const deletionRequest = useDeletionRequest()
+  const requestDeletion = useRequestDeletion()
+  const [confirming, setConfirming] = useState(false)
+
+  if (deletionRequest.data) {
+    return (
+      <p className="kp-danger-note" role="status" data-testid="deletion-requested">
+        Deletion requested. We'll be in touch about next steps.
+      </p>
+    )
+  }
+
+  return (
+    <>
+      <button type="button" className="kp-danger-link kid-tap" onClick={() => setConfirming(true)} data-testid="request-deletion">
+        <Trash2 className="size-4" aria-hidden />
+        Request account deletion
+      </button>
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent className="kid-card kid-font max-w-[calc(100%-2rem)] text-ink ring-0 sm:max-w-sm">
+          <DialogTitle className="kid-text-heading text-ink [font-family:var(--font-kid)]!">Delete your account?</DialogTitle>
+          <DialogDescription className="kid-text-body text-ink">
+            We'll receive your request and take care of the rest from here — this doesn't delete anything right away.
+          </DialogDescription>
+          <div className="mt-2 flex gap-3">
+            <button type="button" className="candy-btn-quiet kid-tap flex-1" onClick={() => setConfirming(false)} data-testid="cancel-deletion">
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="candy-btn kid-tap flex-1"
+              data-tone="coral"
+              disabled={requestDeletion.isPending}
+              onClick={() => requestDeletion.mutate(undefined, { onSuccess: () => setConfirming(false) })}
+              data-testid="confirm-deletion"
+            >
+              {requestDeletion.isPending ? 'Sending…' : 'Yes, delete'}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

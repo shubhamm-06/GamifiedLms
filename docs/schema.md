@@ -73,6 +73,19 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
   counter it mirrors: a lesson completed in a `gamification_enabled = false`
   course awards no XP and so lights up no day either, same as it does not
   advance the streak.
+- **`deletion_requests`** (migration 027, 2026-09-27) — `id`, `user_id` (FK →
+  `profiles.id`, `ON DELETE CASCADE`), `requested_at`. The profile page's
+  "Request account deletion" writes one row here and nothing else; consistent
+  with the trash-first philosophy (section 7), a student can never hard-delete
+  their own account from the kid app. Self SELECT/INSERT under the same
+  "own row, minus a trashed caller" shape as every policy since migration 014,
+  plus admin SELECT; no UPDATE or DELETE policy for any client role, so a
+  request is permanent once made. **Recorded only** — an admin acting on it
+  (trashing the user, the existing Edge Function path) is unbuilt, a separate
+  later task. Not on the Edge Function `delete` action's blocker-count list
+  (section 7's `has_history` table), so this row would cascade away silently
+  if that student were ever hard-deleted — harmless since the request is moot
+  once fulfilled, but worth knowing if a generic blocker check is ever added.
 
 ### 2. Course content
 
@@ -845,11 +858,11 @@ payment's `id`.
 
 ## RLS policy matrix
 
-RLS enabled on all 18 tables (14 since migration 001, deny-all before
+RLS enabled on all 19 tables (14 since migration 001, deny-all before
 migration 003 landed; `manual_order_providers` since migration 008, admin-only
 from creation; `app_settings`, `currencies` and `level_thresholds` since
-migrations 010, 011 and 012 respectively). Every table has at least one
-policy. Service-role rows below are documentation, not enforcement —
+migrations 010, 011 and 012 respectively; `deletion_requests` since migration
+027). Every table has at least one policy. Service-role rows below are documentation, not enforcement —
 `service_role` bypasses RLS entirely regardless — but stating intent keeps
 the SQL self-explanatory.
 
@@ -883,6 +896,7 @@ explicitly; don't lean on this.
 | `app_settings` | public (`true`), including `anon` | — | admin only | — |
 | `currencies` | admin only | admin only | admin only | admin only |
 | `level_thresholds` | any authenticated (not `anon`) | admin | admin | admin |
+| `deletion_requests` | self (not trashed) or admin | self (own `user_id`, not trashed) | — | — |
 
 Blank cells mean no policy exists — RLS defaults to deny, so that operation
 is impossible for `anon`/`authenticated`. The `user_stats_select_public` and
@@ -996,6 +1010,7 @@ table.
 | 024 | `20260926200000_024_check_quiz_answer.sql` | 2026-09-26 (live version in `list_migrations`) | `fn_check_quiz_answer(uuid, uuid, text)`: the per-question quiz feedback path (`SECURITY DEFINER`, `search_path = ''`, shared `fn_engine_guard`, `EXECUTE` for `authenticated` only, writes nothing). No table, column, policy or view changed: the per-quiz pass mark is `lessons.pass_percentage` (015) and students already read questions through `quiz_questions_public` (017/018, no `correct_option`) |
 | 025 | `20260926210000_025_game_completion.sql` | 2026-09-26 (live version in `list_migrations`) | `fn_complete_game(uuid, numeric)`: server-clamped score XP for game lessons (`SECURITY DEFINER`, `search_path = ''`, shared guard, `authenticated` only, new error code `invalid_score`); `fn_award_lesson_xp` skips game lessons that have a live game; `fn_complete_lesson` refuses them. No table, column, policy or view changed |
 | 026 | `20260927000000_026_avatar_config.sql` | 2026-09-27 (live version in `list_migrations`; applied via the CLI `--db-url` fallback, `env-deploy.md`, the MCP connector was unavailable this session) | `profiles.avatar_config jsonb`, nullable, with a shape CHECK requiring exactly the four keys `base`/`topper`/`face`/`accent` (both directions — missing AND extra keys refused, caught in testing: `->>` on a missing key is SQL NULL and `NULL = ANY(...)` is NULL, not FALSE, so a CHECK checking only "no extra keys" would have silently accepted a partial config) and each value from its fixed set (`src/lib/avatar.ts`). No RLS change: covered by the existing whole-row `profiles_select_self_or_admin`/`profiles_update_self` policies |
+| 027 | `20260927010000_027_deletion_requests.sql` | 2026-09-27 (applied via the CLI `--db-url` fallback, one statement per call — the pooler's transaction mode refused the whole file as one prepared statement) | New `deletion_requests` table (`id`, `user_id` → `profiles(id)` `ON DELETE CASCADE`, `requested_at`): a student's self-service "please delete my account" request, recorded only — no automatic action. RLS: self SELECT/INSERT (the migration-014 "own row, minus a trashed caller's stale token" shape) or admin SELECT; no UPDATE or DELETE policy for any client role, so a request is a permanent record. Not on the Edge Function's `delete` blocker list (schema.md section 7) — a request row cascades away silently if that student is later hard-deleted, acceptable since the request is moot once fulfilled |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named

@@ -254,6 +254,39 @@ export type Database = {
         }
         Relationships: []
       }
+      deletion_requests: {
+        Row: {
+          id: string
+          requested_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          requested_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          requested_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deletion_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deletion_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrollments: {
         Row: {
           course_id: string

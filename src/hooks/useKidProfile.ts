@@ -189,6 +189,53 @@ export { DEFAULT_AVATAR }
  * gamification off awards no XP and so does not light up a day here either,
  * same as it does not advance the streak.
  */
+export const deletionRequestKey = ['kid', 'deletionRequest'] as const
+
+/**
+ * The signed-in student's own most recent account-deletion request, if any
+ * (`deletion_requests_select_self`, migration 027). `null` means none exists
+ * yet. This only reads the request — nothing here processes it; an admin
+ * acting on `deletion_requests` is a separate, later task.
+ */
+export function useDeletionRequest() {
+  return useQuery<string | null, Error>({
+    queryKey: deletionRequestKey,
+    queryFn: async () => {
+      const session = await currentSession()
+      const { data, error } = await supabase
+        .from('deletion_requests')
+        .select('requested_at')
+        .eq('user_id', session.user.id)
+        .order('requested_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (error) throw error
+      return data?.requested_at ?? null
+    },
+    staleTime: 0,
+  })
+}
+
+/**
+ * Records a self-service deletion request — an insert, nothing else. Consistent
+ * with the app's trash-first philosophy (`schema.md` section 7): this never
+ * deletes anything itself, it only asks for it, the same way a course is
+ * archived rather than removed on the spot.
+ */
+export function useRequestDeletion() {
+  const queryClient = useQueryClient()
+  return useMutation<void, Error, void>({
+    mutationFn: async () => {
+      const session = await currentSession()
+      const { error } = await supabase.from('deletion_requests').insert({ user_id: session.user.id })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: deletionRequestKey })
+    },
+  })
+}
+
 export function useActivityDays(days = 35) {
   return useQuery<Set<string>, Error>({
     queryKey: ['kid', 'activityDays', days],
