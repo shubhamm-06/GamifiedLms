@@ -23,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import {
   Table,
   TableBody,
@@ -39,7 +40,7 @@ import {
 import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
 import type { TableSelection } from '@/components/admin/selection/useTableSelection'
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
-import { CONDITION_TYPES, isConditionType, type Badge } from '@/hooks/admin/useBadges'
+import { describeCondition, type Badge } from '@/hooks/admin/useBadges'
 
 /** Same TanStack Table v9 feature registration as `GameTable.tsx` — see `CourseTable.tsx`'s comment for why it looks this way. */
 const badgesFeatures = tableFeatures({
@@ -86,6 +87,17 @@ function buildColumns({
       cell: ({ row }) => <SelectRowCheckbox row={row} label={`Select ${row.original.name}`} />,
       enableSorting: false,
     }),
+    columnHelper.display({
+      id: 'icon',
+      header: '',
+      enableSorting: false,
+      cell: ({ row }) =>
+        row.original.icon_url ? (
+          <img src={row.original.icon_url} alt="" className="size-9 rounded-full" />
+        ) : (
+          <div className="bg-muted size-9 rounded-full" aria-hidden />
+        ),
+    }),
     columnHelper.accessor('name', {
       id: 'name',
       header: 'Badge',
@@ -104,30 +116,19 @@ function buildColumns({
       sortFn: 'basic',
       cell: (info) => {
         const { condition_type: type, condition_value: value } = info.row.original
-        return (
-          <span className="text-muted-foreground">
-            {isConditionType(type) ? CONDITION_TYPES[type].valueLabel : type}:{' '}
-            <span className="text-foreground tabular-nums">{value}</span>
-          </span>
-        )
+        return <span className="text-muted-foreground">{describeCondition(type, value)}</span>
       },
     }),
     columnHelper.accessor('is_active', {
       id: 'is_active',
-      header: 'Status',
+      header: 'Active',
       enableSorting: false,
-      // teal = active, per the admin colour rules in ui.md; inactive is a
-      // quiet neutral, not a warning — a deactivated badge is a deliberate
-      // admin choice, not a problem to fix.
       cell: (info) => (
-        <span
-          className={cn(
-            'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-            info.getValue() ? 'bg-teal/10 text-teal-d' : 'bg-muted text-muted-foreground',
-          )}
-        >
-          {info.getValue() ? 'Active' : 'Inactive'}
-        </span>
+        <Switch
+          checked={info.getValue()}
+          aria-label={`${info.getValue() ? 'Deactivate' : 'Activate'} ${info.row.original.name}`}
+          onCheckedChange={() => onToggleActive(info.row.original)}
+        />
       ),
     }),
     columnHelper.display({
@@ -145,9 +146,6 @@ function buildColumns({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => onEdit(badge)}>Edit</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => onToggleActive(badge)}>
-                  {badge.is_active ? 'Deactivate' : 'Activate'}
-                </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onTrash(badge)}>Move to trash</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -158,7 +156,7 @@ function buildColumns({
   ])
 }
 
-const COLUMN_COUNT = 5
+const COLUMN_COUNT = 6
 
 export function BadgeTable({
   badges,

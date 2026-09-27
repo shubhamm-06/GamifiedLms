@@ -456,7 +456,17 @@ does not change any stored level until that student's next XP event (migration
 `deleted_at`, `deleted_by` (migration 013). No `created_at` column. Admin CRUD
 via `/admin/gamification` (RLS: `badges_admin_insert/update/delete`,
 `fn_is_admin()`; delete only when trashed). `slug` is unique among live rows
-only (`uq_badges_slug_live`).
+only (`uq_badges_slug_live`) — already in place since migration 013, so the
+2026-09-28 badge-icon-builder task needed no new uniqueness migration, only
+a friendlier client-side message (`SLUG_TAKEN`, `useBadges.ts`) on the
+`23505` it already threw. `icon_url` is a `data:image/svg+xml;base64,` URI
+built client-side from a closed colour+glyph set (`lib/badgeIcon.ts`), not a
+free-form pasted link — see `ui.md`. **Archiving never touches
+`user_badges`**: `deleted_at`/`deleted_by` are plain column writes on
+`badges` itself, no cascade or trigger reaches the other table, so a
+student's earned-badge row survives an archive by construction — verified
+directly (archived a badge a fixture student had already earned; its
+`user_badges` row, including `unlocked_at`, was unchanged).
 
 **`user_badges`** — `id`, `user_id`, `badge_id` (unique together),
 `unlocked_at`. **`badge_id → badges.id` is `NO ACTION`** (confirmed via

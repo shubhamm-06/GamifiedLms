@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import { Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTableSelection } from '@/components/admin/selection/useTableSelection'
@@ -30,6 +40,13 @@ export function BadgesSection() {
   // dialog's `badge` prop being null means create mode.
   const [dialogOpen, setDialogOpen] = useState(false)
   const [slugError, setSlugError] = useState<string | null>(null)
+  // Unlike Games/Courses (immediate trash + Undo toast), archiving a badge
+  // asks first — a badge can already be earned by real students, and while
+  // archiving never touches their user_badges row (verified: it only sets
+  // deleted_at/deleted_by on badges itself, no cascade), it does stop the
+  // badge from ever being shown or awarded again, worth one more click to
+  // confirm. Holds the whole batch pending confirmation, single or bulk.
+  const [archiveBatch, setArchiveBatch] = useState<Badge[] | null>(null)
 
   const createBadge = useCreateBadge()
   const updateBadge = useUpdateBadge()
@@ -40,10 +57,11 @@ export function BadgesSection() {
 
   const toItem = (badge: Badge) => ({ id: badge.id, name: badge.name, slug: badge.slug })
 
-  // No confirm dialog: trashing is reversible, so the Undo toast is the safety net.
-  async function handleTrash(badges: Badge[]) {
-    const result = await trash([{ entity: 'badges', items: badges.map(toItem) }])
+  async function confirmArchive() {
+    if (!archiveBatch) return
+    const result = await trash([{ entity: 'badges', items: archiveBatch.map(toItem) }])
     selection.removeIds(result.succeeded.map((item) => item.id))
+    setArchiveBatch(null)
   }
 
   function openCreate() {
@@ -116,19 +134,48 @@ export function BadgesSection() {
         search={search}
         onEdit={openEdit}
         onToggleActive={(badge) => setActive.mutate({ id: badge.id, isActive: !badge.is_active })}
-        onTrash={(badge) => void handleTrash([badge])}
+        onTrash={(badge) => setArchiveBatch([badge])}
         selection={selection}
         bulkActions={
           <Button
             variant="outline"
             size="sm"
             disabled={trashPending}
-            onClick={() => void handleTrash(selectedBadges)}
+            onClick={() => setArchiveBatch(selectedBadges)}
           >
             Move to trash
           </Button>
         }
       />
+
+      <AlertDialog open={!!archiveBatch} onOpenChange={(open) => !open && setArchiveBatch(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {archiveBatch?.length === 1
+                ? `Archive "${archiveBatch[0].name}"?`
+                : `Archive ${archiveBatch?.length ?? 0} badges?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              It stops appearing here and is never awarded again. Anyone who already earned it
+              keeps it — this can&rsquo;t remove an earned badge. You can restore it from Trash later.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={trashPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              disabled={trashPending}
+              onClick={(event) => {
+                event.preventDefault()
+                void confirmArchive()
+              }}
+            >
+              {trashPending ? 'Archiving…' : 'Archive'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <BadgeDialog
         open={dialogOpen}

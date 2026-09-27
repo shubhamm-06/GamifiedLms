@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { BadgeIconPicker } from './BadgeIconPicker'
 import {
   CONDITION_TYPES,
   CONDITION_TYPE_KEYS,
@@ -27,7 +28,13 @@ import {
   type BadgeConditionType,
   type BadgeFormValues,
 } from '@/hooks/admin/useBadges'
+import { buildBadgeIconDataUri, detectBadgeIcon, type BadgeColor, type BadgeGlyph } from '@/lib/badgeIcon'
 import { slugify } from '@/lib/slug'
+import { cn } from '@/lib/utils'
+
+// A brand-new badge starts with a real icon already selected (gold + star)
+// rather than blank — every badge gets a live preview from the first paint.
+const DEFAULT_ICON: { color: BadgeColor; glyph: BadgeGlyph } = { color: 'gold', glyph: 'star' }
 
 const EMPTY_BADGE: BadgeFormValues = {
   name: '',
@@ -86,6 +93,12 @@ function BadgeForm({
   // someone tweaked the name, so edit starts "touched" — same rule as
   // GameForm/CourseForm.
   const [slugTouched, setSlugTouched] = useState(!!badge)
+  // An exact match means this icon was already produced by the builder
+  // (including the badge being edited right now); anything else — the six
+  // hand-seeded rows, or a pasted URL from before this screen existed —
+  // falls back to a real default rather than a blank picker. Saving then
+  // normalises that badge's icon onto the builder's output.
+  const [icon, setIcon] = useState(() => detectBadgeIcon(badge?.icon_url ?? null) ?? DEFAULT_ICON)
 
   function set<K extends keyof BadgeFormValues>(field: K, value: BadgeFormValues[K]) {
     setValues((prev) => ({ ...prev, [field]: value }))
@@ -99,6 +112,8 @@ function BadgeForm({
     }))
   }
 
+  const isCourseComplete = values.condition_type === 'course_complete'
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
     const next: Record<string, string> = {}
@@ -108,18 +123,26 @@ function BadgeForm({
     if (!name) next.name = 'Name is required.'
     if (!slug) next.slug = 'Slug is required.'
 
+    // course_complete has no visible number field — it's fixed at 1 and
+    // never reaches validation, so a hidden field can't fail a check meant
+    // for the other three types.
     const conditionValue = Number(values.condition_value)
     if (
-      !values.condition_value.trim() ||
-      !Number.isInteger(conditionValue) ||
-      conditionValue < 1
+      !isCourseComplete &&
+      (!values.condition_value.trim() || !Number.isInteger(conditionValue) || conditionValue < 1)
     ) {
       next.condition_value = 'Enter a whole number, 1 or more.'
     }
 
     setErrors(next)
     if (Object.keys(next).length > 0) return
-    onSubmit({ ...values, name, slug })
+    onSubmit({
+      ...values,
+      name,
+      slug,
+      condition_value: isCourseComplete ? '1' : values.condition_value,
+      icon_url: buildBadgeIconDataUri(icon.color, icon.glyph),
+    })
   }
 
   const condition = CONDITION_TYPES[values.condition_type]
@@ -166,18 +189,11 @@ function BadgeForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="badge-icon">Icon URL</Label>
-        <Input
-          id="badge-icon"
-          value={values.icon_url}
-          onChange={(e) => set('icon_url', e.target.value)}
-        />
-        <p className="text-muted-foreground text-xs">
-          Paste a hosted image link. Upload isn&rsquo;t wired yet (no Storage bucket exists).
-        </p>
+        <Label>Icon</Label>
+        <BadgeIconPicker color={icon.color} glyph={icon.glyph} onChange={(color, glyph) => setIcon({ color, glyph })} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className={cn('grid gap-4', !isCourseComplete && 'sm:grid-cols-2')}>
         <div className="space-y-1.5">
           <Label htmlFor="badge-condition-type">Condition</Label>
           <Select
@@ -196,19 +212,25 @@ function BadgeForm({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
-          {/* Label and hint follow the selected type — the same number means
-              XP, days, lessons or courses depending on it. */}
-          <Label htmlFor="badge-condition-value">{condition.valueLabel}</Label>
-          <Input
-            id="badge-condition-value"
-            type="number"
-            min={1}
-            value={values.condition_value}
-            aria-invalid={!!errors.condition_value}
-            onChange={(e) => set('condition_value', e.target.value)}
-          />
-        </div>
+        {/* course_complete has no meaningful number to set — fn_evaluate_badges
+            only ever checks "at least one course finished", so the field is
+            fixed at 1 behind the scenes (handleSubmit) rather than shown as a
+            number input with nothing useful to type into it. */}
+        {isCourseComplete ? null : (
+          <div className="space-y-1.5">
+            {/* Label and hint follow the selected type — the same number means
+                XP, days or lessons depending on it. */}
+            <Label htmlFor="badge-condition-value">{condition.valueLabel}</Label>
+            <Input
+              id="badge-condition-value"
+              type="number"
+              min={1}
+              value={values.condition_value}
+              aria-invalid={!!errors.condition_value}
+              onChange={(e) => set('condition_value', e.target.value)}
+            />
+          </div>
+        )}
       </div>
       {errors.condition_value ? (
         <p className="text-coral-d -mt-2 text-sm">{errors.condition_value}</p>

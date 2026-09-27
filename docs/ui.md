@@ -1326,6 +1326,50 @@ not implemented.**
   `useBadges.ts`'s `CONDITION_TYPES`, so the table's "Unlocks at" column and
   the form can't drift). A bare "Condition value" over four different units
   would be a guessing game.
+- **Badge icons are a closed colour+glyph picker (2026-09-28), never a pasted
+  URL — `BadgeIconPicker.tsx`, `lib/badgeIcon.ts`.** The six original badges
+  (seeded directly by migration, no admin UI existed for them until now) are
+  all the same visual formula: a filled circle, a darker stroke ring, one
+  cream glyph. `buildBadgeIconSvg`/`buildBadgeIconDataUri` reproduce that
+  formula from a fixed set — four colours (gold/teal/coral/plum, labeled
+  swatches, `bg-{token}` spelled out as static Tailwind classes since the
+  scanner can't see a template literal) and six glyphs (checkmark, flame,
+  spark, trophy, star, dots — checkmark/flame/spark/dots reuse the *exact*
+  path data the real seeded rows already draw; trophy and star are new,
+  drawn in the same style). The live preview renders the identical data URI
+  a save would write (never a CSS/React re-implementation of the same
+  shapes), so preview and saved output can't drift apart. A data URI has no
+  access to CSS custom properties, so the four tokens' hex values are
+  necessarily inlined in `badgeIcon.ts` — the one deliberate exception to
+  "never hardcode hex," clearly commented as such. `detectBadgeIcon` lets
+  editing an existing badge preselect its real colour+glyph when the icon
+  was already builder-made; a badge whose icon predates the builder (the six
+  hand-seeded rows, or anything pasted in directly) has no reliable reverse
+  mapping, so it falls back to a real default (gold+star) — saving over one
+  of those six then normalises its icon onto the builder's output, a
+  deliberate consequence of moving off ad-hoc `icon_url` values rather than
+  preserving them forever.
+- **`condition_value` has no visible field at all for `course_complete`.**
+  `fn_evaluate_badges` only ever checks "at least one course finished" for
+  that type, so a number input with nothing meaningful to type into it would
+  be worse than no field — the value is fixed at 1 in `handleSubmit` and the
+  grid collapses to one column. The badge list's "Unlocks at" column reads
+  in plain language too (`describeCondition` in `useBadges.ts`): "5 lessons
+  completed", "7-day streak", "100 XP", "Finish a course", not the raw
+  `condition_type`/`condition_value` pair.
+- **Archiving a badge asks first — the one entity in this admin panel where
+  Move to trash isn't immediate-plus-Undo-toast.** Games and Courses trash
+  immediately (an Undo toast is the safety net); a badge can already be
+  earned by real students, so `BadgesSection.tsx` confirms with an
+  `AlertDialog` (the doc-blocks/quiz-questions delete-confirmation pattern)
+  before calling the same trash action, stating explicitly that archiving
+  never removes an already-earned badge. Verified directly, not assumed:
+  archiving sets only `badges.deleted_at`/`deleted_by` — no cascade touches
+  `user_badges`, and a student's `unlocked_at` row for an archived badge is
+  untouched. The Active column is now a real inline `Switch` per row (was a
+  dropdown-menu "Activate/Deactivate" item) — the same control, just no
+  longer buried a click deeper — and the table gained a leading icon-preview
+  column.
 - **An editable numeric list keeps a per-row draft with an explicit Save,
   keyed by the saved value.** `ThresholdRow` in `LevelThresholdsSection.tsx`
   holds its own draft `useState`, and the parent keys it

@@ -52,6 +52,21 @@ export function isConditionType(value: string): value is BadgeConditionType {
   return (CONDITION_TYPE_KEYS as string[]).includes(value)
 }
 
+/** A plain-language summary for the badge list — "5 lessons completed", "7-day streak", "100 XP", "Finish a course" — rather than the raw `condition_type`/`condition_value` pair. */
+export function describeCondition(type: string, value: number): string {
+  if (!isConditionType(type)) return `${type}: ${value}`
+  switch (type) {
+    case 'lessons_completed':
+      return `${value} ${value === 1 ? 'lesson' : 'lessons'} completed`
+    case 'streak_days':
+      return `${value}-day streak`
+    case 'total_xp':
+      return `${value} XP`
+    case 'course_complete':
+      return 'Finish a course'
+  }
+}
+
 /** Postgres unique-violation — surfaced as an inline slug error, not a toast. */
 const UNIQUE_VIOLATION = '23505'
 export const SLUG_TAKEN = 'SLUG_TAKEN'
