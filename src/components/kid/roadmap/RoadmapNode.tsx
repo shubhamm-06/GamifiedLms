@@ -4,6 +4,7 @@ import { formatClock } from '@/lib/lessonSettings'
 import { weaveOffset } from '@/lib/roadmapWeave'
 import type { RoadmapLesson } from '@/lib/roadmap'
 import { LESSON_TYPE_META, STATE_WORD } from './lessonTypeMeta'
+import * as haptics from '@/lib/haptics'
 
 interface Props {
   lesson: RoadmapLesson
@@ -50,6 +51,7 @@ export function RoadmapNode({ lesson, index, unit, moduleKey, isCurrent, expande
       timer.current = window.setTimeout(() => setWiggle(false), 600)
       return
     }
+    haptics.tap()
     onOpen(lesson.id)
   }
 

@@ -507,6 +507,16 @@ belongs in `context.md` or `state.md`, not here.
   completion, so a course flipped mid-way is judged by the flag at reset time.
   Any new function that awards XP, bumps a counter or awards a badge from a
   lesson completion must respect the flag the same way.
+- **Every overlay registers with the Android Back overlay registry.** Any new
+  popover, sheet, dialog, drawer, fullscreen mode or in-page "sheet-like" state a user
+  can open must call `useBackClosable(open, close)` (`hooks/useBackClosable.ts`), and a
+  screen that should not be left by accident calls `useLeaveGuard(active)`. Otherwise
+  Android Back skips it and navigates or exits under it (a Radix layer is caught by the
+  Escape safety net, a custom one is not). Everything native stays behind
+  `Capacitor.isNativePlatform()`; web behaviour must not change.
+- **Haptics are kid-facing only and one per event.** Only through `lib/haptics.ts`,
+  never from admin screens, never on scroll or drag, never two for one moment. A new
+  placement is added to the list in `ui.md` "Haptics", not sprinkled on buttons.
 - **Every kid-facing (student) route follows the mobile app rules, not just
   the one screen that introduced them.** Touch targets ≥ 44 px and nothing may
   depend on `:hover` (only inside `@media (hover: hover)`); use `dvh`, never

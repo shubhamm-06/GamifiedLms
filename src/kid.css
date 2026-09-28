@@ -2288,6 +2288,8 @@
     gap: 0.75rem;
   }
 
+  .kp-toggle-row + .kp-toggle-row { margin-top: 0.75rem; }
+
   .kp-toggle-label {
     display: flex;
     align-items: center;

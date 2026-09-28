@@ -2,6 +2,7 @@ import { Link } from '@tanstack/react-router'
 import { Avatar } from './Avatar'
 import { KID_TABS } from './kidTabs'
 import { DEFAULT_AVATAR, useKidProfile } from '@/hooks/useKidProfile'
+import * as haptics from '@/lib/haptics'
 
 /**
  * The bottom navigation: Home, Badges, Courses, Profile. Fixed to the bottom of
@@ -32,6 +33,7 @@ export function KidNav({ activeTo }: { activeTo: string }) {
                 data-testid={`nav-${label.toLowerCase()}`}
                 onClick={(e) => {
                   if (active) e.preventDefault()
+                  else haptics.tap()
                 }}
               >
                 <span className="kid-nav-icon">

@@ -112,7 +112,8 @@ about 1 minute to compile). `.env` must hold `VITE_SUPABASE_URL` and
 **Commands** (repo root):
 - `npm run android:sync` — `npm run build` (tsc + Vite) then `cap sync android`
   (copies `dist` into `android/app/src/main/assets/public`, regenerates the
-  plugin list: `@capacitor/filesystem`, `@capacitor/screen-orientation`).
+  plugin list: `@capacitor/app`, `@capacitor/filesystem`, `@capacitor/haptics`,
+  `@capacitor/screen-orientation`).
 - `npm run android:apk` — sync, then `node scripts/gradlew.mjs assembleDebug`.
   Output: `android/app/build/outputs/apk/debug/app-debug.apk` (about 4.7 MB).
 - Install on a USB-debugging device or a running emulator:
@@ -140,11 +141,23 @@ CSS custom properties; if the cream token changes they must follow.
 `https://localhost`; supabase-js keeps its session in `localStorage`, which Android
 WebView persists across launches (cleared by "Clear data"). Cleartext HTTP is blocked
 (targetSdk 36 default, no network security config), which matches the app already
-refusing non-https media and game URLs outside dev. Only `INTERNET` is requested.
+refusing non-https media and game URLs outside dev. Permissions: `INTERNET` and
+`VIBRATE` (added by hand to `android/app/src/main/AndroidManifest.xml` for
+`@capacitor/haptics`); nothing else.
 The router uses browser history; Capacitor serves `index.html` for extensionless
 paths, so nested routes and refresh should work, but that is unverified on-device.
 
 **Not done yet:** release signing / keystore, an AAB for Play, real app icons and
 splash polish (the launcher icon is Capacitor's placeholder: TODO), FCM/push, deep
-links / App Links, `@capacitor/app` back-button handling, disabling `allowBackup`,
+links / App Links, disabling `allowBackup`,
 and iOS.
+
+**Testing the Back button with adb** (not yet run: no device was attached). Install
+(`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`), sign in as a
+student, then send Back with `adb shell input keyevent KEYCODE_BACK` and check:
+Home with its lesson card open (first Back closes the card only); a lesson reached from
+the roadmap (Back returns to the roadmap); a quiz after one answer and a game in play
+("Leave this lesson?" appears; Back again closes it); Badges, Courses or Profile (lands
+on Home); Home with nothing open (first Back shows "Press back again to exit", a second
+within 2 s closes the app, a second after 3 s only shows the toast again). Haptics need
+a real phone; an emulator reports success without vibrating.

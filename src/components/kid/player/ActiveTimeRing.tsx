@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { Check, Clock, Pause } from 'lucide-react'
+import { useBackClosable } from '@/hooks/useBackClosable'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import type { ClockPause } from '@/hooks/useLessonClock'
 import { clockText, spokenDuration } from '@/lib/lessonPlayer'
@@ -30,6 +32,8 @@ export function ActiveTimeRing({
   timeMet: boolean
   pause: ClockPause | null
 }) {
+  const [open, setOpen] = useState(false)
+  useBackClosable(open, () => setOpen(false))
   if (minSeconds <= 0) return null
   const shown = timeMet ? minSeconds : Math.min(seconds, minSeconds)
   const fraction = Math.min(1, shown / minSeconds)
@@ -37,7 +41,7 @@ export function ActiveTimeRing({
   const popoverText = playerCopy.ring.popover(clockText(shown), clockText(minSeconds))
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"

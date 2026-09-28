@@ -12,6 +12,7 @@ import {
   Sparkles,
   Trash2,
   Trophy,
+  Vibrate,
   Volume2,
 } from 'lucide-react'
 import { AuthField } from '@/components/auth/AuthField'
@@ -33,7 +34,10 @@ import {
   useUpdateDisplayName,
   type KidProfile,
 } from '@/hooks/useKidProfile'
+import { useBackClosable } from '@/hooks/useBackClosable'
+import { useHapticsSetting } from '@/hooks/useHapticsSetting'
 import { useSoundEffects } from '@/hooks/useSoundEffects'
+import * as haptics from '@/lib/haptics'
 import { supabase } from '@/lib/supabase'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -55,6 +59,8 @@ export function KidProfilePage() {
   const activity = useActivityDays()
   const [leaving, setLeaving] = useState(false)
   const [building, setBuilding] = useState(false)
+  // The avatar builder replaces the page like a full-screen sheet: Back cancels it.
+  useBackClosable(building, () => setBuilding(false))
 
   const updateAvatar = useUpdateAvatar()
 
@@ -160,6 +166,7 @@ export function KidProfilePage() {
 /** Collapsed by default — one tap reveals the three edit forms and the deletion request beneath them. */
 function AccountSection({ profile }: { profile: KidProfile }) {
   const [open, setOpen] = useState(false)
+  useBackClosable(open, () => setOpen(false))
   return (
     <section className="kid-card kp-card" aria-label="Account">
       <h2 className="kp-card-title kp-collapse-heading">
@@ -200,11 +207,12 @@ function AccountSection({ profile }: { profile: KidProfile }) {
 /** Sound preference, a mailto support row, and version/legal links — grouped under one card, same bounded-subsection pattern as Account. */
 function PreferencesSection() {
   const [soundEnabled, setSoundEnabled] = useSoundEffects()
+  const [hapticsEnabled, setHapticsEnabled] = useHapticsSetting()
   return (
     <section className="kid-card kp-card" aria-label="Preferences">
       <h2 className="kp-card-title">Preferences &amp; Support</h2>
       <div className="kp-subsection">
-        <h3 className="kp-subsection-title">Sound</h3>
+        <h3 className="kp-subsection-title">Sound &amp; haptics</h3>
         <div className="kp-toggle-row">
           <span className="kp-toggle-label">
             <Volume2 className="size-5" aria-hidden />
@@ -216,8 +224,34 @@ function PreferencesSection() {
             aria-checked={soundEnabled}
             className="kp-toggle kid-tap"
             data-on={soundEnabled}
-            onClick={() => setSoundEnabled(!soundEnabled)}
+            onClick={() => {
+              setSoundEnabled(!soundEnabled)
+              haptics.select()
+            }}
             data-testid="sound-toggle"
+          >
+            <span className="kp-toggle-thumb" />
+          </button>
+        </div>
+        <div className="kp-toggle-row">
+          <span className="kp-toggle-label">
+            <Vibrate className="size-5" aria-hidden />
+            Haptic feedback
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={hapticsEnabled}
+            aria-label="Haptic feedback"
+            className="kp-toggle kid-tap"
+            data-on={hapticsEnabled}
+            onClick={() => {
+              const next = !hapticsEnabled
+              setHapticsEnabled(next)
+              // Turning it on buzzes once as a preview; turning it off stays silent.
+              haptics.select()
+            }}
+            data-testid="haptics-toggle"
           >
             <span className="kp-toggle-thumb" />
           </button>
@@ -264,6 +298,7 @@ function DeleteAccountAction() {
   const deletionRequest = useDeletionRequest()
   const requestDeletion = useRequestDeletion()
   const [confirming, setConfirming] = useState(false)
+  useBackClosable(confirming, () => setConfirming(false))
 
   if (deletionRequest.data) {
     return (

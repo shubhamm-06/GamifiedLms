@@ -11,6 +11,8 @@ import {
   type QuizResult,
 } from '@/lib/lessonEngine'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
+import { useLeaveGuard } from '@/hooks/useBackClosable'
+import * as haptics from '@/lib/haptics'
 import { clockText, type LessonContent } from '@/lib/lessonPlayer'
 import { DEFAULT_PASS_PERCENTAGE } from '@/lib/lessonSettings'
 import { playerCopy } from '@/lib/playerCopy'
@@ -69,6 +71,8 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
   const [error, setError] = useState<string | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const moved = useRef(false)
+  // In progress = at least one answer locked in and not graded yet: Android Back asks first.
+  useLeaveGuard(Object.keys(revealed).length > 0 && !result)
 
   useEffect(() => {
     if (!moved.current) return
@@ -122,6 +126,8 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
     try {
       const r = await check.mutateAsync({ lessonId: lesson.id, questionId: question.id, optionId })
       setRevealed((prev) => ({ ...prev, [question.id]: r }))
+      if (r.correct) haptics.success()
+      else haptics.error()
     } catch (e) {
       // Nothing was locked in: let the child tap again.
       setAnswers((prev) => {
@@ -139,6 +145,11 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
       const r = await submit.mutateAsync({ lessonId: lesson.id, answers })
       setResult(r)
       moved.current = true
+      // A pass that opens the completion sheet is one moment: the sheet's own
+      // success() is that moment's haptic, so the pass does not add a second one.
+      const celebrates = r.completed && mode === 'play'
+      if (!r.passed) haptics.warning()
+      else if (!celebrates) haptics.success()
       // The shared gold sheet, only for a pass that completed the lesson right now.
       if (r.completed && mode === 'play') onCompleted(r.xpAwarded)
     } catch (e) {

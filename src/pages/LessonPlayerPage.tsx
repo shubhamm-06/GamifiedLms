@@ -21,6 +21,7 @@ import { VideoInfo } from '@/components/kid/player/VideoInfo'
 import { VideoLesson } from '@/components/kid/player/VideoLesson'
 import { NotEnrolledScreen } from '@/components/kid/roadmap/StateScreens'
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
+import { useLeaveGuard } from '@/hooks/useBackClosable'
 import { useCompleteGame, useCompleteLesson, useCourseLessonStates } from '@/hooks/useLessonEngine'
 import { useLessonClock } from '@/hooks/useLessonClock'
 import { useEnrollmentStatus, useLessonContent, type LoadedLesson } from '@/hooks/useLessonContent'
@@ -166,6 +167,8 @@ function PlayerLesson({
   const shownMode: PlayerMode = mode === 'play' && clock.completedRemotely ? 'replay' : mode
   const fatal = refusal ?? clock.fatal
   const nextLessonId = nextOpenLesson(states, lesson.id)?.lessonId ?? null
+  // A game in play: Android Back asks "Leave this lesson?" first (video and doc lessons do not).
+  useLeaveGuard(isGame && shownMode === 'play' && !fatal)
 
   // A video or game waits for the child's Play tap. One that cannot load at all
   // shows its error straight away instead of offering a Play that leads nowhere.

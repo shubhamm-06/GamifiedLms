@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Maximize, Minimize, Pause, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react'
+import { useBackClosable } from '@/hooks/useBackClosable'
 import { videoSource } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 import {
@@ -92,6 +93,11 @@ export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded }: 
       void orientate(false)
     }
   }, [])
+
+  // Android Back leaves fullscreen first, before anything navigates.
+  useBackClosable(fullscreen, () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+  })
 
   if (!source) {
     return (

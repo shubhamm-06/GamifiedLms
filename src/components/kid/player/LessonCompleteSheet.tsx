@@ -1,10 +1,12 @@
-import type { ComponentType, ReactNode } from 'react'
+import { useEffect, type ComponentType, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Check, Sparkles } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Drawer, DrawerContent, DrawerDescription, DrawerTitle } from '@/components/ui/drawer'
+import { useBackClosable } from '@/hooks/useBackClosable'
 import { useCountUp } from '@/hooks/useCountUp'
 import { MD_UP, useMediaQuery } from '@/hooks/useMediaQuery'
+import * as haptics from '@/lib/haptics'
 import { playerCopy } from '@/lib/playerCopy'
 import { Confetti } from './Confetti'
 
@@ -95,6 +97,12 @@ function Body({
  */
 export function LessonCompleteSheet({ open, onOpenChange, courseId, xpAwarded, alreadyDone, nextLessonId }: Props) {
   const isMdUp = useMediaQuery(MD_UP)
+  useBackClosable(open, () => onOpenChange(false))
+  // The celebration's one haptic. An XP award shown on this same sheet shares the
+  // moment, so it gets no separate tap (lib/haptics.ts coalesces anyway).
+  useEffect(() => {
+    if (open && !alreadyDone) haptics.success()
+  }, [open, alreadyDone])
   const focusPrimary = {
     onOpenAutoFocus: (e: Event) => {
       e.preventDefault()

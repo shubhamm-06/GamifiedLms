@@ -5,6 +5,7 @@ import { RouterProvider } from '@tanstack/react-router'
 import './index.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
+import { AndroidBackButton } from '@/components/native/AndroidBackButton'
 import { queryClient } from '@/lib/queryClient'
 import { router } from './router'
 
@@ -14,6 +15,7 @@ createRoot(document.getElementById('root')!).render(
       <TooltipProvider>
         <RouterProvider router={router} />
         <Toaster />
+        <AndroidBackButton />
       </TooltipProvider>
     </QueryClientProvider>
   </StrictMode>,

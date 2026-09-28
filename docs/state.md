@@ -135,8 +135,14 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **On-device bottom nav.** The nav's safe-area padding (`env(safe-area-inset-bottom)`) was
   checked in CSS and at 360 to 430px in Chromium, where the inset is 0; a real iPhone or the
   Capacitor webview has not been exercised.
-- **Native back-button handling and a Capacitor session audit** for the
-  student app — noted as follow-ups, not started (see Next steps).
+- **Android hardware Back and haptics are built, but unverified on a device**
+  (2026-09-28, `ui.md` "Android Back button" and "Haptics"): `@capacitor/app` and
+  `@capacitor/haptics` installed, the APK builds with both and requests `VIBRATE`.
+  No device or emulator was attached (the SDK at `C:\Android` has no emulator
+  package), so none of the adb Back checks in `env-deploy.md` has been run, and no
+  haptic has been felt on hardware. The pure priority logic was checked with an
+  ad-hoc script only (the repo has no test framework). A Capacitor session audit
+  is still a follow-up.
 - **Quiz explanations.** The correct option is now revealed after each answer
   (migration 024, `fn_check_quiz_answer`; `rules.md` amended). An explanation is still
   not sent anywhere: the quiz page has no place for one and `fn_submit_quiz` /
@@ -176,8 +182,7 @@ The schema or docs anticipate each of these; no working code exists for any.
   device or emulator. Not done: release signing / keystore, an AAB, real app icons
   and splash polish (the launcher icon is Capacitor's placeholder; the splash is a
   solid cream colour), FCM/push, deep links / Android App Links (Supabase email
-  confirmation links open in the browser, not the app), `@capacitor/app` back-button
-  handling, `allowBackup=true` (the template default) which lets the stored session
+  confirmation links open in the browser, not the app), `allowBackup=true` (the template default) which lets the stored session
   ride an Android backup. iOS was not added. Hosting is Vercel; no CI exists.
 - **A Course Builder "Additional" tab** (prerequisites/FAQs/audience). The
   schema has no columns for it; deliberately not built.
@@ -248,7 +253,7 @@ None.
 4. A student home/dashboard screen that links to `/courses/$courseId` — the
    roadmap currently has no entry point.
 5. Decide enrollment expiry (below) before any student is expected to lose access.
-6. Native back-button handling and a Capacitor session audit for the student app.
+6. Run the Android Back and haptics checks on a real device (`env-deploy.md`), then a Capacitor session audit.
 
 ## Open decisions & on the horizon
 
@@ -271,10 +276,11 @@ worked on.
   pausing is unaffected. Removing it needs a small migration
   (a `p_resumed` flag on `fn_lesson_heartbeat` that credits 0 and restarts the clock).
   In dev, React StrictMode sends the opening beat twice within a fraction of a second; harmless (the second credits 0).
-- **The Capacitor App plugin is not installed** (`@capacitor/app`), so the player
-  uses the Page Visibility API and online/offline events only. In a native webview
-  backgrounding may not fire `visibilitychange` reliably; adding the plugin's
-  `appStateChange` listener to `useLessonClock` is the fix, and needs a dependency approval.
+- **The lesson clock ignores app lifecycle.** `@capacitor/app` is now installed (for
+  the Back button only), but the player still uses the Page Visibility API and
+  online/offline events. In a native webview backgrounding may not fire
+  `visibilitychange` reliably; adding the plugin's `appStateChange` listener to
+  `useLessonClock` is the fix, deliberately left out of the Back-button task.
 - **Reading lessons are shown, not sanitised.** No HTML sanitiser is installed, so
   `content_html` is trusted only because it renders in a script-less sandboxed frame
   with a restrictive CSP (`rules.md`). An admin can still put a link or a big image

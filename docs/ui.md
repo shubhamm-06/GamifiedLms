@@ -468,7 +468,7 @@ confirmed against `document.documentElement.scrollWidth`, which stayed exactly
 equal to the viewport at every width — not a real overflow). Screenshots were
 saved to `review-shots/` (gitignored, not in the repo) and are not part of this
 commit. NOT exercised: a real device or the Capacitor webview, real safe-area
-insets, the native back button, and a physical screen reader (only programmatic
+insets, the native back button (built since, `ui.md` "Android Back button"), and a physical screen reader (only programmatic
 `role`/`aria-label`/focus checks).
 
 **The lesson player** (`pages/LessonPlayerPage.tsx`; components in
@@ -509,6 +509,54 @@ Courses and Profile are global and unchanged. Checked in Chromium at 360, 390 an
 430px against a gamification-off and a gamified fixture. (The game lesson's own
 in-frame result was verified through the engine reply, `xp_awarded = 0`, not by
 playing a real game bundle.)
+
+**Android Back button (2026-09-28).** Native only (`Capacitor.isNativePlatform()`):
+on the web nothing registers and browser Back is untouched. One listener,
+`AndroidBackButton` (`components/native/`), mounted once beside the router in
+`main.tsx`; the decision is the pure `decideBackAction` (`lib/backButton.ts`). Priority,
+first match wins, one action per press:
+1. **An open overlay closes**, the most recently opened first, and nothing else happens.
+   Registered through `useBackClosable(open, close)`: the roadmap lesson card (including
+   the one Home opens by itself on arrival, so the first Back on Home closes it rather
+   than arming exit), the completion sheet (dialog or drawer), the active-time ring's
+   popover, fullscreen video (exits fullscreen), the Profile avatar builder (cancels it),
+   the Profile "Account & Security" section (collapses it), the delete-account confirm,
+   and the "Leave this lesson?" dialog itself (Back = Keep going). Anything never wired
+   (admin dialogs, dropdowns, selects) is caught by a safety net: an open Radix layer is
+   closed with the same Escape it already handles. This applies on admin routes too, so
+   the app never exits or navigates under an open overlay.
+2. **A guarded lesson asks first**: a quiz with at least one answer locked in and not yet
+   graded, or a game lesson in play (`useLeaveGuard`). A themed dialog (kid card, Baloo 2,
+   coral icon badge): "Leave this lesson?" / "If you leave now, you will start this one
+   again next time." with **Keep going** (gold, primary) and **Leave** (quiet). Leave goes
+   back, or up to the course. Video and doc lessons never ask; they just go back. Never on
+   admin.
+3. **Badges, Courses or Profile** go to Home with `replace`, so Back never bounces between tabs.
+4. **Home, login, signup (and `/admin`)**: press again to exit. The first press shows a
+   small toast, "Press back again to exit", for 2 seconds; a second press inside that
+   window calls `App.exitApp()`. The window then resets.
+5. **Otherwise** history back if the router says there is any (`router.history.canGoBack()`,
+   TanStack's own per-entry index, reliable after replaces), else one level up with
+   `replace`: a lesson to its course, a course to Home, an admin page to `/admin`. Never
+   a loop: every fallback is a parent that itself has a defined Back.
+Admin routes use rules 1, 4 and 5 only. The listener is removed on unmount.
+
+**Haptics (2026-09-28).** `lib/haptics.ts` (`tap`, `select`, `success`, `warning`,
+`error`) wraps `@capacitor/haptics`; each is a silent no-op on the web, when the child
+turned it off, or if the plugin throws. **Kid-facing only, never admin, one haptic per
+event**: a second haptic within 400 ms is dropped, and coinciding moments are designed to
+produce one. Placements, and only these: quiz answer locked in (`success` right,
+`error` wrong); quiz graded (`warning` fail; `success` pass, unless that pass opens the
+completion celebration, whose own `success` is the moment's haptic); the shared gold
+completion celebration (`success` once, on open, not for an already-completed replay); a
+bottom-nav tab to another tab and an unlocked roadmap node tap (`tap`); the Profile sound
+and haptics toggles (`select`; turning haptics off is silent because the setting is saved
+first). The spec's separate "XP award" `tap` never fires on its own today: every XP award
+in the kid app is shown on the completion celebration, so it is folded into that one
+`success`. Nothing on scroll, drag, or ordinary buttons. **Profile toggle**: "Haptic
+feedback" sits directly under "Sound effects" in the renamed "Sound & haptics" subsection,
+same switch style, default on, stored like sound (`localStorage` `kid.hapticsEnabled`,
+`useHapticsSetting`). Both rows also show on the web, where neither does anything yet.
 
 **Unavailable screens (2026-09-28, migration 029).** A course a student can't open
 (still a draft, archived, or gone) and a lesson they can't open (a draft or

@@ -38,4 +38,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- @capacitor/haptics (kid-facing haptic feedback, lib/haptics.ts). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
 </manifest>

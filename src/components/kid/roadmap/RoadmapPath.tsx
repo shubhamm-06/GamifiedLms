@@ -5,6 +5,7 @@ import { useModuleSpy } from '@/hooks/useModuleSpy'
 import { prefersReducedMotion } from '@/hooks/useMediaQuery'
 import { useNodeCenters } from '@/hooks/useNodeCenters'
 import { clearLessonLeft, peekLessonLeft } from '@/lib/roadmapReturn'
+import { useBackClosable } from '@/hooks/useBackClosable'
 import { LessonPopover } from './LessonPopover'
 import { ModuleBar } from './ModuleBar'
 import { ModuleDivider } from './ModuleDivider'
@@ -124,6 +125,8 @@ export function RoadmapPath({
   // Row indices where a new module starts (not the first), which is where a divider sits.
   const breaks = rows.flatMap((r, i) => (r.position === 1 && i > 0 ? [i] : []))
   const openRow = open ? rows.find((r) => r.lesson.id === open.id) : undefined
+  // Android Back closes the lesson card first, including the one Home opens by itself on arrival.
+  useBackClosable(!!openRow && openRow.lesson.state !== 'locked', () => close(false))
 
   return (
     <div className="rm" data-testid="roadmap" ref={rootRef}>

@@ -7,6 +7,8 @@ build phase: admin-facing tooling only, no student-facing UI.
 
 **Stack (locked, all installed):**
 - React 19.2.8, TypeScript 6.0.3 — no new `.js`/`.jsx` (see `rules.md`)
+- Capacitor plugins: `@capacitor/app` 8.1.1 (Android Back, `components/native/AndroidBackButton.tsx`),
+  `@capacitor/haptics` 8.0.2 (`lib/haptics.ts`), `@capacitor/filesystem`, `@capacitor/screen-orientation`
 - Capacitor `@capacitor/core`+`@capacitor/cli`+`@capacitor/android` 8.5.0 — the
   Android platform is generated and committed (`android/`, app id
   `com.wisdomhatch.kids`, bundled assets only, no `server.url`); iOS is not
