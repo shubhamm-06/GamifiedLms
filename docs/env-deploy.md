@@ -75,8 +75,13 @@ already in `.env`):
 
 ## Where things run
 
-- **Frontend:** not deployed anywhere yet — local Vite dev server only
-  (`npm run dev`, port 5173). No hosting target configured.
+- **Frontend:** Vercel (`gamified-lms-five.vercel.app`), built with
+  `npm run build`, serving `dist`. `vercel.json` rewrites every path to
+  `/index.html` — the app uses path-based routing, so without it a direct
+  visit or refresh on any route but `/` (e.g. `/admin`) is a Vercel 404.
+  `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` must be set in the Vercel
+  project settings (the local `.env` is gitignored) and baked in at build
+  time, so changing them needs a redeploy. Local dev: `npm run dev`, port 5173.
 - **Backend:** Supabase project `Gamified LMS`
   (`dmmvftodhcdbubuljqme`, `ap-northeast-1`).
 - **Mobile:** Capacitor is installed but no native platform has been added
