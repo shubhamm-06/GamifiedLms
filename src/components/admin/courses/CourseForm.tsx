@@ -330,7 +330,9 @@ export function CourseForm({
           <div>
             <Label htmlFor="gamification_enabled">Gamification enabled</Label>
             <p className="text-muted-foreground text-xs">
-              Not enforced anywhere in the system yet — XP and badges still accrue either way.
+              Turning this off disables XP, levels, streaks, badges and lesson counts for this course.
+              It is not retroactive: XP, badges and counts already earned are kept, and only
+              completions from now on follow the setting.
             </p>
           </div>
           <Switch

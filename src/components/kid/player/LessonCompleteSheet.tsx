@@ -37,7 +37,9 @@ function Body({
   return (
     <div className="px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] text-center" data-testid="complete-sheet">
       <div className="relative">
-        {xpAwarded > 0 && !alreadyDone ? <Confetti /> : null}
+        {/* The celebration is for finishing, not for earning: a course with
+            gamification off awards no XP but still gets the burst. */}
+        {!alreadyDone ? <Confetti /> : null}
         <div className="lp-medallion" aria-hidden="true">
           <Check className="size-9" strokeWidth={3.5} />
         </div>

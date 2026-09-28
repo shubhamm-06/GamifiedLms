@@ -1713,6 +1713,9 @@
   /* The course name is a link, not a stat: no pill, teal-d (6.2:1 on cream),
      underlined, with a chevron. 44px tall hit target inside the 48px bar. */
   .kid-statbar-course {
+    /* Stays on the right whether or not the stat pills are shown (they are
+       hidden for a gamification-off course). */
+    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 0.125rem;

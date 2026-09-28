@@ -96,7 +96,8 @@ nav entry is a real route):
   unapplied, see below), RLS on every table, the
   XP → level/streak/badge trigger machinery, the lesson-completion XP award
   (`fn_award_lesson_xp`, skipped for courses with `gamification_enabled =
-  false`), and an admin-editable level curve.
+  false`, which since migration 030 also skips the lesson count and badges;
+  not retroactive, `rules.md`), and an admin-editable level curve.
 - Trash-first deletion (migrations 013 and 014, the Edge Function's `trash` /
   `restore` / `delete`, and the UI above): soft delete on courses, modules,
   lessons, games, badges and profiles, hidden through parents, RLS-enforced
@@ -381,12 +382,12 @@ worked on.
   game and quiz. `text` lessons pre-fill 90 s (and the column default gives every
   existing lesson 90), the same as video and game. Say if reading time should
   default to Off instead.
-- **What `courses.gamification_enabled = false` should mean.** It gates lesson
-  XP only. `fn_update_lessons_completed` — the `lessons_completed` counter bump
-  and the badge evaluation it runs — ignores it, so a gamification-off course
-  still increments `user_stats.lessons_completed` and can unlock
-  `lessons_completed`/`course_complete` badges (verified live). See `rules.md`.
-  The dashboard's attention-item copy already says exactly this.
+- **Empty courses count as finished for `course_complete`.**
+  `fn_evaluate_badges` treats a gamified course with zero published lessons as
+  complete (its "no incomplete lesson" check is vacuously true), so an active
+  enrollment in one counts toward `course_complete` badges. Found during the
+  migration-030 audit; not changed. A one-line fix is an `exists` guard on at
+  least one published lesson.
 - **Should a manual XP award move the streak?** `fn_process_xp_transaction`
   treats every `xp_transactions` insert alike, so an admin award always sets
   `last_activity_date` to today and advances or resets `current_streak`

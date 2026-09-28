@@ -131,6 +131,20 @@ page shows is chosen from the server's answers, in this order:
    course's `gamification_enabled`), `lesson_effective_xp`, and for a game lesson the
    `games` row are read, and quiz questions come from `quiz_questions_public` only.
 
+**Gamification flag (migration 030).** For a course with `courses.gamification_enabled
+= false` the engine behaves exactly the same for access, progress and unlocking
+(`fn_lesson_heartbeat`, `fn_complete_lesson`, `fn_submit_quiz`, `fn_check_quiz_answer`,
+`fn_complete_game`, `fn_course_lesson_states` are not gated on it and keep every
+error code), but a completion there creates no XP, moves no level, streak or
+`last_activity_date`, does not bump `user_stats.lessons_completed` and triggers or
+counts toward no badge, so every reply carries `xp_awarded = 0`. The flag is read
+only inside the database triggers and functions (`fn_award_lesson_xp`,
+`fn_complete_game`, `fn_update_lessons_completed`, `fn_evaluate_badges`); the client
+never decides it and reads the course's flag only to hide XP UI (it already loads it
+with the course/lesson row, so no extra request). Not retroactive: flipping the flag
+never deletes or recomputes existing XP, badges or counters. Manual admin XP awards
+are not gated by it.
+
 While a lesson is open the same rules apply live: a heartbeat, quiz submission or
 completion refused with `locked`, `not_enrolled` or `lesson_unavailable` swaps the
 page for the matching screen (or the locked redirect). A failed background refetch

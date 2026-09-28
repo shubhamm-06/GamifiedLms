@@ -130,15 +130,13 @@ export function useNeedsAttention() {
         {
           id: 'gamification-disabled',
           count: gamificationOff,
-          // Wording matters: since migration 012 this flag gates lesson XP
-          // (fn_award_lesson_xp) and NOTHING else — the lessons_completed
-          // counter and the badges it can unlock still accrue. The item
-          // exists to surface that partial enforcement, not to imply the
-          // setting turns gamification off wholesale. See rules.md.
+          // Since migration 030 the flag turns gamification off wholesale for
+          // the course: no XP, levels, streaks, badges or lesson counts from
+          // its completions (not retroactive). See rules.md.
           label:
             gamificationOff === 1
-              ? '1 course has gamification switched off (lesson XP is skipped, but lesson counts and badges still accrue)'
-              : `${gamificationOff} courses have gamification switched off (lesson XP is skipped, but lesson counts and badges still accrue)`,
+              ? '1 course has gamification switched off (no XP, levels, streaks, badges or lesson counts there)'
+              : `${gamificationOff} courses have gamification switched off (no XP, levels, streaks, badges or lesson counts there)`,
           tone: 'plum',
           to: '/admin/courses',
         },

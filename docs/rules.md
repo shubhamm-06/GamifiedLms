@@ -486,16 +486,27 @@ belongs in `context.md` or `state.md`, not here.
   carry the `WHERE source_id IS NOT NULL` predicate matching the partial
   dedupe index `uq_xp_transactions_dedupe` — a bare column list fails with
   `42P10`.
-- **`courses.gamification_enabled = false` disables lesson XP ONLY — do not
-  assume it turns off gamification wholesale.** `fn_update_lessons_completed`
-  (the `lessons_completed` counter bump) and the badge evaluation it triggers
-  are not gated on it, so a gamification-off course still increments
-  `user_stats.lessons_completed` and can still unlock
-  `lessons_completed`/`course_complete` badges. This was flagged, verified
-  live, and deliberately left unfixed when the XP award landed (fixing it means
-  deciding what "gamification off" should mean for badges, a product call) —
-  see `state.md`. Nothing may rely on "gamification off ⇒ no gamification
-  side effects" until that's resolved.
+- **A course with `courses.gamification_enabled = false` produces no XP, no
+  levels, no streak movement, no `lessons_completed` count and no badges, and
+  it is NOT retroactive (migration 030).** Completing a lesson there (video,
+  doc, quiz, game) still records progress and unlocks the next lesson, but
+  creates no `xp_transactions` row (`fn_award_lesson_xp`, `fn_complete_game`),
+  so it never reaches `fn_process_xp_transaction` (xp, level, streak,
+  `last_activity_date`), does not bump `user_stats.lessons_completed`, and does
+  not evaluate or count toward any badge (`fn_update_lessons_completed` guards on
+  the lesson's course flag, silently, treating an unresolvable course as
+  gamified; `fn_evaluate_badges` counts only gamified courses toward
+  `course_complete`). Flipping the flag never deletes or recomputes existing
+  XP, badges or counters and never revokes a badge: only completions from that
+  moment on follow the flag (a course finished while on stops counting toward
+  `course_complete` on later evaluations, but an already-earned badge stays).
+  Manual admin awards are not gated by the flag and still flow through
+  `fn_process_xp_transaction` unchanged. `fn_admin_reset_course_progress`
+  decrements `lessons_completed` only when the course CURRENTLY has the flag on
+  (clamped at 0); that is an approximation, since nothing records the flag per
+  completion, so a course flipped mid-way is judged by the flag at reset time.
+  Any new function that awards XP, bumps a counter or awards a badge from a
+  lesson completion must respect the flag the same way.
 - **Every kid-facing (student) route follows the mobile app rules, not just
   the one screen that introduced them.** Touch targets ≥ 44 px and nothing may
   depend on `:hover` (only inside `@media (hover: hover)`); use `dvh`, never

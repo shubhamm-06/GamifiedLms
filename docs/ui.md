@@ -492,6 +492,24 @@ chips; a Completed chip in replay; summary; the lesson body: `VideoLesson` |
 `PrimaryLink`) and `LessonCompleteSheet` (with `Confetti` and `useCountUp`).
 Errors and empty content share one pattern, `PlayerError`.
 
+**Gamification-off courses hide every reward (2026-09-28, migration 030).** For a
+course with `gamification_enabled = false` a student sees no XP anywhere: no "+N XP"
+chip on roadmap nodes or in the lesson popover (`roadmap.ts` sets `xp = null`), no XP
+pill on the video, doc or quiz lesson pages (`LessonPlayerPage` passes `xp` only when
+`lesson.gamificationEnabled`), no XP line in the completion sheet, quiz result or
+game result (they render only when the engine's `xpAwarded > 0`, and it is 0 for
+these courses). There is no level-up UI. Completion is still celebrated: the
+completion sheet's medallion and confetti show on every first completion, not only
+when XP was earned. **Home's stat bar** (`StatBar`) hides the streak and XP pills
+when the Home course has the flag off, and also while the flag is still unknown (the
+roadmap query is loading, or there is no course), reading the flag from the
+roadmap's already-cached content query, so no new request; the bar keeps its fixed
+height and the course-name link stays pinned right (`margin-left: auto`). Badges,
+Courses and Profile are global and unchanged. Checked in Chromium at 360, 390 and
+430px against a gamification-off and a gamified fixture. (The game lesson's own
+in-frame result was verified through the engine reply, `xp_awarded = 0`, not by
+playing a real game bundle.)
+
 **Unavailable screens (2026-09-28, migration 029).** A course a student can't open
 (still a draft, archived, or gone) and a lesson they can't open (a draft or
 unpublished lesson) end on the same compass `Screen`, with copy at two levels and
