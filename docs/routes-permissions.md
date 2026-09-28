@@ -98,19 +98,29 @@ live as `PGRST200`), and `fn_course_lesson_states` (the lock-state source of
 truth). One content query plus one RPC call per page load, verified over the
 real network log. **Admins get no special treatment on this page.** The admin panel's "View course" links here in a new tab; an admin who is **not enrolled** in that course sees the "not enrolled" screen — **by design for now** (no preview mode, no enrollment bypass; `state.md` lists a preview mode as a follow-up). The same URL shows the roadmap to an enrolled student. Opening it from an unenrolled admin session logs one expected `400` on `rpc/fn_course_lesson_states` (the engine's `not_enrolled` refusal) in that tab's console.
 
-**Finding, not a route bug:** `lessons_select_enrolled_or_preview_or_admin`
-has no `status = 'published'` check, so an enrolled student's direct table read
-returns draft lessons too (confirmed live); the page filters `status` itself
-since it must anyway to match the engine's sequence, so nothing leaks to the
-screen, but a different reader of this table would see them. Recorded in
-`state.md`; fixing the policy is a one-line, separately-scoped change.
+**Student visibility (migration 029).** A student reaches only **published,
+non-trashed** courses and lessons; `archived` means unavailable to every
+student. `lessons_select_enrolled_or_preview_or_admin`, `modules_select_enrolled_or_admin`,
+the `lesson_content_blocks` policy and the `lesson_effective_xp` /
+`quiz_questions_public` views all require `fn_course_is_reachable` /
+`fn_lesson_is_reachable`, so a draft lesson or an archived course returns no rows
+to a direct read (a preview lesson in an archived course too), and the engine
+(`fn_lesson_states`, `fn_course_lesson_states`) refuses both with the existing
+`lesson_unavailable`. A student in an archived course therefore gets the same
+unavailable screen as for any unavailable course, and the course is absent from
+Home (`fn_home_course`) and `/courses`; their enrollment, progress and XP are
+untouched, so republishing restores everything. Admin access is unchanged
+(admins read archived courses and draft lessons through the admin branches). The
+page still filters `lessons.status = 'published'` itself, which now only matters
+for an admin who is also enrolled.
 
 **The lesson player route** (`/courses/$courseId/lessons/$lessonId`). Everything the
 page shows is chosen from the server's answers, in this order:
 1. `fn_course_lesson_states(courseId)` refused `not_enrolled` (no enrollment, an
    `expired` or `revoked` one, a trashed user, an admin who is not enrolled): the
-   not-enrolled screen. `lesson_unavailable` (draft or trashed course): the
-   unavailable screen.
+   not-enrolled screen. `lesson_unavailable` (draft, archived or trashed course):
+   the unavailable screen ("This lesson hasn't launched yet"; the course page shows
+   "This course hasn't launched yet").
 2. The lesson is absent from the states (unpublished, trashed, or the id belongs to
    another course): the unavailable screen. Nothing is fetched for it.
 3. The lesson's state is `locked`: `<Navigate>` to `/courses/$courseId?open=<lessonId>`

@@ -492,6 +492,19 @@ chips; a Completed chip in replay; summary; the lesson body: `VideoLesson` |
 `PrimaryLink`) and `LessonCompleteSheet` (with `Confetti` and `useCountUp`).
 Errors and empty content share one pattern, `PlayerError`.
 
+**Unavailable screens (2026-09-28, migration 029).** A course a student can't open
+(still a draft, archived, or gone) and a lesson they can't open (a draft or
+unpublished lesson) end on the same compass `Screen`, with copy at two levels and
+no query to tell them apart. Course page (`UnavailableScreen`, `StateScreens.tsx`):
+"This course hasn't launched yet" / "Something fun is on its way. Check back
+soon!" plus Go back. Lesson player (`LessonUnavailableScreen`,
+`playerCopy.edge.unavailableInitial`): "This lesson hasn't launched yet" /
+"Something fun is on its way. Your path is waiting for you!" plus Back to path.
+The mid-session variant ("This lesson is being updated") is unchanged. No em
+dashes in the copy. Checked in Chromium at 360, 390 and 430px (no horizontal
+overflow, Baloo 2, existing tokens); the other "isn't ready" screens (video, game,
+quiz content problems) are a different case and keep their wording.
+
 ### Typography scale
 
 | Role | Size / line-height | Weight | CSS var pair | Use |

@@ -645,10 +645,10 @@ is PostgREST/Auth, not the engine. A nonexistent lesson id answers
 `lesson_unavailable` while an existing lesson in an unenrolled course answers
 `not_enrolled` — a lesson-id existence oracle; ids are random UUIDs, accepted.
 
-**Enrollment rule** — mirrors `lessons_select_enrolled_or_preview_or_admin`
-exactly and lives only in `fn_is_enrolled`: an `enrollments` row for the user and
-course with `status = 'active'`. It does **not** read `expires_at` and does not look
-at the course status (the sequence does, below). **Finding, not changed:** nothing
+**Enrollment rule** — mirrors the enrollment leg of
+`lessons_select_enrolled_or_preview_or_admin` and lives only in `fn_is_enrolled`: an
+`enrollments` row for the user and course with `status = 'active'`. It does **not**
+read `expires_at` and does not look at the course status (the sequence does, below). **Finding, not changed:** nothing
 in the database ever sets `status = 'expired'` (no function mentions it) and
 `expires_at` is read by no policy, function or trigger, so an enrollment past its
 `expires_at` still works everywhere — engine included (verified: status `active`
@@ -657,8 +657,8 @@ with `expires_at` three days ago was accepted; status `expired` was refused
 
 **Course order and lock state** (`fn_lesson_states`). A lesson is in the sequence
 only if it is not trashed, is `status = 'published'`, its course is not trashed
-and is `published` or `archived` (a `draft` course has no sequence), and it is
-ungrouped or in a non-trashed topic. Order: topics by `(position, created_at,
+and is `published` (migration 029: a `draft` or `archived` course has no
+sequence), and it is ungrouped or in a non-trashed topic. Order: topics by `(position, created_at,
 id)`, each topic's lessons by `(position, created_at, id)`, then **ungrouped
 lessons after every topic** by the same key, however low their `position`.
 Trashed and unpublished lessons and lessons in trashed topics are skipped — they
@@ -668,8 +668,27 @@ completed** (identical to "the previous lesson is completed" for normal progress
 and it stays correct if an admin inserts or reorders lessons after students have
 progressed); else `in_progress` if they have a row that is started (heartbeat,
 attempt) ; else `available`. The first lesson is always unlocked; the first lesson
-of a topic unlocks when the previous topic is complete. `archived` courses work
-like `published` ones (the existing lessons policy allows it).
+of a topic unlocks when the previous topic is complete. **`archived` courses do
+not work for students (migration 029)**: `fn_lesson_states` and
+`fn_course_lesson_states` no longer admit them, so `fn_engine_guard` (and through
+it heartbeat, complete, submit quiz, check answer, complete game),
+`fn_caller_lesson_unlocked` and `fn_lesson_unlocked_for` all answer
+`lesson_unavailable` / `false` exactly as for any unavailable course. Enrollment,
+progress and XP rows are untouched, so republishing restores everything.
+
+**Student visibility helpers (migration 029).** `fn_course_is_reachable(course)`:
+the course is `status = 'published'` and `fn_course_is_live` (not trashed).
+`fn_lesson_is_reachable(lesson)`: the lesson is `status = 'published'` AND
+`fn_lesson_is_live(lesson)` AND `fn_course_is_reachable(its course)`. Both are
+`SECURITY DEFINER`, `STABLE`, `search_path = public`, `EXECUTE` for `PUBLIC`, `anon`,
+`authenticated` and `service_role` — identical to `fn_course_is_live` /
+`fn_lesson_is_live`. Used by: the `lessons`, `modules` and `lesson_content_blocks`
+SELECT policies and the `lesson_effective_xp` and `quiz_questions_public` views (each
+keeps its admin branch, preview rule and unlock rule; only the reachability
+requirement is added). **`fn_course_is_live` and `fn_lesson_is_live` intentionally keep
+meaning "not trashed"** and are unchanged: `fn_update_lessons_completed` (the
+`lessons_completed` and badge-evaluation trigger) still uses `fn_lesson_is_live`, and
+its behaviour must not depend on a course's publication state.
 
 **Helpers** (all in `public`; `EXECUTE` revoked from `public`/`anon`/`authenticated` unless
 stated): `fn_engine_error(code)` (raises), `fn_is_enrolled(user, course)`,
@@ -770,7 +789,10 @@ authenticated` and grant only `SELECT` (`rules.md`).
   courses.default_lesson_xp)`, so the client never does this fallback itself.
   Rows follow the `lessons` SELECT policy since 017: live lessons that are
   `is_preview`, or in a course the caller is actively enrolled in
-  (`fn_caller_enrolled`), or everything for an admin. It used to list every
+  (`fn_caller_enrolled`), or everything for an admin. Since migration 029 a
+  non-admin row also requires `fn_lesson_is_reachable` (a published lesson in a
+  published course), so draft lessons and archived courses expose no XP row; the
+  admin branch is unchanged (live lessons, any status). It used to list every
   live lesson's id and XP to every caller. Kept as definer; conversion to
   invoker was not attempted. It joins `courses`, whose SELECT policy shows a
   student only *published* courses, so an invoker view would (inferred from the
@@ -792,9 +814,11 @@ authenticated` and grant only `SELECT` (`rules.md`).
   definer because `quiz_questions` is admin-only and RLS cannot hide single
   columns. **Recreated in 017 without `explanation`** (it used to be exposed, and
   can give the answer away); `correct_option` was never in it. Rows: everything
-  for an admin; otherwise a live, `published` lesson that is `is_preview` or
-  that the caller has unlocked (`fn_caller_lesson_unlocked` — enrolled and not
-  locked in the engine's sequence). Previously any enrolled student saw every
+  for an admin; otherwise a reachable (migration 029: `fn_lesson_is_reachable`,
+  i.e. a `published` lesson in a `published`, non-trashed course), `published`
+  lesson that is `is_preview` or that the caller has unlocked
+  (`fn_caller_lesson_unlocked` — enrolled and not locked in the engine's
+  sequence). Previously any enrolled student saw every
   quiz of the course from the start. `SELECT` to `authenticated` only.
 
   A preview lesson's questions (and its `lessons` row) are readable by any
@@ -918,9 +942,9 @@ explicitly; don't lean on this.
 |---|---|---|---|---|
 | `profiles` | self (not trashed) or admin | — (via signup trigger, not a policy) | self (own row, not trashed) or admin (any row; `role` guarded by trigger, `deleted_at`/`deleted_by` by the trash-column guard) | — |
 | `courses` | `status='published'` and not trashed, or admin | admin | admin | admin, only when trashed |
-| `modules` | actively-enrolled in a live course and module not trashed, or admin | admin | admin | admin, only when trashed |
-| `lessons` | live lessons only (`fn_lesson_is_live`) that are `is_preview` or actively-enrolled, or admin | admin | admin | admin, only when trashed |
-| `lesson_content_blocks` | admin, or blocks of a live, `published` lesson that is `is_preview` or actively-enrolled (not trashed) | admin | admin | admin |
+| `modules` | actively-enrolled in a **published**, non-trashed course (`fn_course_is_reachable`) and module not trashed, or admin | admin | admin | admin, only when trashed |
+| `lessons` | **published** lessons in a **published** course, not trashed (`fn_lesson_is_reachable`), that are `is_preview` or actively-enrolled, or admin (any status) | admin | admin | admin, only when trashed |
+| `lesson_content_blocks` | admin, or blocks of a reachable (`fn_lesson_is_reachable`), `published` lesson that is `is_preview` or actively-enrolled (not trashed) | admin | admin | admin |
 | `games` | any authenticated and not trashed, or admin | admin | admin | admin, only when trashed |
 | `quiz_questions` | admin only (base table) | admin | admin | admin |
 | `quiz_attempts` | self (not trashed) or admin | `service_role` policy only; students write it only through `fn_submit_quiz` | — | — |
@@ -1051,6 +1075,7 @@ table.
 | 026 | `20260927000000_026_avatar_config.sql` | 2026-09-27 (live version in `list_migrations`; applied via the CLI `--db-url` fallback, `env-deploy.md`, the MCP connector was unavailable this session) | `profiles.avatar_config jsonb`, nullable, with a shape CHECK requiring exactly the four keys `base`/`topper`/`face`/`accent` (both directions — missing AND extra keys refused, caught in testing: `->>` on a missing key is SQL NULL and `NULL = ANY(...)` is NULL, not FALSE, so a CHECK checking only "no extra keys" would have silently accepted a partial config) and each value from its fixed set (`src/lib/avatar.ts`). No RLS change: covered by the existing whole-row `profiles_select_self_or_admin`/`profiles_update_self` policies |
 | 027 | `20260927010000_027_deletion_requests.sql` | 2026-09-27 (applied via the CLI `--db-url` fallback, one statement per call — the pooler's transaction mode refused the whole file as one prepared statement) | New `deletion_requests` table (`id`, `user_id` → `profiles(id)` `ON DELETE CASCADE`, `requested_at`): a student's self-service "please delete my account" request, recorded only — no automatic action. RLS: self SELECT/INSERT (the migration-014 "own row, minus a trashed caller's stale token" shape) or admin SELECT; no UPDATE or DELETE policy for any client role, so a request is a permanent record. Not on the Edge Function's `delete` blocker list (schema.md section 7) — a request row cascades away silently if that student is later hard-deleted, acceptable since the request is moot once fulfilled |
 | 028 | `20260928000000_028_quiz_pass_percentage_quiz_only.sql` | 2026-09-28 (applied via the CLI `--db-url` fallback, one statement per call) | Reshapes `lessons.pass_percentage` rather than adding a second, functionally-identical column (the admin quiz-authoring task asked for a new nullable `quiz_pass_threshold`, which is exactly what this column already was): dropped `NOT NULL`/`DEFAULT 60`, backfilled every non-quiz lesson's value to `NULL` (13 rows — all still at the old blanket default, never meaningful), replaced `lessons_pass_percentage_check` with a `0–100 or null` range check plus a new bidirectional `lessons_pass_percentage_quiz_only_check ((content_type = 'quiz') = (pass_percentage is not null))`. `fn_submit_quiz` untouched — every quiz lesson keeps a concrete value under the new CHECK, so its existing grading arithmetic never sees a NULL; `app_settings.quiz_pass_threshold_percent` (010, still read by nothing) untouched too, wiring it in as a site-wide fallback is a separate later change |
+| 029 | `20260928100000_029_student_visibility_published_only.sql` | 2026-09-28 (applied via the CLI `--db-url` fallback, one statement per call; stamped by hand) | Students reach only published, non-trashed courses and lessons. New `fn_course_is_reachable` / `fn_lesson_is_reachable` (same attributes and grants as the `*_is_live` helpers); `lessons`, `modules` and `lesson_content_blocks` SELECT policies and the `lesson_effective_xp` / `quiz_questions_public` views repointed to them (admin branches, preview and unlock rules kept); `archived` removed from `fn_lesson_states` and `fn_course_lesson_states`, so the whole engine refuses an archived course with the existing `lesson_unavailable`. `fn_course_is_live`, `fn_lesson_is_live` and `fn_update_lessons_completed` untouched. Closes the two `state.md` findings (archived-course inconsistency, enrolled students reading draft lessons) |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named

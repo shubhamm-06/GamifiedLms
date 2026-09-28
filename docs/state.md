@@ -306,13 +306,6 @@ worked on.
   lesson engine (observed with a status-`active` enrollment three days past
   `expires_at`). Decide whether to enforce it in `fn_is_enrolled` (one place, the
   lessons policy would then need the same change) or set `'expired'` on a schedule.
-- **Enrolled students can read draft lessons directly.** From the policy text
-  (not exercised over REST): `lessons_select_enrolled_or_preview_or_admin` gates on
-  `fn_lesson_is_live` (trashed or not) and enrollment, with no `status =
-  'published'` check, so a draft lesson's row is readable by an enrolled student.
-  The engine ignores drafts (they are not in the sequence and every function
-  answers `lesson_unavailable`); the table read is the leftover. Adding the status
-  check to the policy is a one-line change.
 - **A heartbeat under-credits by up to a second per beat.** It credits whole
   seconds and stamps `last_heartbeat_at = now()`, dropping the fraction: 10 s
   beats were credited 10 for gaps of 10.43, 10.84 and 10.76 s. Twelve back-to-back
@@ -347,16 +340,6 @@ worked on.
 - **Preview lessons are readable by any signed-in user, a trashed one included**
   (existing `lessons` policy); `quiz_questions_public` and `lesson_effective_xp`
   mirror it.
-- **An enrolled student in an ARCHIVED course sees the "isn't ready" screen,
-  not the roadmap — an inconsistency between two rules, not a bug in either.**
-  The lesson engine treats `archived` the same as `published` (mirroring the
-  `lessons` policy), but `courses_select_published_or_admin` only shows
-  `status = 'published'` rows to a non-admin, so `CoursePage`'s course-content
-  query returns no course row and the page can't tell "archived" apart from
-  "doesn't exist" — it shows `UnavailableScreen`. Observed live with a fixture
-  archived course. Fixing it means either loosening the courses policy to admit
-  `archived`, or having the page ask the engine (which already allows it)
-  instead of the courses table for this one fact.
 - **The course-content query can't embed `lesson_effective_xp`.** No FK path
   exists from `lessons` to that view (confirmed live, `PGRST200`), so
   `useCourseRoadmap` fetches it as a second, unfiltered request in parallel

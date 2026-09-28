@@ -71,13 +71,18 @@ export function NoCoursesScreen() {
   )
 }
 
+/**
+ * Any course a student can't open: still a draft, archived, or gone. The
+ * engine and the courses policy both answer "not available" the same way for
+ * all three, so this one screen covers them (migration 029).
+ */
 export function UnavailableScreen() {
   return (
     <Screen
       testId="state-unavailable"
       icon={<Compass className="size-8" aria-hidden />}
-      title="This course isn't ready yet"
-      body="Please check back a little later."
+      title="This course hasn't launched yet"
+      body="Something fun is on its way. Check back soon!"
     >
       <BackButton />
     </Screen>

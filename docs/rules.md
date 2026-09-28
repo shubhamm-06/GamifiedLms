@@ -249,6 +249,18 @@ belongs in `context.md` or `state.md`, not here.
   sessions — and a client-side write to the flag alone would skip the ban and
   every guard. The enforcement is the `fn_guard_profile_trash_columns` and
   `fn_stamp_deleted_by` triggers.
+- **A student reaches only published, non-trashed courses and lessons, and
+  `archived` means unavailable to every student.** Anything on the student side
+  that decides whether a course or lesson is visible or playable (a policy, a
+  view, an engine function) must use `fn_course_is_reachable` /
+  `fn_lesson_is_reachable`, or an equivalent `status = 'published'` plus
+  not-trashed check, and must never admit `draft` or `archived`. Draft lessons are
+  never readable by a student, including by a direct table read. This applies to
+  students only: admins keep full access to archived courses and draft lessons,
+  and archiving never touches enrollments, progress or XP, so republishing
+  restores everything. `fn_course_is_live` / `fn_lesson_is_live` are the separate
+  "not trashed" predicates (XP, badges, counters); do not stretch either to mean
+  "published".
 - **Trashed content must not earn XP or badges, and a trashed user must not
   count toward `courses.total_students`.** `fn_award_lesson_xp`,
   `fn_update_lessons_completed` and `fn_evaluate_badges` skip trashed

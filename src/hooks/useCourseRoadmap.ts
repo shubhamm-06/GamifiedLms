@@ -17,9 +17,11 @@ export const courseContentKey = (courseId: string) => ['course', 'content', cour
  * in parallel, unfiltered: RLS already limits it to lessons this student may
  * see. (Adding `course_id` to the view would let it be filtered — see state.md.)
  *
- * `lessons.status = 'published'` is filtered here because RLS lets an enrolled
- * student read DRAFT lessons directly (observed live); trashed rows and rows
- * under a trashed module or course never arrive.
+ * RLS already hides draft lessons from a student (migration 029; before that
+ * they were readable directly). The `lessons.status = 'published'` filter is
+ * kept on purpose: it also stops an admin who is enrolled from seeing drafts on
+ * the student roadmap. Trashed rows and rows under a trashed module or course
+ * never arrive.
  */
 async function fetchCourseContent(courseId: string): Promise<CourseContent> {
   const [courseRes, xpRes] = await Promise.all([
@@ -104,8 +106,9 @@ export function useCourseRoadmap(courseId: string): RoadmapScreen {
     }
   }
   if (!content.data || !states.data || !roadmap) return { kind: 'loading' }
-  // Enrolled, but the course row isn't readable (an archived course: the
-  // courses policy only shows published ones, unlike the engine — state.md).
+  // Enrolled, but the course row isn't readable (a draft or archived course:
+  // the courses policy shows students published ones only). The engine now
+  // refuses these too (migration 029), so this is a belt-and-braces fallback.
   if (!content.data.course) return { kind: 'unavailable' }
   if (roadmap.totalLessons === 0) return { kind: 'empty', title: content.data.course.title }
   return {

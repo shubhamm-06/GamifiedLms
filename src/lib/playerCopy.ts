@@ -148,8 +148,8 @@ export const playerCopy = {
       button: 'Back to home',
     },
     unavailableInitial: {
-      heading: "This lesson isn't ready",
-      body: "Please check back soon. Your path is waiting for you.",
+      heading: "This lesson hasn't launched yet",
+      body: 'Something fun is on its way. Your path is waiting for you!',
     },
     unavailableMidSession: {
       heading: 'This lesson is being updated',

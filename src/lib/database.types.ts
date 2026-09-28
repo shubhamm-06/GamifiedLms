@@ -1237,6 +1237,7 @@ export type Database = {
         }[]
       }
       fn_course_is_live: { Args: { p_course_id: string }; Returns: boolean }
+      fn_course_is_reachable: { Args: { p_course_id: string }; Returns: boolean }
       fn_course_lesson_states: {
         Args: { p_course_id: string }
         Returns: {
@@ -1301,6 +1302,7 @@ export type Database = {
         }[]
       }
       fn_lesson_is_live: { Args: { p_lesson_id: string }; Returns: boolean }
+      fn_lesson_is_reachable: { Args: { p_lesson_id: string }; Returns: boolean }
       fn_lesson_states: {
         Args: { p_course_id: string; p_user_id: string }
         Returns: {
