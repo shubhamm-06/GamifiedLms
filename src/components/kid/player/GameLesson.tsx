@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Gamepad2, PartyPopper, RotateCw } from 'lucide-react'
 import { useMediaQuery } from '@/hooks/useMediaQuery'
+import { useKeepAwake } from '@/hooks/useKeepAwake'
 import { isFromGame, originOf, parseGameMessage } from '@/lib/gameBridge'
 import { loadGameEntry, withBase, type GameEntry } from '@/lib/gameCache'
 import { lockGameOrientation, unlockGameOrientation } from '@/lib/gameOrientation'
@@ -46,6 +47,9 @@ export function GameLesson({ game, courseId, onComplete, ack }: Props) {
   const [loaded, setLoaded] = useState(false)
   const [timedOut, setTimedOut] = useState(false)
   const frame = useRef<HTMLIFrameElement>(null)
+  // A game needs no touch for long stretches (watching, thinking): keep the screen on
+  // while it is on screen with a playable game; released on leave and in the background.
+  useKeepAwake(!!src)
   const completeRef = useRef(onComplete)
   useEffect(() => {
     completeRef.current = onComplete

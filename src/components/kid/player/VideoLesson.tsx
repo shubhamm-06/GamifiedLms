@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Maximize, Minimize, Pause, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react'
 import { useBackClosable } from '@/hooks/useBackClosable'
+import { useKeepAwake } from '@/hooks/useKeepAwake'
 import { videoSource } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 import {
@@ -93,6 +94,9 @@ export function VideoLesson({ url, title, courseId, onPlayingChange, onEnded }: 
       void orientate(false)
     }
   }, [])
+
+  // The screen stays on only while the video is actually playing.
+  useKeepAwake(state.playing)
 
   // Android Back leaves fullscreen first, before anything navigates.
   useBackClosable(fullscreen, () => {

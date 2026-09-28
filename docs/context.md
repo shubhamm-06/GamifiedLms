@@ -8,7 +8,13 @@ build phase: admin-facing tooling only, no student-facing UI.
 **Stack (locked, all installed):**
 - React 19.2.8, TypeScript 6.0.3 — no new `.js`/`.jsx` (see `rules.md`)
 - Capacitor plugins: `@capacitor/app` 8.1.1 (Android Back, `components/native/AndroidBackButton.tsx`),
-  `@capacitor/haptics` 8.0.2 (`lib/haptics.ts`), `@capacitor/filesystem`, `@capacitor/screen-orientation`
+  `@capacitor/haptics` 8.0.2 (`lib/haptics.ts`), `@capacitor/filesystem`, `@capacitor/screen-orientation`,
+  `@capacitor/keyboard` 8.0.5 + `lib/nativeShell.ts` (`html[data-native]`, `html[data-keyboard='open']`),
+  `@capacitor/network` 8.0.1 (`hooks/useOnline.ts`), `@capacitor-community/keep-awake` 8.0.1 (`hooks/useKeepAwake.ts`)
+- Native shell: `initNativeShell()` in `main.tsx` runs before render (no-op on web); native-only CSS is gated
+  on `html[data-native]`. Safe-area insets = `--sa-top/right/bottom/left` tokens (`styles.css`):
+  `var(--safe-area-inset-X, env(safe-area-inset-X, 0px))`; Capacitor 8 SystemBars injects the vars
+  (real values on a current WebView, 0 on an old one where it pads natively), the web falls to `env()`
 - Capacitor `@capacitor/core`+`@capacitor/cli`+`@capacitor/android` 8.5.0 — the
   Android platform is generated and committed (`android/`, app id
   `com.wisdomhatch.kids`, bundled assets only, no `server.url`); iOS is not

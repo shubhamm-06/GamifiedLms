@@ -7,7 +7,10 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
 import { AndroidBackButton } from '@/components/native/AndroidBackButton'
 import { queryClient } from '@/lib/queryClient'
+import { initNativeShell } from '@/lib/nativeShell'
 import { router } from './router'
+
+initNativeShell()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

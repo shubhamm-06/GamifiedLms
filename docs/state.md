@@ -132,7 +132,7 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **A real design for Badges.** Shipped 2026-09-26 as a minimal functional screen (no celebration
   or animation, no per-badge detail); Profile was rebuilt 2026-09-27 (avatar, account editing, a
   streak calendar — `ui.md`) and is no longer on this list.
-- **On-device bottom nav.** The nav's safe-area padding (`env(safe-area-inset-bottom)`) was
+- **On-device bottom nav.** The nav's safe-area padding (`var(--sa-bottom)`) was
   checked in CSS and at 360 to 430px in Chromium, where the inset is 0; a real iPhone or the
   Capacitor webview has not been exercised.
 - **Android hardware Back and haptics are built, but unverified on a device**
@@ -141,8 +141,13 @@ The schema or docs anticipate each of these; no working code exists for any.
   No device or emulator was attached (the SDK at `C:\Android` has no emulator
   package), so none of the adb Back checks in `env-deploy.md` has been run, and no
   haptic has been felt on hardware. The pure priority logic was checked with an
-  ad-hoc script only (the repo has no test framework). A Capacitor session audit
-  is still a follow-up.
+  ad-hoc script only (the repo has no test framework).
+- **Native shell pass built, unverified on a device** (2026-09-28, `ui.md` "Native shell"):
+  safe-area tokens, keyboard handling, kid WebView polish, offline banner, keep-awake,
+  lesson-clock background flush, backup disabled. The APK builds with seven plugins and
+  `allowBackup=false`; none of the device checks in `env-deploy.md` has been run. Open
+  product calls: moving the session to secure storage (options in `env-deploy.md`), and
+  whether a cached game should open offline (today it cannot).
 - **Quiz explanations.** The correct option is now revealed after each answer
   (migration 024, `fn_check_quiz_answer`; `rules.md` amended). An explanation is still
   not sent anywhere: the quiz page has no place for one and `fn_submit_quiz` /
@@ -182,8 +187,7 @@ The schema or docs anticipate each of these; no working code exists for any.
   device or emulator. Not done: release signing / keystore, an AAB, real app icons
   and splash polish (the launcher icon is Capacitor's placeholder; the splash is a
   solid cream colour), FCM/push, deep links / Android App Links (Supabase email
-  confirmation links open in the browser, not the app), `allowBackup=true` (the template default) which lets the stored session
-  ride an Android backup. iOS was not added. Hosting is Vercel; no CI exists.
+  confirmation links open in the browser, not the app). iOS was not added. Hosting is Vercel; no CI exists.
 - **A Course Builder "Additional" tab** (prerequisites/FAQs/audience). The
   schema has no columns for it; deliberately not built.
 - **Admin control over the locked design tokens** from `/admin/settings` — the
@@ -276,11 +280,9 @@ worked on.
   pausing is unaffected. Removing it needs a small migration
   (a `p_resumed` flag on `fn_lesson_heartbeat` that credits 0 and restarts the clock).
   In dev, React StrictMode sends the opening beat twice within a fraction of a second; harmless (the second credits 0).
-- **The lesson clock ignores app lifecycle.** `@capacitor/app` is now installed (for
-  the Back button only), but the player still uses the Page Visibility API and
-  online/offline events. In a native webview backgrounding may not fire
-  `visibilitychange` reliably; adding the plugin's `appStateChange` listener to
-  `useLessonClock` is the fix, deliberately left out of the Back-button task.
+- **Background flush is native only.** In the app, backgrounding or leaving a lesson sends one
+  final beat so the last stretch is credited; the web keeps pausing without it (web behaviour
+  was deliberately not changed), so up to one beat interval (12 s) can be lost per tab switch.
 - **Reading lessons are shown, not sanitised.** No HTML sanitiser is installed, so
   `content_html` is trusted only because it renders in a script-less sandboxed frame
   with a restrictive CSP (`rules.md`). An admin can still put a link or a big image
@@ -482,8 +484,8 @@ worked on.
   surface. Once one exists and starts trusting either value, it must not assume
   every row's value is real; `0`/`''` reads as "not provided," not as a
   verified fact.
-- **Capacitor session handling is unaudited** in a webview; no native
-  platforms exist.
+- **The app session lives in WebView `localStorage`** (audited 2026-09-28, `env-deploy.md`):
+  app-private and excluded from backup, but not encrypted at rest. Not migrated.
 - **LAN-testing (insecure-context) audit, 2026-09-21.** Over `http://<LAN-IP>`
   the page is not a secure context. Audit of `src/` and the built bundle: the
   only secure-context-only call was `crypto.randomUUID` in

@@ -115,15 +115,70 @@
     outline-offset: 3px;
   }
 
+  /* ---------------------------------------------- native app feel (kid only) */
+  /* html[data-native] is set only inside the Capacitor app (main.tsx), and :has(.kid-app)
+     limits it to kid screens, so the web and the admin panel are untouched. No overscroll
+     glow or bounce on the document (the kid scroll root; Android WebView has no
+     pull-to-refresh of its own); cream behind any edge the document reveals. Chrome is not
+     selectable and has no tap flash or double-tap zoom, but inputs and lesson text stay
+     selectable. Pinch zoom is already off natively (Capacitor's WebView disables built-in
+     zoom); OS font scaling is untouched. */
+  html[data-native]:has(.kid-app) {
+    overscroll-behavior: none;
+    background: var(--cream);
+  }
+
+  html[data-native] .kid-app {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  html[data-native] .kid-app :is(input, textarea, select, [contenteditable='true'], .lp-blocks, .lp-block-p, .lp-callout-text) {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* Soft keyboard open (native, Keyboard plugin): the bottom nav hides instead of
+     floating on top of the keyboard, and stops reserving space. */
+  html[data-keyboard='open'] .kid-nav { display: none; }
+  html[data-keyboard='open'] .kid-app[data-nav] { --kid-bottom-inset: 0px; }
+
+  /* "You're offline" (native only): a small pill under the status bar on every kid
+     screen, above the top bar and the lesson popover, never blocking a tap. */
+  .kid-offline {
+    position: fixed;
+    top: calc(var(--sa-top) + 0.5rem);
+    left: 50%;
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    max-width: calc(100% - 2rem);
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--kid-shadow), inset 0 0 0 2px var(--coral);
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    font-weight: 700;
+    transform: translateX(-50%);
+    pointer-events: none;
+  }
+
+  .kid-offline svg { flex: none; color: var(--coral-d); }
+
   /* ------------------------------------------------------------------ shell */
 
   .kid-topbar {
     position: sticky;
     top: 0;
     z-index: 40;
-    padding-top: env(safe-area-inset-top);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
+    padding-top: var(--sa-top);
+    padding-left: var(--sa-left);
+    padding-right: var(--sa-right);
     background: var(--cream);
     border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
   }
@@ -182,9 +237,9 @@
     width: 100%;
     margin-inline: auto;
     padding: 1rem;
-    padding-left: max(1rem, env(safe-area-inset-left));
-    padding-right: max(1rem, env(safe-area-inset-right));
-    padding-bottom: calc(env(safe-area-inset-bottom) + var(--kid-bottom-inset) + 1.5rem);
+    padding-left: max(1rem, var(--sa-left));
+    padding-right: max(1rem, var(--sa-right));
+    padding-bottom: calc(var(--sa-bottom) + var(--kid-bottom-inset) + 1.5rem);
   }
 
   /* ---------------------------------------------------------- cards + buttons */
@@ -279,7 +334,7 @@
   .rm-modbar {
     --rm-bar-gap: 0.5rem;
     position: sticky;
-    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + var(--kid-top-inset) + var(--rm-bar-gap));
+    top: calc(var(--kid-topbar-h) + var(--sa-top) + var(--kid-top-inset) + var(--rm-bar-gap));
     z-index: 20;
     display: flex;
     align-items: center;
@@ -802,9 +857,9 @@
     z-index: 30;
     display: flex;
     justify-content: center;
-    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
-    margin-bottom: calc(-1 * (env(safe-area-inset-bottom) + var(--kid-bottom-inset) + 1.5rem));
-    padding: 0.75rem max(1rem, env(safe-area-inset-right)) calc(0.75rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+    margin-inline: calc(-1 * max(1rem, var(--sa-left))) calc(-1 * max(1rem, var(--sa-right)));
+    margin-bottom: calc(-1 * (var(--sa-bottom) + var(--kid-bottom-inset) + 1.5rem));
+    padding: 0.75rem max(1rem, var(--sa-right)) calc(0.75rem + var(--sa-bottom)) max(1rem, var(--sa-left));
     background: color-mix(in srgb, var(--cream) 94%, transparent);
     border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
     -webkit-backdrop-filter: blur(8px);
@@ -1385,7 +1440,7 @@
   .lp-hero {
     position: relative;
     overflow: hidden;
-    margin: -1rem calc(-1 * max(1rem, env(safe-area-inset-right))) 0 calc(-1 * max(1rem, env(safe-area-inset-left)));
+    margin: -1rem calc(-1 * max(1rem, var(--sa-right))) 0 calc(-1 * max(1rem, var(--sa-left)));
     padding: 1.5rem 1.25rem 2.5rem;
     background: color-mix(in srgb, var(--teal) 8%, var(--cream));
   }
@@ -1477,7 +1532,7 @@
     .lp-side {
       grid-area: side;
       position: sticky;
-      top: calc(var(--kid-topbar-h) + env(safe-area-inset-top) + 1rem);
+      top: calc(var(--kid-topbar-h) + var(--sa-top) + 1rem);
     }
     .lp-bar-slot > .lp-bar { grid-area: bar; align-self: end; margin-inline: 0; border-radius: 26px 26px 0 0; }
   }
@@ -1670,16 +1725,16 @@
      here (it stays "the next action"): the flame is coral-d, the spark plum-d. */
   .kid-statbar {
     position: sticky;
-    top: calc(var(--kid-topbar-h) + env(safe-area-inset-top));
+    top: calc(var(--kid-topbar-h) + var(--sa-top));
     z-index: 25;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
     height: var(--kid-statbar-h);
-    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
+    margin-inline: calc(-1 * max(1rem, var(--sa-left))) calc(-1 * max(1rem, var(--sa-right)));
     margin-top: -1rem;
-    padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+    padding-inline: max(1rem, var(--sa-left)) max(1rem, var(--sa-right));
     background: var(--cream);
     border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
   }
@@ -1753,7 +1808,7 @@
     bottom: 0;
     left: 0;
     z-index: 35;
-    padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left);
+    padding: 0 var(--sa-right) var(--sa-bottom) var(--sa-left);
     background: var(--surface);
     border-top: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
   }
@@ -2479,7 +2534,7 @@
      page gutter and the first bit of top padding); from md it sits in its column
      with rounded corners instead. */
   .lp-video-bleed {
-    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left))) calc(-1 * max(1rem, env(safe-area-inset-right)));
+    margin-inline: calc(-1 * max(1rem, var(--sa-left))) calc(-1 * max(1rem, var(--sa-right)));
     margin-top: -1rem;
   }
 
@@ -2735,8 +2790,8 @@
   /* The game fills the screen below the top bar: it cancels the page gutter and
      padding, so nothing but Back is on screen with it. */
   .lp-game-bleed {
-    margin: -1rem calc(-1 * max(1rem, env(safe-area-inset-right))) calc(-1 * (env(safe-area-inset-bottom) + 1.5rem)) calc(-1 * max(1rem, env(safe-area-inset-left)));
-    height: calc(100dvh - var(--kid-topbar-h) - env(safe-area-inset-top));
+    margin: -1rem calc(-1 * max(1rem, var(--sa-right))) calc(-1 * (var(--sa-bottom) + 1.5rem)) calc(-1 * max(1rem, var(--sa-left)));
+    height: calc(100dvh - var(--kid-topbar-h) - var(--sa-top));
     background: var(--ink);
   }
 
@@ -2780,7 +2835,7 @@
   /* The light acknowledgment for a replay: a small pill over the game, not the celebration. */
   .lp-game-ack {
     position: absolute;
-    bottom: calc(env(safe-area-inset-bottom) + 1rem);
+    bottom: calc(var(--sa-bottom) + 1rem);
     left: 50%;
     display: inline-flex;
     align-items: center;
@@ -2867,7 +2922,7 @@
       transform: translateX(-50%);
     }
     .lp-game-bleed {
-      height: min(calc(100dvh - var(--kid-topbar-h) - env(safe-area-inset-top) - 3rem), 44rem);
+      height: min(calc(100dvh - var(--kid-topbar-h) - var(--sa-top) - 3rem), 44rem);
     }
 
     /* Quiz: answers stay tap-sized, not a wide slab. */

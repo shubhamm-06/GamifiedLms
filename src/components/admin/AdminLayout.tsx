@@ -133,7 +133,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   return (
     // font-sans is explicit: Baloo 2 is scoped to .auth-page and must not
     // reach the admin panel, which uses the global Geist sans.
-    <div className="bg-background text-foreground flex min-h-screen font-sans">
+    <div className="admin-shell bg-background text-foreground flex min-h-screen font-sans">
       <aside className="flex w-60 shrink-0 flex-col border-r">
         <div className="flex h-14 items-center border-b px-5">
           {/* Read from app_settings.site_name (migration 010), not

@@ -112,10 +112,11 @@ about 1 minute to compile). `.env` must hold `VITE_SUPABASE_URL` and
 **Commands** (repo root):
 - `npm run android:sync` — `npm run build` (tsc + Vite) then `cap sync android`
   (copies `dist` into `android/app/src/main/assets/public`, regenerates the
-  plugin list: `@capacitor/app`, `@capacitor/filesystem`, `@capacitor/haptics`,
-  `@capacitor/screen-orientation`).
+  plugin list, seven today: `@capacitor-community/keep-awake`, `@capacitor/app`,
+  `@capacitor/filesystem`, `@capacitor/haptics`, `@capacitor/keyboard`, `@capacitor/network`,
+  `@capacitor/screen-orientation`, all 8.x with peer `@capacitor/core` >=8).
 - `npm run android:apk` — sync, then `node scripts/gradlew.mjs assembleDebug`.
-  Output: `android/app/build/outputs/apk/debug/app-debug.apk` (about 4.7 MB).
+  Output: `android/app/build/outputs/apk/debug/app-debug.apk` (about 5.4 MB).
 - Install on a USB-debugging device or a running emulator:
   `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
   (`adb` is in `%ANDROID_HOME%\platform-tools`). Anything under `android/` other
@@ -141,16 +142,29 @@ CSS custom properties; if the cream token changes they must follow.
 `https://localhost`; supabase-js keeps its session in `localStorage`, which Android
 WebView persists across launches (cleared by "Clear data"). Cleartext HTTP is blocked
 (targetSdk 36 default, no network security config), which matches the app already
-refusing non-https media and game URLs outside dev. Permissions: `INTERNET` and
-`VIBRATE` (added by hand to `android/app/src/main/AndroidManifest.xml` for
-`@capacitor/haptics`); nothing else.
+refusing non-https media and game URLs outside dev. Permissions (checked with `aapt2 dump permissions`): `INTERNET`,
+`VIBRATE` (added by hand for `@capacitor/haptics`), `ACCESS_NETWORK_STATE` (merged from
+`@capacitor/network`), and androidx's own signature-level
+`DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`; nothing else. Keyboard and keep-awake need none.
+**Backup:** `android:allowBackup="false"`, with `dataExtractionRules` (`res/xml/data_extraction_rules.xml`,
+Android 12+, cloud backup and device transfer) and `fullBackupContent` (`res/xml/backup_rules.xml`,
+Android 11 and below) both excluding every domain, so the stored session never rides a backup or a
+phone-to-phone transfer. The activity has `windowSoftInputMode="adjustResize"`.
+**Session storage:** supabase-js persists its session (access and refresh token) in WebView
+`localStorage`, which lives in app-private storage: not readable by other apps, but not encrypted
+at rest and readable on a rooted device or through a debuggable build. Kept as is. Capacitor-8
+options if that is ever moved (a custom `auth.storage` adapter in `lib/supabase.ts`, async):
+`@aparajita/capacitor-secure-storage` 8.0.1 (Android Keystore; maintained; depends on
+`@capacitor/keyboard` ^8), `capacitor-secure-storage-plugin` 0.13.0 (Keystore, peer core >=8, smaller
+project), or `@capacitor/preferences` 8.0.1 (official, but plain SharedPreferences, so no security
+gain). Tradeoffs: an async storage adapter, a one-time migration of the existing session (or one
+forced sign-in), and a web fallback that stays on `localStorage`.
 The router uses browser history; Capacitor serves `index.html` for extensionless
 paths, so nested routes and refresh should work, but that is unverified on-device.
 
 **Not done yet:** release signing / keystore, an AAB for Play, real app icons and
 splash polish (the launcher icon is Capacitor's placeholder: TODO), FCM/push, deep
-links / App Links, disabling `allowBackup`,
-and iOS.
+links / App Links, and iOS.
 
 **Testing the Back button with adb** (not yet run: no device was attached). Install
 (`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`), sign in as a
@@ -161,3 +175,13 @@ the roadmap (Back returns to the roadmap); a quiz after one answer and a game in
 on Home); Home with nothing open (first Back shows "Press back again to exit", a second
 within 2 s closes the app, a second after 3 s only shows the toast again). Haptics need
 a real phone; an emulator reports success without vibrating.
+
+**Native shell checks** (not yet run: no device was attached): Home arriving with its
+auto-opened lesson card (first Back shows the exit toast; a card opened by tapping a node
+closes on Back instead); Profile with Account & Security open (Back goes Home); the status
+and navigation bars (cream shows behind both, dark icons, nothing under them); tapping a
+Profile or login field (keyboard never covers it, bottom nav hidden while it is up); dragging
+past the top or bottom of Home (no glow, no refresh); pinch (no zoom); playing a video then
+pressing Home (`adb shell input keyevent KEYCODE_HOME`: video pauses, screen may sleep, the
+clock resumes after return); airplane mode (`adb shell cmd connectivity airplane-mode enable`,
+banner appears, completing a lesson shows an error with Try again).

@@ -125,8 +125,10 @@ export function RoadmapPath({
   // Row indices where a new module starts (not the first), which is where a divider sits.
   const breaks = rows.flatMap((r, i) => (r.position === 1 && i > 0 ? [i] : []))
   const openRow = open ? rows.find((r) => r.lesson.id === open.id) : undefined
-  // Android Back closes the lesson card first, including the one Home opens by itself on arrival.
-  useBackClosable(!!openRow && openRow.lesson.state !== 'locked', () => close(false))
+  // Android Back closes a card the child opened by tapping a node (`focus: true`).
+  // The card Home opens by itself on arrival (`focus: false`) is NOT registered, so
+  // Back right after arrival goes straight to "Press back again to exit".
+  useBackClosable(!!openRow && openRow.lesson.state !== 'locked' && open?.focus === true, () => close(false))
 
   return (
     <div className="rm" data-testid="roadmap" ref={rootRef}>

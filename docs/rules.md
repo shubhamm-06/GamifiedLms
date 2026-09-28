@@ -514,6 +514,12 @@ belongs in `context.md` or `state.md`, not here.
   Android Back skips it and navigates or exits under it (a Radix layer is caught by the
   Escape safety net, a custom one is not). Everything native stays behind
   `Capacitor.isNativePlatform()`; web behaviour must not change.
+- **New kid screens render inside `KidLayout` (or the lesson player shell) so safe-area
+  insets apply.** Insets are applied only by the shared shells (`ui.md` "Native shell"); a kid
+  screen outside them has content under the status or navigation bar on Android 15+.
+- **Every native API call is guarded by `Capacitor.isNativePlatform()`** (or the plugin's own
+  web no-op, with failures caught), and native-only CSS sits under `html[data-native]`. The web
+  build must behave exactly as without the native shell.
 - **Haptics are kid-facing only and one per event.** Only through `lib/haptics.ts`,
   never from admin screens, never on scroll or drag, never two for one moment. A new
   placement is added to the list in `ui.md` "Haptics", not sprinkled on buttons.
@@ -521,8 +527,9 @@ belongs in `context.md` or `state.md`, not here.
   the one screen that introduced them.** Touch targets ≥ 44 px and nothing may
   depend on `:hover` (only inside `@media (hover: hover)`); use `dvh`, never
   `vh`, for full-height layouts; `viewport-fit=cover` is set in `index.html` and
-  every edge that can meet a notch or home indicator pads with
-  `env(safe-area-inset-*)`; no text a child must read below 14 px; accidental
+  every edge that can meet a notch or home indicator pads with the
+  `--sa-*` tokens (never `env(safe-area-inset-*)` directly, which the native
+  shell does not feed on older WebViews); no text a child must read below 14 px; accidental
   text selection and the tap-highlight flash are disabled only on interactive
   elements (`.kid-tap`), never on text; reserve space for images and shape
   loading skeletons like the real layout so nothing shifts; no heavy new

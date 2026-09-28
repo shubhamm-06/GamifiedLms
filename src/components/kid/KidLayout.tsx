@@ -3,6 +3,7 @@ import { Outlet, useRouter, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { KidHeaderContext } from './kidHeader'
 import { KidNav } from './KidNav'
+import { OfflineBanner } from './OfflineBanner'
 import { tabForPath } from './kidTabs'
 
 /**
@@ -55,6 +56,7 @@ export function KidLayout({ children }: { children?: ReactNode }) {
         </header>
         <main className="kid-main">{children ?? <Outlet />}</main>
         {tab ? <KidNav activeTo={tab.to} /> : null}
+        <OfflineBanner />
       </div>
     </KidHeaderContext.Provider>
   )

@@ -194,7 +194,7 @@ Award, BookOpen, User. Shown only on those four routes (`tabForPath`); the lesso
 `/courses/$courseId` deep link keep their own bottom edge and get no nav. Fixed to the viewport
 bottom, `--surface` with a hairline top border, `z-index` 35 (above the popover 15 and module bar
 20, below the top bar 40). Content height `--kid-nav-h` (4.25rem); the safe-area inset is added in
-the bar's own bottom padding via `env(safe-area-inset-bottom, 0px)`, so the home indicator never
+the bar's own bottom padding via `var(--sa-bottom)`, so the home indicator never
 covers a tab, and `.kid-app[data-nav]` sets `--kid-bottom-inset` to `--kid-nav-h` so `.kid-main`'s
 bottom padding clears it. Active tab: ink icon and label with a soft teal pill
 (`color-mix(teal 26%, surface)`, 26px radius) behind the icon, `aria-current="page"`; inactive:
@@ -436,7 +436,7 @@ disappear (the summary card replaces both).
 page** (also `rules.md`): touch targets ≥ 44 px, nothing depends on `:hover`
 (hover styles only inside `@media (hover: hover)`); `100dvh` never `100vh` for
 full-height layouts; `viewport-fit=cover` is set in `index.html` and every edge
-that can meet a notch or home indicator pads with `env(safe-area-inset-*)`;
+that can meet a notch or home indicator pads with the `--sa-*` tokens ("Native shell" below);
 no text a child must read below 14 px; `-webkit-tap-highlight-color`/
 `user-select`/`touch-action` are turned off on interactive elements only
 (`.kid-tap`, kid.css) — never on text; images reserve their aspect ratio
@@ -516,12 +516,13 @@ on the web nothing registers and browser Back is untouched. One listener,
 `main.tsx`; the decision is the pure `decideBackAction` (`lib/backButton.ts`). Priority,
 first match wins, one action per press:
 1. **An open overlay closes**, the most recently opened first, and nothing else happens.
-   Registered through `useBackClosable(open, close)`: the roadmap lesson card (including
-   the one Home opens by itself on arrival, so the first Back on Home closes it rather
-   than arming exit), the completion sheet (dialog or drawer), the active-time ring's
-   popover, fullscreen video (exits fullscreen), the Profile avatar builder (cancels it),
-   the Profile "Account & Security" section (collapses it), the delete-account confirm,
-   and the "Leave this lesson?" dialog itself (Back = Keep going). Anything never wired
+   Registered through `useBackClosable(open, close)`: the roadmap lesson card **only when
+   the child opened it by tapping a node** (the card Home opens by itself on arrival is not
+   registered, so Back on Home goes straight to the exit toast), the completion sheet (dialog
+   or drawer), the active-time ring's popover, fullscreen video (exits fullscreen), the
+   Profile avatar builder (cancels it), the delete-account confirm, and the "Leave this
+   lesson?" dialog itself (Back = Keep going). The Profile "Account & Security" section is
+   inline, not an overlay: Back on Profile goes Home whether it is open or not. Anything never wired
    (admin dialogs, dropdowns, selects) is caught by a safety net: an open Radix layer is
    closed with the same Escape it already handles. This applies on admin routes too, so
    the app never exits or navigates under an open overlay.
@@ -540,6 +541,39 @@ first match wins, one action per press:
    `replace`: a lesson to its course, a course to Home, an admin page to `/admin`. Never
    a loop: every fallback is a parent that itself has a defined Back.
 Admin routes use rules 1, 4 and 5 only. The listener is removed on unmount.
+
+**Native shell (2026-09-28).** Everything here is native only (`Capacitor.isNativePlatform()`,
+or CSS under `html[data-native]`, set by `initNativeShell()` in `lib/nativeShell.ts`); the web
+renders exactly as before.
+- **Safe areas.** Android 15+ draws edge to edge. Insets come from the `--sa-top/right/bottom/left`
+  tokens (`styles.css`), each `var(--safe-area-inset-X, env(safe-area-inset-X, 0px))`: Capacitor 8's
+  SystemBars sets the inner var natively, the web falls through to `env()`. They are applied ONLY by the
+  shared shells: the kid top bar, bottom nav, Home stat bar, lesson player bars and completion sheet
+  (kid.css), `.auth-page` and `.admin-shell` (styles.css, native only). Pages never pad for insets
+  themselves; the cream background stays full-bleed under the system bars. `SystemBars.style = LIGHT`
+  (dark icons) is right for cream.
+- **Keyboard** (`@capacitor/keyboard`, activity `adjustResize`). While it is open
+  `html[data-keyboard='open']` hides the bottom nav (so it never rides above the keyboard) and zeroes
+  `--kid-bottom-inset`; on show, the focused field scrolls to the centre of what is left.
+- **WebView polish, kid screens only (`.kid-app`), never admin or auth:** no overscroll glow
+  (`overscroll-behavior: none`; Android WebView has no pull-to-refresh), transparent tap highlight,
+  `touch-action: manipulation`, `user-select: none` on the shell with `text` restored on inputs and
+  lesson reading text (`.lp-blocks`, `.lp-block-p`, `.lp-callout-text`). Pinch zoom is already off in
+  Capacitor's WebView (built-in zoom disabled natively); the viewport meta is untouched, so the OS
+  font-size setting still scales text.
+- **Offline banner.** `OfflineBanner` in `KidLayout`, driven by `useOnline()` (`@capacitor/network`
+  natively, `navigator.onLine` on web; one hook for both): a fixed pill under the top inset, surface with
+  a coral ring and WifiOff icon, "You're offline. Check your Wi-Fi.", `role="status"`, never blocks
+  taps. Native only; on the web the lesson player's own offline strip is unchanged. There is no offline
+  queue: completing a lesson, submitting a quiz or earning XP offline shows the existing error with Try
+  again (the engine maps a failed fetch to "Couldn't reach the server..."), never a false success. A
+  game whose entry page is cached still cannot open offline: the lesson route loads lesson states and
+  the lesson row from the server first and shows its retry screen.
+- **Keep awake** (`useKeepAwake(active)`): while a video is playing and while a game lesson is on
+  screen; released on pause, leave, unmount and in the background.
+- **Lifecycle.** The lesson clock also listens to `appStateChange`: going to the background (or
+  leaving the lesson) sends one final beat so the stretch since the last beat is credited, then pauses;
+  returning resumes through the usual quiet period. A video still pauses itself when hidden.
 
 **Haptics (2026-09-28).** `lib/haptics.ts` (`tap`, `select`, `success`, `warning`,
 `error`) wraps `@capacitor/haptics`; each is a silent no-op on the web, when the child

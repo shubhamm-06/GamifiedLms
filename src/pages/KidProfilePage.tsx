@@ -165,8 +165,8 @@ export function KidProfilePage() {
 
 /** Collapsed by default — one tap reveals the three edit forms and the deletion request beneath them. */
 function AccountSection({ profile }: { profile: KidProfile }) {
+  // An inline section, not an overlay: Android Back does not collapse it (Profile goes Home).
   const [open, setOpen] = useState(false)
-  useBackClosable(open, () => setOpen(false))
   return (
     <section className="kid-card kp-card" aria-label="Account">
       <h2 className="kp-card-title kp-collapse-heading">

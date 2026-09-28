@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
+import { App } from '@capacitor/app'
 import {
   HEARTBEAT_INTERVAL_MS,
   HEARTBEAT_RESUME_QUIET_MS,
@@ -189,11 +191,12 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
      * inside the server's window (beats are 12 s apart), so it credits the real seconds,
      * never more than the cap. Best effort: a failed beat only loses that stretch.
      */
-    async function settle() {
+    async function settle(reason: ClockPause = 'idle') {
       // Only while a beat reply has us counting: during the quiet period after a resume nothing
-      // is being counted, and a beat then would credit the paused gap.
-      const send = !stopped && !inFlight && runningRef.current && visible() && navigator.onLine
-      pauseFor('idle')
+      // is being counted, and a beat then would credit the paused gap. (A hidden page already
+      // cleared `running`, so no separate visibility check is needed.)
+      const send = !stopped && !inFlight && runningRef.current && navigator.onLine
+      pauseFor(reason)
       if (!send) return
       inFlight = true
       lastSentAt = Date.now()
@@ -217,10 +220,18 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
       }
     }
 
-    const onVisibility = () => (visible() ? start() : pauseFor('hidden'))
+    // Native app: going to the background flushes the stretch since the last beat (one
+    // final beat, the same mechanism as a paused video) before pausing, so it is not lost;
+    // `appStateChange` backs up `visibilitychange`, which a WebView may not fire reliably.
+    // The web keeps its existing behaviour (pause without a flush).
+    const native = Capacitor.isNativePlatform()
+    const onVisibility = () => (visible() ? start() : native ? void settle('hidden') : pauseFor('hidden'))
     const onHide = () => pauseFor('hidden')
     const onOffline = () => pauseFor('offline')
     const onOnline = () => start()
+    const appState = native
+      ? App.addListener('appStateChange', ({ isActive }) => (isActive ? start() : void settle('hidden')))
+      : null
 
     gateRef.current = () => (activeRef.current ? start() : void settle())
     document.addEventListener('visibilitychange', onVisibility)
@@ -230,10 +241,15 @@ export function useLessonClock({ lessonId, enabled, initialSeconds, minTimeSecon
     start()
 
     return () => {
+      // Native app: leaving the lesson while counting flushes the same final beat
+      // (fire and forget; nothing reads its reply after unmount).
+      const flush = native && runningRef.current && !inFlight && navigator.onLine
       stopped = true
       clear()
       runningRef.current = false
       gateRef.current = null
+      if (flush) void heartbeatLesson(lessonId).catch(() => {})
+      void appState?.then((h) => h.remove())
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', onHide)
       window.removeEventListener('offline', onOffline)

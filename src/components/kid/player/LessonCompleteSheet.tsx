@@ -37,7 +37,7 @@ function Body({
 }: Omit<Props, 'onOpenChange'> & { Title: TextSlot; Description: TextSlot }) {
   const xp = useCountUp(xpAwarded, 600, open && xpAwarded > 0)
   return (
-    <div className="px-5 pt-6 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] text-center" data-testid="complete-sheet">
+    <div className="px-5 pt-6 pb-[calc(var(--sa-bottom)+1.5rem)] text-center" data-testid="complete-sheet">
       <div className="relative">
         {/* The celebration is for finishing, not for earning: a course with
             gamification off awards no XP but still gets the burst. */}

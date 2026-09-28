@@ -21,6 +21,28 @@
   /* Raised-surface color for cards (the auth card's #fffefb, now a token so kid
      screens don't hardcode it). Not a new brand color: a warm near-white. */
   --surface: #FFFEFB;
+
+  /* Safe-area insets, the one place they are defined. On Android (targetSdk 36,
+     edge-to-edge) Capacitor 8's SystemBars plugin injects --safe-area-inset-* on
+     <html>: the real values on a WebView that supports env() under viewport-fit=cover,
+     or 0 on an older one where it pads the WebView natively instead. Everywhere
+     else those variables are undefined and env() answers, so the web is unchanged.
+     Use these tokens, never env(safe-area-inset-*) directly (rules.md). */
+  --sa-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
+  --sa-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --sa-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --sa-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
+}
+
+/* Native app only (html[data-native], set in main.tsx): the auth pages and the
+   admin shell keep clear of the status bar, gesture bar and cutout. On the web
+   these rules never match, so nothing there changes. */
+html[data-native] .auth-page {
+  padding: calc(24px + var(--sa-top)) calc(24px + var(--sa-right)) calc(24px + var(--sa-bottom)) calc(24px + var(--sa-left));
+}
+
+html[data-native] .admin-shell {
+  padding: var(--sa-top) var(--sa-right) var(--sa-bottom) var(--sa-left);
 }
 
 .auth-page {
