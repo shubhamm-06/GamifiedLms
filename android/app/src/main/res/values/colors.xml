@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The locked cream token (src/styles.css). Native resources cannot read CSS
+         custom properties, so the literal value lives here; if the token ever
+         changes, this and capacitor.config.json's backgroundColor must follow. -->
+    <color name="splash_background">#FFF7EA</color>
+</resources>

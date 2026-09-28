@@ -170,9 +170,15 @@ The schema or docs anticipate each of these; no working code exists for any.
   have it when served from the stored copy (opaque origin, `ui.md`).
 - **File uploads.** No Storage bucket exists (`storage.buckets` is empty), so
   `courses.thumbnail_url` and a lesson's `video_url` are paste-a-URL fields.
-- **Native builds, hosting, CI.** Capacitor is installed but `npx cap add
-  ios/android` hasn't been run; the frontend runs only on the local Vite dev
-  server; no CI exists (`env-deploy.md`).
+- **iOS, release Android builds, CI.** The Android platform is generated and a
+  debug APK builds (`npm run android:apk`, output `android/app/build/outputs/apk/debug/app-debug.apk`,
+  `env-deploy.md` "Android build"); it has NOT been installed or exercised on a
+  device or emulator. Not done: release signing / keystore, an AAB, real app icons
+  and splash polish (the launcher icon is Capacitor's placeholder; the splash is a
+  solid cream colour), FCM/push, deep links / Android App Links (Supabase email
+  confirmation links open in the browser, not the app), `@capacitor/app` back-button
+  handling, `allowBackup=true` (the template default) which lets the stored session
+  ride an Android backup. iOS was not added. Hosting is Vercel; no CI exists.
 - **A Course Builder "Additional" tab** (prerequisites/FAQs/audience). The
   schema has no columns for it; deliberately not built.
 - **Admin control over the locked design tokens** from `/admin/settings` — the

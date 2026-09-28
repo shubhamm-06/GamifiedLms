@@ -22,10 +22,11 @@ docs
 !.env.example
 doc/.env
 
-# Capacitor native platforms — not generated yet, but ignored the moment
-# `npx cap add ios` / `npx cap add android` create them.
+# Capacitor native platforms. android/ is generated (2026-09-28) and
+# COMMITTED, with its own android/.gitignore keeping build output, .gradle,
+# local.properties and the copied web assets out. ios/ is not generated yet
+# (out of scope); it stays ignored until `npx cap add ios` is decided.
 ios/
-android/
 
 # Verification screenshots (per-task review artifacts, not committed)
 review-shots/

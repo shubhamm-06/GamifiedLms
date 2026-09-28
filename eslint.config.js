@@ -8,7 +8,9 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   // Edge Functions are Deno, not browser/Vite — different globals and
   // module resolution (jsr: specifiers), so this config doesn't apply.
-  globalIgnores(['dist', 'supabase/functions']),
+  // android/ is the generated Capacitor native project (Gradle output, the
+  // copied web bundle and Capacitor's own native-bridge.js), not app source.
+  globalIgnores(['dist', 'supabase/functions', 'android']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

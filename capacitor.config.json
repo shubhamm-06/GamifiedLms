@@ -1,10 +1,14 @@
 {
-  "appId": "com.example.app",
-  "appName": "gamifieldlms",
+  "appId": "com.wisdomhatch.kids",
+  "appName": "Wisdom Hatch Kids",
   "webDir": "dist",
+  "backgroundColor": "#FFF7EA",
   "plugins": {
     "CapacitorHttp": {
       "enabled": true
+    },
+    "SystemBars": {
+      "style": "LIGHT"
     }
   }
 }

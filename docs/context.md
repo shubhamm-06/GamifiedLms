@@ -7,8 +7,10 @@ build phase: admin-facing tooling only, no student-facing UI.
 
 **Stack (locked, all installed):**
 - React 19.2.8, TypeScript 6.0.3 — no new `.js`/`.jsx` (see `rules.md`)
-- Capacitor `@capacitor/core`+`@capacitor/cli` 8.5.0 — no native platforms
-  generated yet (`npx cap add ios/android` not run)
+- Capacitor `@capacitor/core`+`@capacitor/cli`+`@capacitor/android` 8.5.0 — the
+  Android platform is generated and committed (`android/`, app id
+  `com.wisdomhatch.kids`, bundled assets only, no `server.url`); iOS is not
+  generated. Build steps: `env-deploy.md` "Android build"
 - `@supabase/supabase-js` 2.112.4
 - papaparse 5.7.0 (+ `@types/papaparse` 5.5.2) — CSV parsing for the Users import
   (`parseCsvTable` in `lib/csv.ts`); CSV writing is hand-rolled (`toCsv`)
