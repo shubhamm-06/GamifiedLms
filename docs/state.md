@@ -191,6 +191,20 @@ The schema or docs anticipate each of these; no working code exists for any.
   line first — a pretty-printed file broke the CLI's argument parsing and
   produced a "not valid JSON" runtime error on the first attempt, caught via
   `function_logs` and fixed before the real send.
+- **Notification status-bar icon fixed, same caveat as above** (2026-09-29,
+  `ui.md` "Push notifications" "Status-bar icon"). Every send now sets
+  `android.notification.icon`/`color` explicitly (gold, `--gold` token); the
+  manifest's `default_notification_icon` is a fallback. `ic_stat_notify.png`
+  at all five densities is a **derived, first-pass silhouette** — the owl
+  mark's own head/eyes/beak shapes, without its white backing circle, legible
+  as "a round face with two eyes" down to 24dp when rendered here, but not
+  commissioned artwork. A second real send (`recipientCount: 1`, no error)
+  confirmed the API accepts the new payload fields; **whether the status bar
+  actually shows the gold owl silhouette instead of the default white dot has
+  NOT been confirmed by eye** — same limitation as the send itself, this
+  needs the device owner to look. If the auto-derived silhouette doesn't read
+  well at real size, a bolder purpose-made version (bigger eye cutouts, more
+  exaggerated shape) is the next step, not a code problem to fix.
 - **Quiz explanations.** The correct option is now revealed after each answer
   (migration 024, `fn_check_quiz_answer`; `rules.md` amended). An explanation is still
   not sent anywhere: the quiz page has no place for one and `fn_submit_quiz` /

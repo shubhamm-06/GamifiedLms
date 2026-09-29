@@ -91,6 +91,16 @@ export interface FcmResult {
   error?: string
 }
 
+// The status-bar icon (android/app/src/main/res/drawable-*/ic_stat_notify.png, a
+// monochrome silhouette derived from the owl mark's own shape geometry — Android
+// requires a white-on-transparent silhouette here; a full-color icon is ignored or
+// shown as a plain dot) and the locked --gold token (src/styles.css) for its tint.
+// Set explicitly on every send rather than relying solely on the manifest's
+// `default_notification_icon` meta-data, which is only a fallback for a message
+// that omits these fields.
+const NOTIFICATION_ICON = 'ic_stat_notify'
+const NOTIFICATION_COLOR = '#F2B233'
+
 /** FCM HTTP v1 send: either `{ topic }` or `{ token }` must be set on `target`. */
 export async function sendFcmMessage(
   accessToken: string,
@@ -101,7 +111,13 @@ export async function sendFcmMessage(
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: { ...target, notification } }),
+    body: JSON.stringify({
+      message: {
+        ...target,
+        notification,
+        android: { notification: { icon: NOTIFICATION_ICON, color: NOTIFICATION_COLOR } },
+      },
+    }),
   })
   if (res.ok) return { ok: true }
   const text = await res.text()

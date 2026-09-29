@@ -673,6 +673,28 @@ plugin call, no console error.
   (bounded concurrency), because a topic cannot be scoped to one course or
   student without provisioning a second Google topic per course, which is
   out of scope here.
+- **Status-bar icon (2026-09-29).** Every send sets `android.notification.icon`
+  (`ic_stat_notify`) and `android.notification.color` (the locked `--gold`
+  token, `#F2B233`, hardcoded in `_shared/fcm.ts` — native resources and a Deno
+  Edge Function can't read a CSS custom property, same reason the splash and
+  launcher icon hardcode it) explicitly on the FCM payload, not just the
+  `AndroidManifest.xml` `default_notification_icon` meta-data (also added, as
+  a fallback for the rare message that omits the field). `ic_stat_notify.png`
+  (`android/app/src/main/res/drawable-{m,h,xh,xxh,xxx}hdpi/`) is a **derived**
+  monochrome silhouette, not the full-color brand mark reused directly:
+  Android requires the small notification icon to be a white-on-transparent
+  shape (API 21+ ignores color and fine detail in the status bar itself,
+  which is why the default Android white dot was showing before this). It
+  reuses the existing owl mark's own shape geometry (the head/body ellipse,
+  the two pupils as cutout holes, the beak/topper accent), deliberately
+  **excluding the mark's white backing circle** — silhouetting the full mark
+  including that circle would just produce a plain circle, no more distinct
+  than the bug this fixes. **This is a first-pass automated derivation, not
+  commissioned artwork** — legible as "a round face with two eyes" down to
+  24dp (checked by rendering each density), but a purpose-designed, bolder
+  silhouette (bigger eye cutouts, more exaggerated shape) would likely read
+  more distinctly as the brand mark at true status-bar size. Revisit if the
+  on-device look isn't satisfying.
 - **Logout** (`KidProfilePage` `logOut`): best-effort removal of this
   device's token from `device_push_tokens` before `signOut` (after, the
   session needed for the RLS-scoped delete is gone) — never blocks leaving.
@@ -687,12 +709,13 @@ plugin call, no console error.
   same "read-only report, no row-selection kit" shape as the Dashboard's
   recent-activity feed, `rules.md`/this file's Component conventions). No
   editing or resending. **`send-push-notification` is deployed and working**
-  (`env-deploy.md` "Push notifications"): a real send from this screen to the
-  primary admin's own registered device (2026-09-29) returned
-  `recipientCount: 1` with no error, and the toast read "Notification sent to
-  1 device." Confirmed the API accepted and FCM returned success for that
-  token; not confirmed by eye on the phone screen, which needs the device's
-  owner to check (`state.md`).
+  (`env-deploy.md` "Push notifications"): two real sends from this screen to
+  the primary admin's own registered device (2026-09-29, the second after
+  adding the status-bar icon above) both returned `recipientCount: 1` with no
+  error, and the toast read "Notification sent to 1 device." Confirmed the
+  API accepted and FCM returned success for that token both times; not
+  confirmed by eye on the phone screen, which needs the device's owner to
+  check (`state.md`).
 - **Deliberately deferred, no scaffolding built for either:** automated or
   triggered notifications (a streak about to lapse, a new course published —
   these would need a scheduler or a DB trigger calling

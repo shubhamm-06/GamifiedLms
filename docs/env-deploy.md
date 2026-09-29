@@ -161,6 +161,18 @@ The literal hex lives in `colors.xml`, `ic_launcher_background.xml` and
 `capacitor.config.json` because native resources cannot read CSS custom properties;
 if the cream token changes they must all follow.
 
+`android/app/src/main/res/drawable-{m,h,xh,xxh,xxx}hdpi/ic_stat_notify.png`
+(2026-09-29, migration 031) — the push-notification status-bar icon, a
+monochrome white-on-transparent silhouette derived from the owl mark's own
+shape geometry (`ui.md` "Push notifications" "Status-bar icon" has the full
+rationale — a full-color icon is invalid here, which is why Android was
+showing its default white dot before this). `AndroidManifest.xml`'s
+`com.google.firebase.messaging.default_notification_icon` meta-data points
+at it as a fallback; `send-push-notification` sets it explicitly on every
+message regardless (`_shared/fcm.ts`), along with `android.notification.color`
+(the locked `--gold` token, `#F2B233`, hardcoded here for the same
+native/Deno-can't-read-CSS-vars reason as the splash and launcher icon).
+
 `android/app/google-services.json` (2026-09-29, migration 031) — the Firebase
 client config for `com.wisdomhatch.kids`, project `wisdom-hatch-kids`. This is
 a client-side config file (an API key scoped to this Android package, not a
@@ -265,13 +277,18 @@ pressing Home (`adb shell input keyevent KEYCODE_HOME`: video pauses, screen may
 clock resumes after return); airplane mode (`adb shell cmd connectivity airplane-mode enable`,
 banner appears, completing a lesson shows an error with Try again).
 
-**Testing push notifications with adb.** The server side is deployed and a
-real send to the primary admin's already-registered device (`device_push_tokens`
+**Testing push notifications with adb.** The server side is deployed and two
+real sends to the primary admin's already-registered device (`device_push_tokens`
 had a row from an earlier real install) came back `recipientCount: 1` with no
-error in `function_logs` — confirmed the API accepted it, **not** confirmed
-by eye on the phone (this session has no way to see a physical screen).
-Still unverified this way, no device attached to this session: granting the
-notification permission on first launch (Android 13+), the notification
-actually appearing (banner, sound/vibration per system settings), arriving
-with the app fully closed (`adb shell am force-stop com.wisdomhatch.kids`
-first), and tapping it opening the app without a crash.
+error in `function_logs` — the second, 2026-09-29, after adding the status-bar
+icon (`ui.md` "Status-bar icon") and its `android.notification.icon`/`color`
+FCM payload fields. Both confirmed the API accepted the send, **not**
+confirmed by eye on the phone (this session has no way to see a physical
+screen) — in particular, whether the status bar actually shows the gold owl
+silhouette instead of Android's default white dot is unconfirmed. Still
+unverified this way, no device attached to this session: granting the
+notification permission on first launch (Android 13+), the notification's
+actual appearance (icon, banner, sound/vibration per system settings),
+arriving with the app fully closed (`adb shell am force-stop
+com.wisdomhatch.kids` first), and tapping it opening the app without a
+crash.

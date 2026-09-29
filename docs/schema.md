@@ -1082,7 +1082,7 @@ inferred from that setting and was not tested.
 Raw Auth/Postgres errors never reach the client — mapped to a short message,
 detail logged server-side via `console.error`.
 
-### `send-push-notification` — **deployed, ACTIVE, version 1**
+### `send-push-notification` — **deployed, ACTIVE**
 
 Deno runtime, `jsr:@supabase/supabase-js@2` plus `npm:jose@5` (RS256 JWT
 signing), `verify_jwt: true`. Same caller-verification shape as
@@ -1091,11 +1091,18 @@ service-role client, then requires `profiles.role = 'admin' AND deleted_at
 IS NULL` before touching the payload. Deployed 2026-09-29 via the Supabase
 CLI (`env-deploy.md` "Push notifications" — the MCP `deploy_edge_function`
 tool cannot deploy this function, it cannot resolve the `../_shared/fcm.ts`
-import), with the `FCM_SERVICE_ACCOUNT_JSON` secret set. **Exercised against
-real FCM 2026-09-29**: a live send from the admin UI to the primary admin's
-own registered device returned `recipientCount: 1` with no error in
-`function_logs` — confirmed the API accepted it, not confirmed by eye on the
-device (no way to see a physical phone screen from this session).
+import), with the `FCM_SERVICE_ACCOUNT_JSON` secret set, then redeployed the
+same day adding the status-bar icon/color payload fields (below).
+(`list_edge_functions`'s `version` number is not a reliable per-function
+counter here — `admin-user-management`'s own reported version has changed
+across checks in this same session with its `updated_at`/hash both
+unchanged, i.e. genuinely un-redeployed — so `status: ACTIVE` and
+`updated_at` are what to trust, not the version number.) **Exercised against
+real FCM 2026-09-29, twice** (once before the icon change, once after): both
+live sends from the admin UI to the primary admin's own registered device
+returned `recipientCount: 1` with no error in `function_logs` — confirmed
+the API accepted it, not confirmed by eye on the device (no way to see a
+physical phone screen from this session).
 
 Accepts `{ title, body, target }`, `target` one of `{ type: 'all' }`,
 `{ type: 'course', courseId }`, `{ type: 'user', userId }`. `'all'` sends
@@ -1109,9 +1116,12 @@ failure and never aborts the rest. Always logs one `notifications_sent` row
 at the end, with the real count of successful sends (never a guess) — even a
 zero-recipient send is logged, so the history table reflects every attempt.
 
-### `register-push-token` — **deployed, ACTIVE, version 1**
+### `register-push-token` — **deployed, ACTIVE**
 
-Same runtime as `send-push-notification`, deployed alongside it 2026-09-29.
+Same runtime as `send-push-notification`, deployed and redeployed alongside
+it both times 2026-09-29 (its own code is unchanged by the icon fix — only
+the shared `_shared/fcm.ts` file it also bundles moved — redeployed to keep
+both functions' copies of that shared file in sync).
 Exists because
 `@capacitor/push-notifications` 8.1.2 has no client-side
 `subscribeToTopic`/`unsubscribeFromTopic` (checked against its shipped
@@ -1134,8 +1144,10 @@ FCM's API through this endpoint), then subscribes it to `"all-students"` via
 `getFcmAccessToken()` (the service account's own JWT-bearer OAuth2 flow,
 `npm:jose@5` for RS256, cached in memory per function instance, refreshed a
 minute before its 1-hour expiry), `sendFcmMessage()` (FCM HTTP v1
-`messages:send`, by topic or by token), `subscribeTokenToTopic()` (the
-legacy Instance ID API — there is no HTTP v1 equivalent), and
+`messages:send`, by topic or by token — always sets `android.notification.icon`
+`ic_stat_notify` and `android.notification.color` `#F2B233`, the `--gold`
+token, on every message; `ui.md` "Status-bar icon"), `subscribeTokenToTopic()`
+(the legacy Instance ID API — there is no HTTP v1 equivalent), and
 `mapWithConcurrency()` (a small bounded-concurrency runner, no library). The
 service account's private key and any OAuth token it mints never leave this
 module — neither Edge Function returns either to its caller.

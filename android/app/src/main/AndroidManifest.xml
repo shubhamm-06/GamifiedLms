@@ -38,6 +38,13 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Status-bar icon for a push notification (migration 031) that arrives with
+             no per-message icon set. send-push-notification sets notification.android.icon
+             on every send explicitly, so this is a fallback, not the only source. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
     </application>
 
     <!-- Permissions -->
