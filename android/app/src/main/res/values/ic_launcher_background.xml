@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- The adaptive icon's background layer, behind the owl foreground
+         (mipmap-anydpi-v26/ic_launcher.xml). Same value as @color/splash_background
+         (values/colors.xml): native resources can't read CSS custom properties, so
+         the locked cream token is duplicated here too; if the token ever changes,
+         both must follow. -->
+    <color name="ic_launcher_background">#FFF7EA</color>
 </resources>

@@ -148,14 +148,20 @@ The schema or docs anticipate each of these; no working code exists for any.
   `allowBackup=false`; none of the device checks in `env-deploy.md` has been run. Open
   product calls: moving the session to secure storage (options in `env-deploy.md`), and
   whether a cached game should open offline (today it cannot).
-- **Owl splash and entrance built, unverified on a device** (2026-09-29, `ui.md` "Splash
-  and entrance owl"): a static owl on the native cold-start splash (a new
-  `MainActivity.installSplashScreen()` call was needed for API 24-30, previously
-  unused despite the compat library already being a dependency) and a one-shot
-  bounce/glow/blink entrance overlay in the app. The APK builds with the new drawable
-  resource; no device was attached, so the cold-start-to-entrance handoff, the blink
-  timing and `prefers-reduced-motion` have only been checked by reading the code, not
-  seen on screen.
+- **Owl splash, entrance and launcher icon built, unverified on a device**
+  (2026-09-29, `ui.md` "Splash and entrance owl"): a static owl on the native
+  cold-start splash (a new `MainActivity.installSplashScreen()` call was needed for
+  API 24-30, previously unused despite the compat library already being a
+  dependency) and a one-shot bounce/glow/blink entrance overlay in the app, both
+  from the finalized SVG mark. The launcher icon (all `mipmap-*/ic_launcher*.png`,
+  a second, separately supplied owl artwork) was replaced the same day: adaptive
+  icon (safe-zone foreground + cream background) and legacy pre-26 icons, generated
+  from the source PNG with Pillow (cropped to content, centered, no distortion). The
+  APK builds with the new drawable and mipmap resources; no device or emulator was
+  attached, so the cold-start-to-entrance handoff, the blink timing,
+  `prefers-reduced-motion`, and how the launcher icon actually looks under a real
+  OEM mask have only been checked by reading the code and the generated PNGs
+  on-screen here, not seen on a phone or in a launcher.
 - **Quiz explanations.** The correct option is now revealed after each answer
   (migration 024, `fn_check_quiz_answer`; `rules.md` amended). An explanation is still
   not sent anywhere: the quiz page has no place for one and `fn_submit_quiz` /
@@ -192,10 +198,10 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **iOS, release Android builds, CI.** The Android platform is generated and a
   debug APK builds (`npm run android:apk`, output `android/app/build/outputs/apk/debug/app-debug.apk`,
   `env-deploy.md` "Android build"); it has NOT been installed or exercised on a
-  device or emulator. Not done: release signing / keystore, an AAB, real app icons
-  and splash polish (the launcher icon is Capacitor's placeholder; the splash is a
-  solid cream colour), FCM/push, deep links / Android App Links (Supabase email
-  confirmation links open in the browser, not the app). iOS was not added. Hosting is Vercel; no CI exists.
+  device or emulator. Not done: release signing / keystore, an AAB, FCM/push, deep
+  links / Android App Links (Supabase email confirmation links open in the browser,
+  not the app). The launcher icon and splash both use the real owl mark now
+  (`ui.md` "Splash and entrance owl"). iOS was not added. Hosting is Vercel; no CI exists.
 - **A Course Builder "Additional" tab** (prerequisites/FAQs/audience). The
   schema has no columns for it; deliberately not built.
 - **Admin control over the locked design tokens** from `/admin/settings` — the

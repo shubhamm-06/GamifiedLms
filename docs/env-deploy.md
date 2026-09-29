@@ -133,10 +133,17 @@ XML comments must not contain `--`. Gradle needs `ANDROID_HOME` or
 
 **What was customised in `android/`:** launcher label and package from the config;
 a solid cream splash (`values/colors.xml` `splash_background`, the Capacitor
-`splash.png` files deleted, `windowSplashScreenBackground` set); the window
-background is cream so nothing flashes white before the page paints. The literal hex
-lives in `colors.xml` and `capacitor.config.json` because native resources cannot read
-CSS custom properties; if the cream token changes they must follow.
+`splash.png` files deleted, `windowSplashScreenBackground` set) plus a static owl
+icon on top of it (`values/styles.xml` `windowSplashScreenAnimatedIcon`, `ui.md`
+"Splash and entrance owl"); the window background is cream so nothing flashes white
+before the page paints. The launcher icon itself (all `mipmap-*/ic_launcher*.png`,
+generated from the supplied owl artwork, not the SVG splash mark) is the same owl:
+the adaptive foreground is kept within the ~62%-of-canvas safe zone so no OEM mask
+clips it, legacy pre-Android-8 icons have the cream baked in directly, and the
+adaptive background color (`values/ic_launcher_background.xml`) is the same cream.
+The literal hex lives in `colors.xml`, `ic_launcher_background.xml` and
+`capacitor.config.json` because native resources cannot read CSS custom properties;
+if the cream token changes they must all follow.
 
 **Device behaviour to know (not exercised on a device yet):** the webview origin is
 `https://localhost`; supabase-js keeps its session in `localStorage`, which Android
@@ -162,9 +169,9 @@ forced sign-in), and a web fallback that stays on `localStorage`.
 The router uses browser history; Capacitor serves `index.html` for extensionless
 paths, so nested routes and refresh should work, but that is unverified on-device.
 
-**Not done yet:** release signing / keystore, an AAB for Play, real app icons and
-splash polish (the launcher icon is Capacitor's placeholder: TODO), FCM/push, deep
-links / App Links, and iOS.
+**Not done yet:** release signing / keystore, an AAB for Play, FCM/push, deep
+links / App Links, and iOS. (The launcher icon is real, done 2026-09-29 — see above —
+not a placeholder any more.)
 
 **Testing the Back button with adb** (not yet run: no device was attached). Install
 (`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`), sign in as a

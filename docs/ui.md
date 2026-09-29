@@ -592,13 +592,15 @@ feedback" sits directly under "Sound effects" in the renamed "Sound & haptics" s
 same switch style, default on, stored like sound (`localStorage` `kid.hapticsEnabled`,
 `useHapticsSetting`). Both rows also show on the web, where neither does anything yet.
 
-**Splash and entrance owl (2026-09-29).** The Wisdom Hatch Kids owl mark (a finalized,
-pre-cropped SVG) is the brand mark for cold start only, on native. **Its four colors —
+**Splash, entrance and launcher owl (2026-09-29).** The Wisdom Hatch Kids owl is the
+brand mark, on native only, in three places, from two separate pieces of artwork.
+The splash and entrance below use one finalized, pre-cropped SVG. **Its four colors —
 teal `#18B6C9`, light teal `#6FE0EC`, ink `#231F20`, gold `#FFC83D` — are hardcoded at
 both use sites below and deliberately NOT locked design tokens** ("Colour roles" below):
 they are the mark's own brand colors, not reused anywhere else in the UI, and must not be
 added to the token set or used to recolor anything else. This is the one place in the
-app hex is hardcoded on purpose.
+app hex is hardcoded on purpose (the launcher icon below is a separate raster asset,
+not CSS, so it has no token question).
 - **Native cold-start splash** (`android/app/src/main/res/drawable/owl_splash_icon.xml`,
   `values/styles.xml` `AppTheme.NoActionBarLaunch`): a static vector redraw of the mark
   (eyes open, no blink — nothing here can move) as `windowSplashScreenAnimatedIcon`,
@@ -622,6 +624,24 @@ app hex is hardcoded on purpose.
   native splash exactly, so there is no color jump). Under `prefers-reduced-motion` the
   motion, glow and blink are all skipped; the static mark simply holds for the same
   window, then fades out the same way. Not exercised on a device (`state.md`).
+- **Launcher icon** (`android/app/src/main/res/mipmap-*/ic_launcher*.png`,
+  `mipmap-anydpi-v26/ic_launcher.xml`/`ic_launcher_round.xml`): a second, separately
+  supplied owl illustration (graduation cap, its own colors baked into the raster,
+  not the splash mark above), generated at every density with Pillow, checked into
+  the repo as the finished PNGs, not a source file. Adaptive icon (API 26+): the
+  foreground layer is scaled so the owl's longer side is 62% of the 108dp canvas,
+  centered, transparent around it, so no OEM mask (circle, squircle, rounded
+  square) clips the ears or tassel; the background layer is a solid color resource
+  (`values/ic_launcher_background.xml`, `#FFF7EA`, the same cream as the splash,
+  duplicated there for the same reason `colors.xml` duplicates it — native
+  resources can't read CSS custom properties). Legacy icon (pre-Android-8
+  launchers, same PNG used for both `ic_launcher` and `ic_launcher_round`): the
+  owl at 86% fill on a cream background baked directly into the bitmap (flattened,
+  no alpha), so it never depends on the adaptive background layer. Replaces the
+  Capacitor scaffold's default robot icon; the two now-unreferenced scaffold
+  drawables (`drawable/ic_launcher_background.xml`, `drawable-v24/ic_launcher_foreground.xml`)
+  were left in place, unused. Not exercised on a device: how it actually renders
+  under a real OEM launcher's mask is unverified (`state.md`).
 
 **Unavailable screens (2026-09-28, migration 029).** A course a student can't open
 (still a draft, archived, or gone) and a lesson they can't open (a draft or
