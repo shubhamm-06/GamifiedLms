@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wisdom Hatch Kids owl mark, for the Android 12+ (and AndroidX compat) cold-start
+     splash icon only. Coordinates are the brand SVG's own viewBox (390 120 420 420),
+     translated to a 0,0-based 420x420 viewport; the shapes themselves are untouched.
+     Colors are the owl's own brand palette, not the app's locked UI tokens
+     (docs/ui.md "Splash and entrance owl"): deliberately not reused anywhere else. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="420"
+    android:viewportHeight="420">
+    <!-- White backing circle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20,210 A190,190 0 1,0 400,210 A190,190 0 1,0 20,210 Z" />
+    <!-- Body, teal -->
+    <path
+        android:fillColor="#18B6C9"
+        android:pathData="M90,225 A120,124 0 1,0 330,225 A120,124 0 1,0 90,225 Z" />
+    <!-- Belly, light teal -->
+    <path
+        android:fillColor="#6FE0EC"
+        android:pathData="M144,252 A66,76 0 1,0 276,252 A66,76 0 1,0 144,252 Z" />
+    <!-- Eye backings, white -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M114,198 A48,48 0 1,0 210,198 A48,48 0 1,0 114,198 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M210,198 A48,48 0 1,0 306,198 A48,48 0 1,0 210,198 Z" />
+    <!-- Eye rings, ink -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#231F20"
+        android:strokeWidth="9"
+        android:pathData="M114,198 A48,48 0 1,0 210,198 A48,48 0 1,0 114,198 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#231F20"
+        android:strokeWidth="9"
+        android:pathData="M210,198 A48,48 0 1,0 306,198 A48,48 0 1,0 210,198 Z" />
+    <!-- Pupils, ink (eyes open: the static splash never blinks) -->
+    <path
+        android:fillColor="#231F20"
+        android:pathData="M150,192 A20,20 0 1,0 190,192 A20,20 0 1,0 150,192 Z" />
+    <path
+        android:fillColor="#231F20"
+        android:pathData="M230,192 A20,20 0 1,0 270,192 A20,20 0 1,0 230,192 Z" />
+    <!-- Beak, ink -->
+    <path
+        android:fillColor="#231F20"
+        android:pathData="M210,30 L320,72 L210,114 L100,72 Z" />
+    <!-- Beak highlight, gold -->
+    <path
+        android:fillColor="#FFC83D"
+        android:pathData="M201,72 A9,9 0 1,0 219,72 A9,9 0 1,0 201,72 Z" />
+</vector>

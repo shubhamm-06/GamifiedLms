@@ -15,6 +15,12 @@ build phase: admin-facing tooling only, no student-facing UI.
   on `html[data-native]`. Safe-area insets = `--sa-top/right/bottom/left` tokens (`styles.css`):
   `var(--safe-area-inset-X, env(safe-area-inset-X, 0px))`; Capacitor 8 SystemBars injects the vars
   (real values on a current WebView, 0 on an old one where it pads natively), the web falls to `env()`
+- Cold-start owl (`ui.md` "Splash and entrance owl"): a static vector icon on the native
+  splash (`android/app/src/main/res/drawable/owl_splash_icon.xml`, needs
+  `SplashScreen.installSplashScreen()` in `MainActivity.java` for API 24-30) plus a
+  one-shot in-app entrance (`components/AppEntranceSplash.tsx`, native only, overlays
+  `<RouterProvider>` in `main.tsx`, does not gate routing). The owl's brand hex is
+  intentionally hardcoded, not a design token
 - Capacitor `@capacitor/core`+`@capacitor/cli`+`@capacitor/android` 8.5.0 — the
   Android platform is generated and committed (`android/`, app id
   `com.wisdomhatch.kids`, bundled assets only, no `server.url`); iOS is not

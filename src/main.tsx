@@ -6,6 +6,7 @@ import './index.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
 import { AndroidBackButton } from '@/components/native/AndroidBackButton'
+import { AppEntranceSplash } from '@/components/AppEntranceSplash'
 import { queryClient } from '@/lib/queryClient'
 import { initNativeShell } from '@/lib/nativeShell'
 import { router } from './router'
@@ -16,7 +17,9 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <RouterProvider router={router} />
+        <AppEntranceSplash>
+          <RouterProvider router={router} />
+        </AppEntranceSplash>
         <Toaster />
         <AndroidBackButton />
       </TooltipProvider>

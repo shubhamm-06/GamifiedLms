@@ -592,6 +592,37 @@ feedback" sits directly under "Sound effects" in the renamed "Sound & haptics" s
 same switch style, default on, stored like sound (`localStorage` `kid.hapticsEnabled`,
 `useHapticsSetting`). Both rows also show on the web, where neither does anything yet.
 
+**Splash and entrance owl (2026-09-29).** The Wisdom Hatch Kids owl mark (a finalized,
+pre-cropped SVG) is the brand mark for cold start only, on native. **Its four colors —
+teal `#18B6C9`, light teal `#6FE0EC`, ink `#231F20`, gold `#FFC83D` — are hardcoded at
+both use sites below and deliberately NOT locked design tokens** ("Colour roles" below):
+they are the mark's own brand colors, not reused anywhere else in the UI, and must not be
+added to the token set or used to recolor anything else. This is the one place in the
+app hex is hardcoded on purpose.
+- **Native cold-start splash** (`android/app/src/main/res/drawable/owl_splash_icon.xml`,
+  `values/styles.xml` `AppTheme.NoActionBarLaunch`): a static vector redraw of the mark
+  (eyes open, no blink — nothing here can move) as `windowSplashScreenAnimatedIcon`,
+  centered over the existing solid cream `windowSplashScreenBackground`
+  (`@color/splash_background`, unchanged). Android 12+ reads this from the theme
+  directly; API 24-30 needs the AndroidX compat library to actually draw it, which needs
+  `SplashScreen.installSplashScreen(this)` called before `super.onCreate()` in
+  `MainActivity.java` (added this task — the theme attributes alone do nothing pre-31
+  without it, so the compat dependency already in `build.gradle` was previously unused).
+- **In-app entrance** (`components/AppEntranceSplash.tsx`, mounted once around
+  `<RouterProvider>` in `main.tsx`): plays once per cold start, native only
+  (`Capacitor.isNativePlatform()`; the web renders children immediately, unchanged). It
+  is an overlay, not a gate — the router resolves auth/routing underneath it in
+  parallel, and whatever it lands on (Home, login, a loading state) is simply revealed
+  when the overlay's own fixed ~950ms timer ends and it fades out over 150ms (no
+  timeout/cap logic, nothing waits on it). The owl (inline SVG, so the pupils can be
+  targeted) scales in from 0.3x with a slight rotation and settles with overshoot
+  (`cubic-bezier(.34,1.56,.64,1)`), a soft teal radial glow behind it fades in then out
+  over the same window, and the two pupils blink once (`scaleY` 1 → 0.12 → 1) timed to
+  land as the bounce settles. Background is `--cream` (the locked token, matching the
+  native splash exactly, so there is no color jump). Under `prefers-reduced-motion` the
+  motion, glow and blink are all skipped; the static mark simply holds for the same
+  window, then fades out the same way. Not exercised on a device (`state.md`).
+
 **Unavailable screens (2026-09-28, migration 029).** A course a student can't open
 (still a draft, archived, or gone) and a lesson they can't open (a draft or
 unpublished lesson) end on the same compass `Screen`, with copy at two levels and

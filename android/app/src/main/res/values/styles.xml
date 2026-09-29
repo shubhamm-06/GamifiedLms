@@ -19,11 +19,15 @@
     </style>
 
 
-    <!-- Solid cream splash (no image): the default Capacitor splash.png files
-         were removed. windowSplashScreenBackground is what Android 12+ shows;
-         android:background covers the pre-12 launch window. -->
+    <!-- Cream splash with a centered, static owl mark (no animated-vector frames,
+         so this is used purely as a static icon): the default Capacitor splash.png
+         files were removed. windowSplashScreenBackground/AnimatedIcon is what
+         Android 12+'s real SplashScreen API reads; the AndroidX compat library
+         (MainActivity.installSplashScreen()) draws the same icon on API 24-30.
+         android:background covers the sliver before the compat library takes over. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/owl_splash_icon</item>
         <item name="android:background">@color/splash_background</item>
     </style>
 </resources>

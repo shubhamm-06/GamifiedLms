@@ -148,6 +148,14 @@ The schema or docs anticipate each of these; no working code exists for any.
   `allowBackup=false`; none of the device checks in `env-deploy.md` has been run. Open
   product calls: moving the session to secure storage (options in `env-deploy.md`), and
   whether a cached game should open offline (today it cannot).
+- **Owl splash and entrance built, unverified on a device** (2026-09-29, `ui.md` "Splash
+  and entrance owl"): a static owl on the native cold-start splash (a new
+  `MainActivity.installSplashScreen()` call was needed for API 24-30, previously
+  unused despite the compat library already being a dependency) and a one-shot
+  bounce/glow/blink entrance overlay in the app. The APK builds with the new drawable
+  resource; no device was attached, so the cold-start-to-entrance handoff, the blink
+  timing and `prefers-reduced-motion` have only been checked by reading the code, not
+  seen on screen.
 - **Quiz explanations.** The correct option is now revealed after each answer
   (migration 024, `fn_check_quiz_answer`; `rules.md` amended). An explanation is still
   not sent anywhere: the quiz page has no place for one and `fn_submit_quiz` /

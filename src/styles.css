@@ -45,6 +45,29 @@ html[data-native] .admin-shell {
   padding: var(--sa-top) var(--sa-right) var(--sa-bottom) var(--sa-left);
 }
 
+/* The one-shot cold-start owl entrance (components/AppEntranceSplash.tsx), native
+   only. Sits on top of the whole app while it plays; z-index 100 clears every
+   other layer (the kid offline banner is the highest of those, at 60). */
+.app-entrance-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cream);
+}
+
+.app-entrance-glow {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(24, 182, 201, 0.35) 0%, rgba(24, 182, 201, 0) 70%);
+}
+
 .auth-page {
   min-height: 100vh;
   display: flex;
