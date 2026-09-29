@@ -61,8 +61,11 @@ captures/
 .externalNativeBuild
 .cxx/
 
-# Google Services (e.g. APIs or Firebase)
-# google-services.json
+# Google Services (e.g. APIs or Firebase). Re-enabled 2026-09-29: committing it
+# leaked a Firebase API key to a public GitHub push (removed from history via
+# git filter-repo). The file must still exist on disk for the app to build --
+# it's just never committed again. See docs/env-deploy.md "Push notifications".
+google-services.json
 
 # Freeline
 freeline.py
