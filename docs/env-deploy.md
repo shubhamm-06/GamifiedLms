@@ -30,7 +30,7 @@ Supabase-managed default secret in the Edge Function environment, never set
 in this repo's `.env` and never hardcoded in function source. `FCM_SERVICE_ACCOUNT_JSON`
 is a second, custom Edge Function secret (`send-push-notification`,
 `register-push-token`, migration 031, name only — see "Push notifications"
-below for what it is and how it gets set); it does not exist yet.
+below for what it is), set 2026-09-29.
 
 ## Deploy pipeline
 
@@ -74,7 +74,18 @@ already in `.env`):
   `Supabase:deploy_edge_function`, or
   `npx supabase functions deploy <name> --project-ref dmmvftodhcdbubuljqme`
   with `SUPABASE_ACCESS_TOKEN` set (this one path does need the token, since
-  function deploys go through the Management API, not Postgres).
+  function deploys go through the Management API, not Postgres). **A function
+  that imports a shared sibling file outside its own directory (`../_shared/...`,
+  like `send-push-notification` and `register-push-token`) must use the CLI,
+  not `Supabase:deploy_edge_function`** — that MCP tool places every `files`
+  entry under its own synthetic bundle root, so a relative import that walks
+  up out of the function's own folder cannot resolve (`Module not found`); the
+  CLI deploys the real `supabase/functions/` tree from disk, where the import
+  resolves correctly. `secrets set`/`functions deploy` sometimes report
+  `ProjectRefNotLinkedError` even with `--project-ref` passed — run `npx
+  supabase link --project-ref dmmvftodhcdbubuljqme` first (needs only
+  `SUPABASE_ACCESS_TOKEN`; leaves no file that needs gitignoring, `supabase/.temp/`
+  already is).
 
 ## Where things run
 
@@ -191,43 +202,48 @@ paths, so nested routes and refresh should work, but that is unverified on-devic
 
 **Not done yet:** release signing / keystore, an AAB for Play, deep
 links / App Links, and iOS. (The launcher icon is real, done 2026-09-29 — see above —
-not a placeholder any more. Push notifications are built but not deployed —
-see below, not a "not done yet" in the same sense: the code is finished and
-waiting on two external pieces.)
+not a placeholder any more. Push notifications are fully deployed — see below.)
 
-**Push notifications (2026-09-29, migration 031) — client and schema done,
-server NOT deployed.** `@capacitor/push-notifications` 8.1.2,
-`device_push_tokens`/`notifications_sent` (`schema.md` section 8), and the
-`/admin/notifications` screen are all built and verified. Two Edge Functions
-(`send-push-notification`, `register-push-token`, plus a shared
-`_shared/fcm.ts`) are written but have never been deployed, and cannot be
-from this environment: deploying an Edge Function or setting a secret needs
-`SUPABASE_ACCESS_TOKEN` (Management API — **not currently set anywhere in
-this repo**, same gap noted above) or the Supabase MCP connector (comes and
-goes across sessions). Separately, the functions need a secret,
-**`FCM_SERVICE_ACCOUNT_JSON`** (names only, per this file's own rule — never
-its value here): the full JSON key of a Firebase service account for the
-`wisdom-hatch-kids` project with the Firebase Cloud Messaging API enabled,
-read from a local file path so the value never touches shell history or a
-committed file. That key file has not been supplied yet.
+**Push notifications (2026-09-29, migration 031) — DEPLOYED and working.**
+`@capacitor/push-notifications` 8.1.2, `device_push_tokens`/`notifications_sent`
+(`schema.md` section 8), the `/admin/notifications` screen, and both Edge
+Functions (`send-push-notification` v1, `register-push-token` v1, both
+`ACTIVE`, `verify_jwt: true`, deployed via `npx supabase functions deploy
+<name> --project-ref dmmvftodhcdbubuljqme` with `SUPABASE_ACCESS_TOKEN` —
+**not** the MCP's `deploy_edge_function` tool, which flattens `files` under
+its own synthetic root and cannot resolve a relative import that walks up
+out of the function's own directory; the real CLI deploys the actual
+`supabase/functions/` tree, so `../_shared/fcm.ts` resolves correctly). The
+secret they read, **`FCM_SERVICE_ACCOUNT_JSON`** (name only, per this file's
+own rule — never its value here): the full JSON key of a Firebase service
+account for the `wisdom-hatch-kids` project with the Firebase Cloud
+Messaging API enabled, set via `supabase secrets set`.
 
-**The exact two commands to run, once `SUPABASE_ACCESS_TOKEN` (or the MCP) is
-available and a service account key file exists on disk** (placeholders
-only, no real values):
+**Gotcha that cost one redeploy-of-the-secret cycle:** `supabase secrets set
+NAME="$(cat file.json)"` breaks if the JSON file is pretty-printed (real
+newlines between keys) — the CLI's `NAME=VALUE` argument parsing does not
+survive an embedded newline in the value, and the function then fails at
+runtime with `FCM_SERVICE_ACCOUNT_JSON is not valid JSON` (confirmed via
+`function_logs`). **Minify the JSON to one line first:**
 
 ```
-# 1. Set the secret, reading the key from its file so the value is never typed or logged:
-npx supabase secrets set FCM_SERVICE_ACCOUNT_JSON="$(cat /path/to/service-account.json)" --project-ref dmmvftodhcdbubuljqme
-
-# 2. Deploy both functions (they share supabase/functions/_shared/fcm.ts, so deploy together):
-npx supabase functions deploy send-push-notification --project-ref dmmvftodhcdbubuljqme
-npx supabase functions deploy register-push-token --project-ref dmmvftodhcdbubuljqme
+npx supabase secrets set FCM_SERVICE_ACCOUNT_JSON="$(node -e "process.stdout.write(JSON.stringify(JSON.parse(require('fs').readFileSync('/path/to/service-account.json','utf8'))))")" --project-ref dmmvftodhcdbubuljqme
 ```
 
-Delete the local key file after the secret is confirmed set — it must never
-be committed. Once both are deployed, `/admin/notifications`'s Send button
-needs no further change: it already calls `send-push-notification` and will
-simply start succeeding instead of showing "Could not reach the server."
+`supabase secrets set` and `supabase functions deploy` both also need the
+project **linked** first if the CLI reports `ProjectRefNotLinkedError` even
+with `--project-ref` passed — `npx supabase link --project-ref
+dmmvftodhcdbubuljqme` (needs only `SUPABASE_ACCESS_TOKEN`, already set).
+
+**Verified end to end 2026-09-29** with a real send from the live admin UI
+(a temporary `zz-*@example.test` admin fixture, removed after) targeting the
+real primary admin's own registered device: `recipientCount: 1`, no error in
+`function_logs`, and the admin UI showed "Notification sent to 1 device."
+instead of the earlier "Could not reach the server." The local
+`firebase-service-account.json` key file was deleted after the secret was
+confirmed set, per the standing "read once, never left on disk" rule
+(`rules.md`) — it was never committed (already in `.gitignore`, confirmed
+untracked before deleting).
 
 **Testing the Back button with adb** (not yet run: no device was attached). Install
 (`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`), sign in as a
@@ -249,11 +265,13 @@ pressing Home (`adb shell input keyevent KEYCODE_HOME`: video pauses, screen may
 clock resumes after return); airplane mode (`adb shell cmd connectivity airplane-mode enable`,
 banner appears, completing a lesson shows an error with Try again).
 
-**Testing push notifications with adb** (not yet run: no device was attached,
-and the server side is not deployed — see "Push notifications" above; the
-device-side checks below need both). Install, sign in as a student, grant the
-notification permission if prompted (Android 13+), confirm a row appears in
-`device_push_tokens` for that user; from `/admin/notifications` send to that
-specific student and confirm it arrives, including with the app fully closed
-(`adb shell am force-stop com.wisdomhatch.kids` first) and that tapping it
-opens the app without a crash.
+**Testing push notifications with adb.** The server side is deployed and a
+real send to the primary admin's already-registered device (`device_push_tokens`
+had a row from an earlier real install) came back `recipientCount: 1` with no
+error in `function_logs` — confirmed the API accepted it, **not** confirmed
+by eye on the phone (this session has no way to see a physical screen).
+Still unverified this way, no device attached to this session: granting the
+notification permission on first launch (Android 13+), the notification
+actually appearing (banner, sound/vibration per system settings), arriving
+with the app fully closed (`adb shell am force-stop com.wisdomhatch.kids`
+first), and tapping it opening the app without a crash.

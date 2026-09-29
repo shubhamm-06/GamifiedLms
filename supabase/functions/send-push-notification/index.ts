@@ -1,15 +1,10 @@
 // =====================================================================
 // send-push-notification — admin-only manual push send (migration 031).
 //
-// TODO (blocked, follow-up session): this function is written but NOT
-// deployed, and cannot actually send anything yet — FCM_SERVICE_ACCOUNT_JSON
-// (the Firebase service account key) has not been supplied, so
-// getFcmAccessToken() throws immediately, and no SUPABASE_ACCESS_TOKEN is
-// set in this environment, so there is no way to deploy it either. See
-// docs/env-deploy.md "Push notifications" for the exact two commands to run
-// once both pieces exist. Everything below is exercised only by reading it
-// and by the admin-user-management pattern it copies; nothing here has run
-// against real FCM.
+// Deployed 2026-09-29 (docs/changelog.md). Needs the FCM_SERVICE_ACCOUNT_JSON
+// secret (docs/env-deploy.md "Push notifications" — name only, never a
+// value) to actually send; without it getFcmAccessToken() throws and every
+// call fails with a 500.
 //
 // Same caller-verification shape as admin-user-management (schema.md "Edge
 // Functions"): resolve the caller from the bearer token with the

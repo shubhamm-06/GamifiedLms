@@ -2,9 +2,8 @@
 // register-push-token — subscribes one device's FCM token to the
 // "all-students" topic (migration 031).
 //
-// TODO (blocked, follow-up session): written but NOT deployed and cannot do
-// anything yet — same FCM_SERVICE_ACCOUNT_JSON / SUPABASE_ACCESS_TOKEN gap
-// as send-push-notification (docs/env-deploy.md "Push notifications").
+// Deployed 2026-09-29 (docs/changelog.md), same FCM_SERVICE_ACCOUNT_JSON
+// secret as send-push-notification (docs/env-deploy.md "Push notifications").
 //
 // Why this function exists at all: @capacitor/push-notifications 8.1.2 has
 // no client-side subscribeToTopic/unsubscribeFromTopic (checked against its

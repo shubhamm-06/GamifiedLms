@@ -21,6 +21,7 @@ docs
 .env.*
 !.env.example
 doc/.env
+firebase-service-account.json
 
 # Capacitor native platforms. android/ is generated (2026-09-28) and
 # COMMITTED, with its own android/.gitignore keeping build output, .gradle,

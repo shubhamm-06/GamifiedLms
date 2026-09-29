@@ -686,15 +686,21 @@ plugin call, no console error.
   read-only history table (`notifications_sent`, most recent first — the
   same "read-only report, no row-selection kit" shape as the Dashboard's
   recent-activity feed, `rules.md`/this file's Component conventions). No
-  editing or resending. **`send-push-notification` is written but not
-  deployed** (`env-deploy.md`): Send currently fails with the same generic
-  "Could not reach the server. Please try again." toast every other admin
-  action already falls back to for an unreachable/network-level failure —
-  reasonable (no crash, no leaked detail, prompts a retry), if not specific
-  to "this function doesn't exist yet"; that imprecision is a deploy-order
-  artifact, not something to special-case, since it disappears entirely once
-  the function is deployed. Not exercised on a device or against real FCM
-  (`state.md`).
+  editing or resending. **`send-push-notification` is deployed and working**
+  (`env-deploy.md` "Push notifications"): a real send from this screen to the
+  primary admin's own registered device (2026-09-29) returned
+  `recipientCount: 1` with no error, and the toast read "Notification sent to
+  1 device." Confirmed the API accepted and FCM returned success for that
+  token; not confirmed by eye on the phone screen, which needs the device's
+  owner to check (`state.md`).
+- **Deliberately deferred, no scaffolding built for either:** automated or
+  triggered notifications (a streak about to lapse, a new course published —
+  these would need a scheduler or a DB trigger calling
+  `send-push-notification`, neither exists) and web push (this whole feature
+  is Android only; `registerPushNotifications` is a no-op on web and there is
+  no service-worker/VAPID path). Also not built: iOS, per-notification
+  deep-linking, resending or editing a past send, and per-device
+  notification preferences (topic-level only, `"all-students"`).
 
 **Unavailable screens (2026-09-28, migration 029).** A course a student can't open
 (still a draft, archived, or gone) and a lesson they can't open (a draft or

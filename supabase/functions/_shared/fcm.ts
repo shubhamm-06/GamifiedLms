@@ -1,12 +1,8 @@
 // =====================================================================
 // _shared/fcm.ts — Firebase Cloud Messaging, shared by send-push-notification
-// and register-push-token.
-//
-// TODO (blocked, follow-up session): this whole module is unusable until the
-// FCM_SERVICE_ACCOUNT_JSON secret exists. Neither function that imports it
-// has been deployed yet either — see docs/env-deploy.md "Push notifications"
-// for the exact two commands to run once both pieces exist (the service
-// account key file and SUPABASE_ACCESS_TOKEN).
+// and register-push-token. Deployed 2026-09-29 (docs/changelog.md) alongside
+// both; the FCM_SERVICE_ACCOUNT_JSON secret it reads is set in the same
+// project (docs/env-deploy.md "Push notifications" — name only, no value).
 //
 // The service account's own JWT-bearer OAuth2 flow (RFC 7523): no refresh
 // token, no interactive consent, no library beyond `jose` for RS256 signing

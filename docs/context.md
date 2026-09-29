@@ -11,7 +11,7 @@ build phase: admin-facing tooling only, no student-facing UI.
   `@capacitor/haptics` 8.0.2 (`lib/haptics.ts`), `@capacitor/filesystem`, `@capacitor/screen-orientation`,
   `@capacitor/keyboard` 8.0.5 + `lib/nativeShell.ts` (`html[data-native]`, `html[data-keyboard='open']`),
   `@capacitor/network` 8.0.1 (`hooks/useOnline.ts`), `@capacitor-community/keep-awake` 8.0.1 (`hooks/useKeepAwake.ts`),
-  `@capacitor/push-notifications` 8.1.2 (`lib/pushNotifications.ts`; FCM, migration 031; Edge Functions written, not deployed)
+  `@capacitor/push-notifications` 8.1.2 (`lib/pushNotifications.ts`; FCM, migration 031; both Edge Functions deployed and exercised against real FCM 2026-09-29)
 - Native shell: `initNativeShell()` in `main.tsx` runs before render (no-op on web); native-only CSS is gated
   on `html[data-native]`. Safe-area insets = `--sa-top/right/bottom/left` tokens (`styles.css`):
   `var(--safe-area-inset-X, env(safe-area-inset-X, 0px))`; Capacitor 8 SystemBars injects the vars
@@ -149,9 +149,9 @@ supabase/
   migrations/  001-031, source of truth for schema — write here first, apply via
                Supabase MCP second, regenerate database.types.ts third, every time
                (006-012 filenames drifted from live versions — see schema.md)
-  functions/   admin-user-management (Deno, deployed). send-push-notification,
-               register-push-token, _shared/fcm.ts (Deno, written but NOT
-               deployed — env-deploy.md "Push notifications")
+  functions/   admin-user-management, send-push-notification,
+               register-push-token (all Deno, deployed, ACTIVE) — the last
+               two share _shared/fcm.ts (env-deploy.md "Push notifications")
 ```
 
 **Architecture decisions:**
@@ -320,7 +320,7 @@ drag-and-drop curriculum and quiz questions, games, orders and payments
 and level-threshold management. One deployed Edge Function handles the
 privileged account actions — creating accounts (one at a time or in bulk from
 a CSV), changing someone else's email or password, and trashing or deleting
-users; two more (manual push notifications) are written but not yet deployed.
+users; two more, deployed 2026-09-29, send manual Android push via FCM.
 What does not exist yet is everything a
 student would touch: no student screens (the lesson engine that will back
 them exists in the database), no payment-gateway webhook, and no deployed
