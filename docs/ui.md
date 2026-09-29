@@ -673,28 +673,49 @@ plugin call, no console error.
   (bounded concurrency), because a topic cannot be scoped to one course or
   student without provisioning a second Google topic per course, which is
   out of scope here.
-- **Status-bar icon (2026-09-29).** Every send sets `android.notification.icon`
-  (`ic_stat_notify`) and `android.notification.color` (the locked `--gold`
-  token, `#F2B233`, hardcoded in `_shared/fcm.ts` — native resources and a Deno
-  Edge Function can't read a CSS custom property, same reason the splash and
-  launcher icon hardcode it) explicitly on the FCM payload, not just the
-  `AndroidManifest.xml` `default_notification_icon` meta-data (also added, as
-  a fallback for the rare message that omits the field). `ic_stat_notify.png`
-  (`android/app/src/main/res/drawable-{m,h,xh,xxh,xxx}hdpi/`) is a **derived**
-  monochrome silhouette, not the full-color brand mark reused directly:
-  Android requires the small notification icon to be a white-on-transparent
-  shape (API 21+ ignores color and fine detail in the status bar itself,
-  which is why the default Android white dot was showing before this). It
-  reuses the existing owl mark's own shape geometry (the head/body ellipse,
-  the two pupils as cutout holes, the beak/topper accent), deliberately
-  **excluding the mark's white backing circle** — silhouetting the full mark
-  including that circle would just produce a plain circle, no more distinct
-  than the bug this fixes. **This is a first-pass automated derivation, not
-  commissioned artwork** — legible as "a round face with two eyes" down to
-  24dp (checked by rendering each density), but a purpose-designed, bolder
-  silhouette (bigger eye cutouts, more exaggerated shape) would likely read
-  more distinctly as the brand mark at true status-bar size. Revisit if the
-  on-device look isn't satisfying.
+- **Status-bar icon (2026-09-29, revised same day).** Every send sets
+  `android.notification.icon` (`ic_stat_notify`) and `android.notification.color`
+  (the locked `--gold` token, `#F2B233`, hardcoded in `_shared/fcm.ts` — native
+  resources and a Deno Edge Function can't read a CSS custom property, same
+  reason the splash and launcher icon hardcode it) explicitly on the FCM
+  payload, not just the `AndroidManifest.xml` `default_notification_icon`
+  meta-data (also added, as a fallback for the rare message that omits the
+  field). `ic_stat_notify.png` (`android/app/src/main/res/drawable-{m,h,xh,xxh,xxx}hdpi/`)
+  is a **derived** monochrome silhouette, not the full-color brand mark reused
+  directly: Android requires the small notification icon to be a
+  white-on-transparent shape (API 21+ ignores color and fine detail in the
+  status bar itself, which is why the default Android white dot was showing
+  before this).
+  - **Two independent mechanisms, easy to conflate when testing:** the
+    **color** is per-message and entirely server-controlled — it takes effect
+    on the very next send with no app update needed. The **icon graphic**
+    is a bitmap bundled inside the installed app package — it only changes
+    once a rebuilt APK is actually installed on the device. A test where the
+    color is right but the glyph isn't almost always means the color came
+    from this send while the glyph is still whatever shipped in whatever APK
+    is currently installed.
+  - **First version (same day) failed on-device**: reported as a plain gold
+    ring with no visible owl features. Diagnosis: that silhouette put most of
+    its visual weight off-center (a tall pointed beak/topper accent above a
+    slightly-oval body, in a tightly-cropped bounding box) — if the OS applies
+    its own circular safe-zone crop on top of the bitmap for this UI surface
+    (as it does for adaptive launcher icons), a centered circular crop over an
+    off-center shape plausibly keeps little more than a thin edge of it,
+    which reads as a hollow ring. Not confirmed against Android/OEM source,
+    since this session has no device to inspect directly — a reasoned
+    diagnosis from the symptom, not a certainty.
+  - **Redesigned same day** to be robust against exactly that: a single bold,
+    genuinely circular head filling almost the whole canvas and centered
+    exactly on it (same spirit as the launcher adaptive-icon safe zone,
+    `ui.md` "Splash and entrance owl"), two large eye holes, and the beak as a
+    small notch fully inside the circle's footprint rather than protruding
+    above it. Checked by simulating an aggressive circular crop plus the gold
+    tint locally: still reads clearly as an owl face. This is still a
+    first-pass derivation, not commissioned artwork, but a considerably
+    bolder and more failure-tolerant one than the first attempt.
+  - **Not yet confirmed on-device**: the redesigned icon needs the rebuilt
+    APK reinstalled on the test device before it can show up at all —
+    unlike the color, this doesn't take effect on its own.
 - **Logout** (`KidProfilePage` `logOut`): best-effort removal of this
   device's token from `device_push_tokens` before `signOut` (after, the
   session needed for the RLS-scoped delete is gone) — never blocks leaving.

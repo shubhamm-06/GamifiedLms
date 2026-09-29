@@ -191,20 +191,33 @@ The schema or docs anticipate each of these; no working code exists for any.
   line first — a pretty-printed file broke the CLI's argument parsing and
   produced a "not valid JSON" runtime error on the first attempt, caught via
   `function_logs` and fixed before the real send.
-- **Notification status-bar icon fixed, same caveat as above** (2026-09-29,
-  `ui.md` "Push notifications" "Status-bar icon"). Every send now sets
-  `android.notification.icon`/`color` explicitly (gold, `--gold` token); the
-  manifest's `default_notification_icon` is a fallback. `ic_stat_notify.png`
-  at all five densities is a **derived, first-pass silhouette** — the owl
-  mark's own head/eyes/beak shapes, without its white backing circle, legible
-  as "a round face with two eyes" down to 24dp when rendered here, but not
-  commissioned artwork. A second real send (`recipientCount: 1`, no error)
-  confirmed the API accepts the new payload fields; **whether the status bar
-  actually shows the gold owl silhouette instead of the default white dot has
-  NOT been confirmed by eye** — same limitation as the send itself, this
-  needs the device owner to look. If the auto-derived silhouette doesn't read
-  well at real size, a bolder purpose-made version (bigger eye cutouts, more
-  exaggerated shape) is the next step, not a code problem to fix.
+- **Notification status-bar icon: redesigned once already, still not
+  confirmed working on-device** (2026-09-29, `ui.md` "Push notifications"
+  "Status-bar icon"). Every send sets `android.notification.icon`/`color`
+  explicitly (gold, `--gold` token); the manifest's `default_notification_icon`
+  is a fallback. **On-device result of the first silhouette**: the color came
+  through (gold), the icon did not — the device showed a plain gold ring, no
+  owl features. Diagnosed as the first silhouette's off-center composition
+  (a tall accent above an oval body) likely losing most of its content to
+  whatever circular safe-zone crop the OS/this notification UI surface
+  applies, the same way an adaptive launcher icon gets cropped — not
+  confirmed against Android/OEM source, reasoned from the symptom, since this
+  session has no device to inspect directly. **Redesigned same day**: a
+  single bold, genuinely circular head filling almost the whole canvas,
+  centered exactly on it, big eye holes, beak as a notch fully inside the
+  circle rather than protruding above it — checked by simulating an
+  aggressive circular crop plus the gold tint locally, still reads clearly.
+  Rebuilt the debug APK; aapt2 confirms the new bitmap packaged at all five
+  densities under the same resource name. **Not yet confirmed on a real
+  device**: unlike the color (per-message, live immediately), the icon
+  graphic is bundled in the installed app package — it can't show up until
+  the rebuilt APK is actually reinstalled on the test device, which has not
+  happened yet this session (no device attached to install it from here).
+  If the redesigned icon still doesn't render as an owl face after a real
+  reinstall-and-resend, that would point away from a simple centering issue
+  and toward something more fundamental in how this specific OS/OEM
+  renders notification icons, worth investigating directly on-device rather
+  than iterating on the bitmap blind again.
 - **Quiz explanations.** The correct option is now revealed after each answer
   (migration 024, `fn_check_quiz_answer`; `rules.md` amended). An explanation is still
   not sent anywhere: the quiz page has no place for one and `fn_submit_quiz` /

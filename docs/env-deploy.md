@@ -282,13 +282,20 @@ real sends to the primary admin's already-registered device (`device_push_tokens
 had a row from an earlier real install) came back `recipientCount: 1` with no
 error in `function_logs` — the second, 2026-09-29, after adding the status-bar
 icon (`ui.md` "Status-bar icon") and its `android.notification.icon`/`color`
-FCM payload fields. Both confirmed the API accepted the send, **not**
-confirmed by eye on the phone (this session has no way to see a physical
-screen) — in particular, whether the status bar actually shows the gold owl
-silhouette instead of Android's default white dot is unconfirmed. Still
-unverified this way, no device attached to this session: granting the
-notification permission on first launch (Android 13+), the notification's
-actual appearance (icon, banner, sound/vibration per system settings),
-arriving with the app fully closed (`adb shell am force-stop
-com.wisdomhatch.kids` first), and tapping it opening the app without a
-crash.
+FCM payload fields. **On-device result of that second send:** the color
+showed correctly (gold), but the icon rendered as a plain gold ring, no owl
+features — reported by the device owner. The silhouette was redesigned the
+same day (bolder, centered, circular) to survive what looks like a circular
+crop the first version lost most of its content to; the debug APK was
+rebuilt with it. **This redesigned icon has not been tested on a device at
+all yet** — the color is per-send and server-controlled (confirmed working
+already), but the icon graphic ships inside the app package, so it cannot
+appear until this rebuilt APK is actually reinstalled on the test device
+(`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`, or a
+manual sideload — no device is attached to this session to do it from
+here), followed by a fresh send. Still unverified this way beyond the icon,
+no device attached to this session: granting the notification permission on
+first launch (Android 13+), the notification's full appearance (banner,
+sound/vibration per system settings), arriving with the app fully closed
+(`adb shell am force-stop com.wisdomhatch.kids` first), and tapping it
+opening the app without a crash.
