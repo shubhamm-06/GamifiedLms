@@ -38,6 +38,7 @@ import { useBackClosable } from '@/hooks/useBackClosable'
 import { useHapticsSetting } from '@/hooks/useHapticsSetting'
 import { useSoundEffects } from '@/hooks/useSoundEffects'
 import * as haptics from '@/lib/haptics'
+import { unregisterPushToken } from '@/lib/pushNotifications'
 import { supabase } from '@/lib/supabase'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -66,6 +67,9 @@ export function KidProfilePage() {
 
   async function logOut() {
     setLeaving(true)
+    // Best-effort, and before signOut: the delete is RLS-scoped to the current
+    // session, and must never delay or block leaving even if it fails.
+    await unregisterPushToken().catch(() => {})
     await supabase.auth.signOut()
     // Every kid query is keyed without the user, so drop them all before the next sign-in.
     queryClient.clear()

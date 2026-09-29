@@ -27,7 +27,10 @@ commands become routine.
 
 Edge Functions read `SUPABASE_SERVICE_ROLE_KEY` at runtime — this is a
 Supabase-managed default secret in the Edge Function environment, never set
-in this repo's `.env` and never hardcoded in function source.
+in this repo's `.env` and never hardcoded in function source. `FCM_SERVICE_ACCOUNT_JSON`
+is a second, custom Edge Function secret (`send-push-notification`,
+`register-push-token`, migration 031, name only — see "Push notifications"
+below for what it is and how it gets set); it does not exist yet.
 
 ## Deploy pipeline
 
@@ -112,11 +115,13 @@ about 1 minute to compile). `.env` must hold `VITE_SUPABASE_URL` and
 **Commands** (repo root):
 - `npm run android:sync` — `npm run build` (tsc + Vite) then `cap sync android`
   (copies `dist` into `android/app/src/main/assets/public`, regenerates the
-  plugin list, seven today: `@capacitor-community/keep-awake`, `@capacitor/app`,
+  plugin list, eight today: `@capacitor-community/keep-awake`, `@capacitor/app`,
   `@capacitor/filesystem`, `@capacitor/haptics`, `@capacitor/keyboard`, `@capacitor/network`,
-  `@capacitor/screen-orientation`, all 8.x with peer `@capacitor/core` >=8).
+  `@capacitor/push-notifications`, `@capacitor/screen-orientation`, all 8.x with peer `@capacitor/core` >=8).
 - `npm run android:apk` — sync, then `node scripts/gradlew.mjs assembleDebug`.
-  Output: `android/app/build/outputs/apk/debug/app-debug.apk` (about 5.4 MB).
+  Output: `android/app/build/outputs/apk/debug/app-debug.apk` (about 9.1 MB —
+  jumped from 5.4 MB with `@capacitor/push-notifications` and the Firebase
+  Messaging SDK it pulls in).
 - Install on a USB-debugging device or a running emulator:
   `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`
   (`adb` is in `%ANDROID_HOME%\platform-tools`). Anything under `android/` other
@@ -145,13 +150,28 @@ The literal hex lives in `colors.xml`, `ic_launcher_background.xml` and
 `capacitor.config.json` because native resources cannot read CSS custom properties;
 if the cream token changes they must all follow.
 
+`android/app/google-services.json` (2026-09-29, migration 031) — the Firebase
+client config for `com.wisdomhatch.kids`, project `wisdom-hatch-kids`. This is
+a client-side config file (an API key scoped to this Android package, not a
+secret), safe to commit — `android/.gitignore`'s own template comment
+(`# google-services.json`) is deliberately left disabled here. `android/build.gradle`
+already carried the Google Services Gradle plugin classpath and
+`android/app/build.gradle` already had the conditional `apply plugin:
+'com.google.gms.google-services'` (only if the file exists) from the
+Capacitor Android template, unused until now — confirmed active by
+`processDebugGoogleServices` running in the build log once the file was in
+place.
+
 **Device behaviour to know (not exercised on a device yet):** the webview origin is
 `https://localhost`; supabase-js keeps its session in `localStorage`, which Android
 WebView persists across launches (cleared by "Clear data"). Cleartext HTTP is blocked
 (targetSdk 36 default, no network security config), which matches the app already
 refusing non-https media and game URLs outside dev. Permissions (checked with `aapt2 dump permissions`): `INTERNET`,
 `VIBRATE` (added by hand for `@capacitor/haptics`), `ACCESS_NETWORK_STATE` (merged from
-`@capacitor/network`), and androidx's own signature-level
+`@capacitor/network`), `POST_NOTIFICATIONS`, `WAKE_LOCK` and
+`com.google.android.c2dm.permission.RECEIVE` (all three merged from
+`@capacitor/push-notifications` and the Firebase Messaging SDK it brings in),
+and androidx's own signature-level
 `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`; nothing else. Keyboard and keep-awake need none.
 **Backup:** `android:allowBackup="false"`, with `dataExtractionRules` (`res/xml/data_extraction_rules.xml`,
 Android 12+, cloud backup and device transfer) and `fullBackupContent` (`res/xml/backup_rules.xml`,
@@ -169,9 +189,45 @@ forced sign-in), and a web fallback that stays on `localStorage`.
 The router uses browser history; Capacitor serves `index.html` for extensionless
 paths, so nested routes and refresh should work, but that is unverified on-device.
 
-**Not done yet:** release signing / keystore, an AAB for Play, FCM/push, deep
+**Not done yet:** release signing / keystore, an AAB for Play, deep
 links / App Links, and iOS. (The launcher icon is real, done 2026-09-29 — see above —
-not a placeholder any more.)
+not a placeholder any more. Push notifications are built but not deployed —
+see below, not a "not done yet" in the same sense: the code is finished and
+waiting on two external pieces.)
+
+**Push notifications (2026-09-29, migration 031) — client and schema done,
+server NOT deployed.** `@capacitor/push-notifications` 8.1.2,
+`device_push_tokens`/`notifications_sent` (`schema.md` section 8), and the
+`/admin/notifications` screen are all built and verified. Two Edge Functions
+(`send-push-notification`, `register-push-token`, plus a shared
+`_shared/fcm.ts`) are written but have never been deployed, and cannot be
+from this environment: deploying an Edge Function or setting a secret needs
+`SUPABASE_ACCESS_TOKEN` (Management API — **not currently set anywhere in
+this repo**, same gap noted above) or the Supabase MCP connector (comes and
+goes across sessions). Separately, the functions need a secret,
+**`FCM_SERVICE_ACCOUNT_JSON`** (names only, per this file's own rule — never
+its value here): the full JSON key of a Firebase service account for the
+`wisdom-hatch-kids` project with the Firebase Cloud Messaging API enabled,
+read from a local file path so the value never touches shell history or a
+committed file. That key file has not been supplied yet.
+
+**The exact two commands to run, once `SUPABASE_ACCESS_TOKEN` (or the MCP) is
+available and a service account key file exists on disk** (placeholders
+only, no real values):
+
+```
+# 1. Set the secret, reading the key from its file so the value is never typed or logged:
+npx supabase secrets set FCM_SERVICE_ACCOUNT_JSON="$(cat /path/to/service-account.json)" --project-ref dmmvftodhcdbubuljqme
+
+# 2. Deploy both functions (they share supabase/functions/_shared/fcm.ts, so deploy together):
+npx supabase functions deploy send-push-notification --project-ref dmmvftodhcdbubuljqme
+npx supabase functions deploy register-push-token --project-ref dmmvftodhcdbubuljqme
+```
+
+Delete the local key file after the secret is confirmed set — it must never
+be committed. Once both are deployed, `/admin/notifications`'s Send button
+needs no further change: it already calls `send-push-notification` and will
+simply start succeeding instead of showing "Could not reach the server."
 
 **Testing the Back button with adb** (not yet run: no device was attached). Install
 (`adb install -r android/app/build/outputs/apk/debug/app-debug.apk`), sign in as a
@@ -192,3 +248,12 @@ past the top or bottom of Home (no glow, no refresh); pinch (no zoom); playing a
 pressing Home (`adb shell input keyevent KEYCODE_HOME`: video pauses, screen may sleep, the
 clock resumes after return); airplane mode (`adb shell cmd connectivity airplane-mode enable`,
 banner appears, completing a lesson shows an error with Try again).
+
+**Testing push notifications with adb** (not yet run: no device was attached,
+and the server side is not deployed — see "Push notifications" above; the
+device-side checks below need both). Install, sign in as a student, grant the
+notification permission if prompted (Android 13+), confirm a row appears in
+`device_push_tokens` for that user; from `/admin/notifications` send to that
+specific student and confirm it arrives, including with the app fully closed
+(`adb shell am force-stop com.wisdomhatch.kids` first) and that tapping it
+opens the app without a crash.

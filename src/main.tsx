@@ -9,9 +9,11 @@ import { AndroidBackButton } from '@/components/native/AndroidBackButton'
 import { AppEntranceSplash } from '@/components/AppEntranceSplash'
 import { queryClient } from '@/lib/queryClient'
 import { initNativeShell } from '@/lib/nativeShell'
+import { listenForNotificationTaps } from '@/lib/pushNotifications'
 import { router } from './router'
 
 initNativeShell()
+listenForNotificationTaps()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

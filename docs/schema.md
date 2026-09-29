@@ -615,6 +615,48 @@ before this migration):
 
 ---
 
+### 8. Push notifications (migration 031)
+
+Two tables, both `migration 031`, backing manual Android push sent by an
+admin via FCM. Neither has been exercised against real FCM yet — the
+service account secret and Edge Function deploy are still pending
+(`env-deploy.md` "Push notifications").
+
+- **`device_push_tokens`** — one row per installed app on a device, keyed by
+  the FCM registration token itself (`unique`), not by `(user, device)`:
+  `id`, `user_id` (→ `profiles(id)` `ON DELETE CASCADE`), `token`,
+  `platform` (`'android'` default), `created_at`, `updated_at`
+  (`fn_set_updated_at` trigger). A device's row is reassigned to whoever is
+  signed in on it now by upserting `ON CONFLICT (token)` — the client does
+  this directly. RLS: `auth.uid() = user_id and not
+  fn_user_is_trashed(auth.uid())` on all four operations (self
+  select/insert/update/delete), the same shape every self-scoped table has
+  used since migration 014. **Deliberately no admin SELECT policy at all** —
+  unlike most admin-visible tables in this schema, an admin never reads a
+  raw token through RLS; the only cross-user read is the
+  `send-push-notification` Edge Function's service-role client, which
+  bypasses RLS entirely. `rules.md` has this as a standing invariant.
+- **`notifications_sent`** — an append-only audit log: `id`, `sent_by` (→
+  `profiles(id)`, the admin), `title`, `body`, `target_type` (`'all' |
+  'course' | 'user'`, `check`), `target_course_id` / `target_user_id`
+  (nullable FKs, a `check` constraint enforces exactly one is set per
+  `target_type`, or neither for `'all'`), `recipient_count` (nullable —
+  `null` for a topic send, since FCM does not report topic subscriber
+  counts, never guessed), `sent_at`. RLS: admin SELECT only
+  (`fn_is_admin()`); **no INSERT/UPDATE/DELETE policy for any client role**
+  — only the Edge Function's service-role client writes it, same "permanent
+  record" shape as `deletion_requests` (migration 027).
+
+Verified by role-switched SQL (fixtures `zz-push-a`/`zz-push-b@example.test`,
+removed after, `changelog.md`): a user can insert/select/update/delete only
+their own `device_push_tokens` row; inserting a row for another user is
+blocked by RLS (not just refused by a client-side check); reading, updating
+or deleting another user's row silently affects zero rows; a non-admin
+selecting or inserting into `notifications_sent` is blocked; the primary
+admin can select it.
+
+---
+
 ## Lesson engine (migrations 017–019)
 
 All lesson completion, timing, quiz grading, unlock order and XP happen in the
@@ -921,11 +963,12 @@ payment's `id`.
 
 ## RLS policy matrix
 
-RLS enabled on all 19 tables (14 since migration 001, deny-all before
+RLS enabled on all 21 tables (14 since migration 001, deny-all before
 migration 003 landed; `manual_order_providers` since migration 008, admin-only
 from creation; `app_settings`, `currencies` and `level_thresholds` since
 migrations 010, 011 and 012 respectively; `deletion_requests` since migration
-027). Every table has at least one policy. Service-role rows below are documentation, not enforcement —
+027; `device_push_tokens` and `notifications_sent` since migration 031).
+Every table has at least one policy. Service-role rows below are documentation, not enforcement —
 `service_role` bypasses RLS entirely regardless — but stating intent keeps
 the SQL self-explanatory.
 
@@ -960,6 +1003,8 @@ explicitly; don't lean on this.
 | `currencies` | admin only | admin only | admin only | admin only |
 | `level_thresholds` | any authenticated (not `anon`) | admin | admin | admin |
 | `deletion_requests` | self (not trashed) or admin | self (own `user_id`, not trashed) | — | — |
+| `device_push_tokens` | self (own `user_id`, not trashed) only — **no admin policy** | self (own `user_id`, not trashed) | self (own `user_id`, not trashed) | self (own `user_id`, not trashed) |
+| `notifications_sent` | admin only | — (`service_role` only, no policy) | — | — |
 
 Blank cells mean no policy exists — RLS defaults to deny, so that operation
 is impossible for `anon`/`authenticated`. The `user_stats_select_public` and
@@ -1037,6 +1082,59 @@ inferred from that setting and was not tested.
 Raw Auth/Postgres errors never reach the client — mapped to a short message,
 detail logged server-side via `console.error`.
 
+### `send-push-notification` — **written, NOT deployed**
+
+Deno runtime, `jsr:@supabase/supabase-js@2` plus `npm:jose@5` (RS256 JWT
+signing). Same caller-verification shape as `admin-user-management`:
+resolves the caller from the bearer token with the service-role client, then
+requires `profiles.role = 'admin' AND deleted_at IS NULL` before touching the
+payload. Never deployed — no `SUPABASE_ACCESS_TOKEN` in this environment and
+`FCM_SERVICE_ACCOUNT_JSON` (see below) has not been supplied
+(`env-deploy.md` "Push notifications" has the exact commands to run once both
+exist). Nothing here has run against real FCM.
+
+Accepts `{ title, body, target }`, `target` one of `{ type: 'all' }`,
+`{ type: 'course', courseId }`, `{ type: 'user', userId }`. `'all'` sends
+once to the `"all-students"` FCM topic (`recipient_count` stored `null` —
+FCM does not report topic subscriber counts). `'course'` looks up
+`device_push_tokens` for every user with an **active** enrollment in that
+course; `'user'` looks up that one user's tokens (a student can have more
+than one device). Per-token sends run through `_shared/fcm.ts`'s
+`mapWithConcurrency` (limit 10); one bad or stale token is recorded as a
+failure and never aborts the rest. Always logs one `notifications_sent` row
+at the end, with the real count of successful sends (never a guess) — even a
+zero-recipient send is logged, so the history table reflects every attempt.
+
+### `register-push-token` — **written, NOT deployed**
+
+Same runtime and blocker as `send-push-notification`. Exists because
+`@capacitor/push-notifications` 8.1.2 has no client-side
+`subscribeToTopic`/`unsubscribeFromTopic` (checked against its shipped
+`.d.ts`), and subscribing an already-issued FCM token to a topic is only
+possible through FCM's server-side Instance ID API, which needs the service
+account's OAuth token — so it has to happen here, not in the client. The
+client upserts its own `device_push_tokens` row directly (ordinary
+RLS-scoped write, no function needed for that part) and calls this function
+only for the topic-subscription step.
+
+Any signed-in, non-trashed user may call it (not admin-only — every student
+registering their own device needs to). Accepts `{ token }`; the only real
+check is that `token` is already a row this caller owns in
+`device_push_tokens` (defense against an arbitrary string being handed to
+FCM's API through this endpoint), then subscribes it to `"all-students"` via
+`_shared/fcm.ts`.
+
+### `_shared/fcm.ts` — not an Edge Function, imported by both above
+
+`getFcmAccessToken()` (the service account's own JWT-bearer OAuth2 flow,
+`npm:jose@5` for RS256, cached in memory per function instance, refreshed a
+minute before its 1-hour expiry), `sendFcmMessage()` (FCM HTTP v1
+`messages:send`, by topic or by token), `subscribeTokenToTopic()` (the
+legacy Instance ID API — there is no HTTP v1 equivalent), and
+`mapWithConcurrency()` (a small bounded-concurrency runner, no library). The
+service account's private key and any OAuth token it mints never leave this
+module — neither Edge Function returns either to its caller.
+
 ---
 
 ## Migrations log
@@ -1077,6 +1175,7 @@ table.
 | 028 | `20260928000000_028_quiz_pass_percentage_quiz_only.sql` | 2026-09-28 (applied via the CLI `--db-url` fallback, one statement per call) | Reshapes `lessons.pass_percentage` rather than adding a second, functionally-identical column (the admin quiz-authoring task asked for a new nullable `quiz_pass_threshold`, which is exactly what this column already was): dropped `NOT NULL`/`DEFAULT 60`, backfilled every non-quiz lesson's value to `NULL` (13 rows — all still at the old blanket default, never meaningful), replaced `lessons_pass_percentage_check` with a `0–100 or null` range check plus a new bidirectional `lessons_pass_percentage_quiz_only_check ((content_type = 'quiz') = (pass_percentage is not null))`. `fn_submit_quiz` untouched — every quiz lesson keeps a concrete value under the new CHECK, so its existing grading arithmetic never sees a NULL; `app_settings.quiz_pass_threshold_percent` (010, still read by nothing) untouched too, wiring it in as a site-wide fallback is a separate later change |
 | 029 | `20260928100000_029_student_visibility_published_only.sql` | 2026-09-28 (applied via the CLI `--db-url` fallback, one statement per call; stamped by hand) | Students reach only published, non-trashed courses and lessons. New `fn_course_is_reachable` / `fn_lesson_is_reachable` (same attributes and grants as the `*_is_live` helpers); `lessons`, `modules` and `lesson_content_blocks` SELECT policies and the `lesson_effective_xp` / `quiz_questions_public` views repointed to them (admin branches, preview and unlock rules kept); `archived` removed from `fn_lesson_states` and `fn_course_lesson_states`, so the whole engine refuses an archived course with the existing `lesson_unavailable`. `fn_course_is_live`, `fn_lesson_is_live` and `fn_update_lessons_completed` untouched. Closes the two `state.md` findings (archived-course inconsistency, enrolled students reading draft lessons) |
 | 030 | `20260928200000_030_gamification_off_means_off.sql` | 2026-09-28 (applied via the CLI `--db-url` fallback, one statement per call; stamped by hand) | `courses.gamification_enabled = false` now means no XP, levels, streak, `lessons_completed` or badges. `fn_update_lessons_completed` skips silently for a gamification-off course (no raise, same return, unresolvable course = gamified); `fn_evaluate_badges` counts only gamified courses toward `course_complete` (only that join changed); `fn_admin_reset_course_progress` decrements `lessons_completed` only when the flag is currently on (approximate for a course flipped mid-way). Untouched: `fn_process_xp_transaction` (it also serves manual awards), `fn_award_lesson_xp`, `fn_complete_game` (they already checked the flag), the engine, every signature and grant. Not retroactive |
+| 031 | `20260929000000_031_push_notifications.sql` | 2026-09-29 (applied via the CLI `--db-url` fallback, one statement per call; stamped by hand) | `device_push_tokens` (self-scoped RLS on all 4 ops, no admin SELECT at all) and `notifications_sent` (admin SELECT only, no client write policy — a `service_role`-only audit log, same shape as `deletion_requests`) for manual admin-sent Android push. RLS verified by role-switched SQL, fixtures removed after (`schema.md` section 8, `changelog.md`). The two Edge Functions it backs (`send-push-notification`, `register-push-token`) are written but not deployed — no `SUPABASE_ACCESS_TOKEN` this session and the FCM service account key has not been supplied yet |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named

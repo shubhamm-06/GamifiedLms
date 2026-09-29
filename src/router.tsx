@@ -27,6 +27,7 @@ import { CoursesPage } from '@/pages/admin/CoursesPage'
 import { DashboardPage } from '@/pages/admin/DashboardPage'
 import { GamesPage } from '@/pages/admin/GamesPage'
 import { GamificationPage } from '@/pages/admin/GamificationPage'
+import { NotificationsPage } from '@/pages/admin/NotificationsPage'
 import { OrdersPage } from '@/pages/admin/OrdersPage'
 import { SettingsPage } from '@/pages/admin/SettingsPage'
 import { TrashPage } from '@/pages/admin/TrashPage'
@@ -232,6 +233,12 @@ const adminGamificationRoute = createRoute({
   component: GamificationPage,
 })
 
+const adminNotificationsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: 'notifications',
+  component: NotificationsPage,
+})
+
 /**
  * Same `?tab=`-as-real-search-param convention as Course Builder and
  * `/admin/orders`'s `?view=` — survives a refresh, is linkable. Defaults to
@@ -287,6 +294,7 @@ const routeTree = rootRoute.addChildren([
     adminCoursesRoute,
     adminGamesRoute,
     adminGamificationRoute,
+    adminNotificationsRoute,
     adminOrdersRoute,
     adminSettingsRoute,
     adminTrashRoute,

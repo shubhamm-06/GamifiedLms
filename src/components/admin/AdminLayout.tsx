@@ -3,6 +3,7 @@ import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   BadgeCheck,
+  Bell,
   BookOpen,
   Gamepad2,
   LayoutDashboard,
@@ -59,7 +60,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     heading: 'Engagement',
-    items: [{ label: 'Badges & XP', to: '/admin/gamification', icon: BadgeCheck }],
+    items: [
+      { label: 'Badges & XP', to: '/admin/gamification', icon: BadgeCheck },
+      { label: 'Notifications', to: '/admin/notifications', icon: Bell },
+    ],
   },
   {
     heading: 'Commerce',

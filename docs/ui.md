@@ -643,6 +643,59 @@ not CSS, so it has no token question).
   were left in place, unused. Not exercised on a device: how it actually renders
   under a real OEM launcher's mask is unverified (`state.md`).
 
+**Push notifications (2026-09-29, migration 031).** Manual Android push,
+sent by an admin, via FCM. Native only (`Capacitor.isNativePlatform()`); on
+the web `registerPushNotifications`/`listenForNotificationTaps`
+(`lib/pushNotifications.ts`) return immediately — no permission prompt, no
+plugin call, no console error.
+- **Registration**, once per app session, called from `KidLayout`'s mount
+  effect (covers both "just logged in" and "app started with an existing
+  session," since that layout mounts fresh either way): request the
+  Android 13+ runtime notification permission (`requestPermissions()`; 12
+  and below report `granted` without a prompt, per the plugin's own docs),
+  `register()` and wait for the FCM token, upsert it into
+  `device_push_tokens` directly (`ON CONFLICT (token)` — a device already
+  registered under a different account is simply reassigned), then call the
+  `register-push-token` Edge Function to subscribe that token to the
+  `"all-students"` FCM topic. Every step is best-effort (caught, logged,
+  never surfaced to the student, never blocks anything else).
+- **Why a server call subscribes the topic, not the client:**
+  `@capacitor/push-notifications` 8.1.2 has no client-side
+  `subscribeToTopic`/`unsubscribeFromTopic` (checked against its shipped
+  types), and topic subscription is only possible through FCM's server-side
+  Instance ID API, which needs the service account's OAuth token — so it has
+  to happen in `register-push-token` (`schema.md` "Edge Functions"), not in
+  the app.
+- **Send strategy** (`send-push-notification`): "Everyone" sends once to the
+  topic (cheap, but `recipient_count` comes back `null` — FCM does not
+  report topic subscriber counts); "a course" or "a student" looks up
+  `device_push_tokens` directly and sends to each token individually
+  (bounded concurrency), because a topic cannot be scoped to one course or
+  student without provisioning a second Google topic per course, which is
+  out of scope here.
+- **Logout** (`KidProfilePage` `logOut`): best-effort removal of this
+  device's token from `device_push_tokens` before `signOut` (after, the
+  session needed for the RLS-scoped delete is gone) — never blocks leaving.
+- **A tapped notification** (`pushNotificationActionPerformed`) is a no-op
+  beyond logging: the OS already brings the app to whatever screen it was on.
+  No deep-linking to a specific lesson in this pass.
+- **Admin screen** (`/admin/notifications`, `routes-permissions.md`): a
+  compose form (title, body, target: Everyone / a specific course / a
+  specific student, reusing `UserPicker`, now shared out of
+  `orders/AddOrderDialog.tsx` into `components/admin/UserPicker.tsx`) and a
+  read-only history table (`notifications_sent`, most recent first — the
+  same "read-only report, no row-selection kit" shape as the Dashboard's
+  recent-activity feed, `rules.md`/this file's Component conventions). No
+  editing or resending. **`send-push-notification` is written but not
+  deployed** (`env-deploy.md`): Send currently fails with the same generic
+  "Could not reach the server. Please try again." toast every other admin
+  action already falls back to for an unreachable/network-level failure —
+  reasonable (no crash, no leaked detail, prompts a retry), if not specific
+  to "this function doesn't exist yet"; that imprecision is a deploy-order
+  artifact, not something to special-case, since it disappears entirely once
+  the function is deployed. Not exercised on a device or against real FCM
+  (`state.md`).
+
 **Unavailable screens (2026-09-28, migration 029).** A course a student can't open
 (still a draft, archived, or gone) and a lesson they can't open (a draft or
 unpublished lesson) end on the same compass `Screen`, with copy at two levels and

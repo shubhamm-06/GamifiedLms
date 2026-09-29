@@ -10,7 +10,8 @@ build phase: admin-facing tooling only, no student-facing UI.
 - Capacitor plugins: `@capacitor/app` 8.1.1 (Android Back, `components/native/AndroidBackButton.tsx`),
   `@capacitor/haptics` 8.0.2 (`lib/haptics.ts`), `@capacitor/filesystem`, `@capacitor/screen-orientation`,
   `@capacitor/keyboard` 8.0.5 + `lib/nativeShell.ts` (`html[data-native]`, `html[data-keyboard='open']`),
-  `@capacitor/network` 8.0.1 (`hooks/useOnline.ts`), `@capacitor-community/keep-awake` 8.0.1 (`hooks/useKeepAwake.ts`)
+  `@capacitor/network` 8.0.1 (`hooks/useOnline.ts`), `@capacitor-community/keep-awake` 8.0.1 (`hooks/useKeepAwake.ts`),
+  `@capacitor/push-notifications` 8.1.2 (`lib/pushNotifications.ts`; FCM, migration 031; Edge Functions written, not deployed)
 - Native shell: `initNativeShell()` in `main.tsx` runs before render (no-op on web); native-only CSS is gated
   on `html[data-native]`. Safe-area insets = `--sa-top/right/bottom/left` tokens (`styles.css`):
   `var(--safe-area-inset-X, env(safe-area-inset-X, 0px))`; Capacitor 8 SystemBars injects the vars
@@ -145,10 +146,12 @@ src/
                so Tailwind utilities still win (see ui.md)
   main.tsx, router.tsx   entry, route tree
 supabase/
-  migrations/  001-019, source of truth for schema — write here first, apply via
+  migrations/  001-031, source of truth for schema — write here first, apply via
                Supabase MCP second, regenerate database.types.ts third, every time
                (006-012 filenames drifted from live versions — see schema.md)
-  functions/   admin-user-management (Deno) — the only Edge Function so far
+  functions/   admin-user-management (Deno, deployed). send-push-notification,
+               register-push-token, _shared/fcm.ts (Deno, written but NOT
+               deployed — env-deploy.md "Push notifications")
 ```
 
 **Architecture decisions:**
@@ -307,7 +310,7 @@ and serverless functions. The work so far has deliberately gone into the
 admin side first, with the schema, security model, and gamification logic
 built out ahead of any student experience.
 
-That admin side is now broadly built. The database has 18 RLS-protected
+That admin side is now broadly built. The database has 21 RLS-protected
 tables, with the XP, level, streak, and badge machinery live and verified
 against the real Supabase project rather than just read from SQL. The
 frontend covers signup and login (a trigger auto-provisions each profile),
@@ -317,7 +320,8 @@ drag-and-drop curriculum and quiz questions, games, orders and payments
 and level-threshold management. One deployed Edge Function handles the
 privileged account actions — creating accounts (one at a time or in bulk from
 a CSV), changing someone else's email or password, and trashing or deleting
-users. What does not exist yet is everything a
+users; two more (manual push notifications) are written but not yet deployed.
+What does not exist yet is everything a
 student would touch: no student screens (the lesson engine that will back
 them exists in the database), no payment-gateway webhook, and no deployed
 frontend.

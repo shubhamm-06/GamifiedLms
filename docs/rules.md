@@ -559,3 +559,14 @@ belongs in `context.md` or `state.md`, not here.
 - **npm only — no pnpm/yarn/bun lockfile is ever committed.**
 - **No actual env value is ever written into `env-deploy.md`** (or any
   committed file) — names only. Real values live in gitignored `.env` files.
+- **`device_push_tokens` is never readable across users through RLS, not even
+  by an admin.** A registration token identifies a physical device; the only
+  code allowed to read one belonging to someone else is the
+  `send-push-notification` Edge Function's service-role client (bypasses RLS
+  by design). No future admin screen may add a SELECT policy here to "let an
+  admin see a student's devices" — route that need through a new Edge
+  Function instead, so the read is still gated and logged server-side.
+- **A Firebase/FCM service account key is a secret like `SUPABASE_DB_PASSWORD`:
+  read once, stored as a Supabase secret, never committed, never printed to a
+  terminal or into any file this session writes.** `env-deploy.md` names the
+  secret (`FCM_SERVICE_ACCOUNT_JSON`), never its value.

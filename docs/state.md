@@ -162,6 +162,34 @@ The schema or docs anticipate each of these; no working code exists for any.
   `prefers-reduced-motion`, and how the launcher icon actually looks under a real
   OEM mask have only been checked by reading the code and the generated PNGs
   on-screen here, not seen on a phone or in a launcher.
+- **Manual push notifications: schema and app UI built and verified; the
+  server side is written but NOT deployed** (2026-09-29, migration 031,
+  `ui.md` "Push notifications", `schema.md` "Edge Functions"). Done and
+  verified: `device_push_tokens`/`notifications_sent` (RLS checked with
+  role-switched SQL, 13/13 checks, fixtures removed, baseline counts
+  confirmed unchanged); `@capacitor/push-notifications` 8.1.2 registration,
+  upsert, logout cleanup, notification-tap handling, all native-only and
+  confirmed a no-op on web (Playwright: no console error, no push activity on
+  a kid route); the Google Services Gradle plugin activates now that
+  `android/app/google-services.json` is in place (`processDebugGoogleServices`
+  ran; a matching file was found in Downloads and copied in, since it was not
+  actually at the path the task describing this work assumed); the debug APK
+  builds with the plugin and the four new permissions it and Firebase
+  Messaging add (`POST_NOTIFICATIONS`, `WAKE_LOCK`,
+  `com.google.android.c2dm.permission.RECEIVE`, plus the existing ones
+  unchanged); `/admin/notifications` (compose form, target picker reusing the
+  now-shared `UserPicker`, history table) renders and was exercised end to
+  end against real data with a live login (Playwright, admin fixture removed
+  after). **Not done: `send-push-notification` and `register-push-token` are
+  written but never deployed** — this needs `SUPABASE_ACCESS_TOKEN` (not set)
+  or the Supabase MCP, neither available this session — and the
+  `FCM_SERVICE_ACCOUNT_JSON` secret they need has not been set because the
+  service account key file has not been supplied. Clicking Send today shows
+  the same generic "Could not reach the server" toast every other admin
+  action already falls back to (reasonable, not misleading, but not specific
+  to "undeployed"). Nothing has been sent to a real device; the whole
+  cold-start-to-notification path is unverified on hardware. `env-deploy.md`
+  has the exact two commands to run once both pieces exist.
 - **Quiz explanations.** The correct option is now revealed after each answer
   (migration 024, `fn_check_quiz_answer`; `rules.md` amended). An explanation is still
   not sent anywhere: the quiz page has no place for one and `fn_submit_quiz` /

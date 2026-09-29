@@ -1,6 +1,7 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { registerPushNotifications } from '@/lib/pushNotifications'
 import { KidHeaderContext } from './kidHeader'
 import { KidNav } from './KidNav'
 import { OfflineBanner } from './OfflineBanner'
@@ -35,6 +36,14 @@ export function KidLayout({ children }: { children?: ReactNode }) {
     if (router.history.canGoBack()) router.history.back()
     else router.history.push(fallbackPath)
   }
+
+  // Once per mount of the student shell: covers both "just logged in" (this
+  // layout mounts fresh on the redirect in) and "app started with an
+  // existing session" (a direct load of a kid route). Native only, no-op on
+  // web, best-effort inside (never throws here).
+  useEffect(() => {
+    void registerPushNotifications()
+  }, [])
 
   return (
     <KidHeaderContext.Provider value={value}>
