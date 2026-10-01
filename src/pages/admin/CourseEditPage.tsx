@@ -9,6 +9,7 @@ import { CourseForm } from '@/components/admin/courses/CourseForm'
 import { CourseStatusPill } from '@/components/admin/courses/CourseStatusPill'
 import { CurriculumTab } from '@/components/admin/courses/CurriculumTab'
 import {
+  ENROLL_URL_INVALID,
   lifecycleActionsFor,
   LIFECYCLE_LABEL,
   SLUG_TAKEN,
@@ -41,6 +42,7 @@ function toFormValues(course: Course): CourseFormValues {
     enrollment_status: course.enrollment_status,
     default_lesson_xp: String(course.default_lesson_xp),
     gamification_enabled: course.gamification_enabled,
+    enroll_url: course.enroll_url ?? '',
   }
 }
 
@@ -52,6 +54,7 @@ export function CourseEditPage() {
   const updateCourse = useUpdateCourse()
   const lifecycle = useCourseLifecycle()
   const [slugError, setSlugError] = useState<string | null>(null)
+  const [enrollUrlError, setEnrollUrlError] = useState<string | null>(null)
 
   if (isPending) {
     return (
@@ -81,6 +84,7 @@ export function CourseEditPage() {
 
   function handleSubmit(values: CourseFormValues) {
     setSlugError(null)
+    setEnrollUrlError(null)
     updateCourse.mutate(
       { id: courseId, values },
       {
@@ -91,6 +95,10 @@ export function CourseEditPage() {
         onError: (error: Error) => {
           if (error.message === SLUG_TAKEN) {
             setSlugError('This slug is already in use.')
+            return
+          }
+          if (error.message === ENROLL_URL_INVALID) {
+            setEnrollUrlError('Must be a valid https:// link, no spaces, 2048 characters or fewer.')
             return
           }
           toast.error(error.message)
@@ -180,7 +188,10 @@ export function CourseEditPage() {
             mode="edit"
             initialValues={toFormValues(course)}
             isSubmitting={updateCourse.isPending}
-            externalErrors={slugError ? { slug: slugError } : undefined}
+            externalErrors={{
+              ...(slugError ? { slug: slugError } : {}),
+              ...(enrollUrlError ? { enroll_url: enrollUrlError } : {}),
+            }}
             onSubmit={handleSubmit}
             onCancel={() => navigate({ to: '/admin/courses' })}
           />

@@ -2159,6 +2159,75 @@ what that flag turns off, migration 030). Below 1024px both are byte-identical t
   reader, Firefox / Safari. `/courses/$courseId` and the lesson player still use the mobile path at desktop
   widths (unchanged, a separate task).
 
+### Course info page for not-yet-enrolled students (2026-10-01)
+
+`/courses/$courseId` now has three outcomes instead of two, decided in `CoursePage.tsx`/`CourseRoadmapView`:
+actively enrolled → the existing roadmap, byte-for-byte unchanged; not enrolled but the course is published →
+the new `CourseInfoPage` (`components/kid/courses/CourseInfoPage.tsx`); not enrolled and the course is a draft,
+archived, or the id doesn't exist → the existing `UnavailableScreen`, the same screen for all three so a
+hidden course is never revealed. The engine itself can't tell these last two apart (`fn_course_lesson_states`
+checks enrollment before it checks the course row), so `CourseGate` makes the call client-side by reading the
+course row directly — exactly as readable to a non-enrolled student as its title always was
+(`courses_select_published_or_admin`, no enrollment check; `schema.md`).
+
+- **Content**: cover (thumbnail or a book icon, matching the Courses list), title, price (`formatAmount`,
+  whole rupees, `rules.md`) if `price_amount` is set, "Free" if `is_free`, the full description with line
+  breaks preserved (`white-space: pre-line`). No lesson count: `courses.total_lessons` counts draft lessons
+  too (`schema.md`), so it is never shown as a published-lesson count, and no other safe source exists — left
+  as a follow-up below, not built.
+- **Expired access**: a previously-enrolled student whose `enrollments` row is now `status = 'expired'` (not
+  `'active'`, so `fn_is_enrolled` already treats them as not enrolled) sees "Your access ended on `<date>`"
+  and the button says "Enroll again" instead of "Enroll now" — read from the same self-scoped `enrollments`
+  row every student can already read (`enrollments_select_self`, no status filter), ordered by `enrolled_at`
+  since there is no uniqueness constraint on `(user_id, course_id)`.
+- **The Enroll button is the one new external link in the kid app**, and it only opens a page — it never
+  creates or touches an `enrollments` row itself. `enroll_url` is checked three times before anything can
+  open: the admin form before save, the database CHECK as the backstop, and `isHttpsUrl()`
+  (`lib/externalLink.ts`) again at click time, right before rendering the `href` — there is no code path
+  where a non-`https://` value becomes a real link. It is a plain `<a target="_blank" rel="noreferrer">`,
+  the same mechanism Privacy/Terms already use (`ProfileSections.tsx`) — no in-app-browser plugin is
+  installed, so Capacitor's own default takes it: an external-origin `target="_blank"` opens the system
+  browser via an Android intent, same as those two links do today. `aria-label` says "Enroll now, opens
+  another page". No `enroll_url` at all: a calm muted note ("Enrollment isn't open for this course yet."),
+  no button, no gold.
+- **Desktop (>= 1024px)**: this route is not part of the sidebar shell (it never carries `data-shell='side'`
+  — same as the enrolled roadmap, untouched), so `CourseInfoPage` switches its own layout via the same
+  `useMediaQuery(LG_UP)` every desktop view uses, mounting one view only. A centred card (cover ~40% on the
+  left, details and the button on the right), a quiet "Back to courses" link above it (the shared top bar's
+  own Back still works too; this one has a fixed destination for a page that might be opened with no
+  history). Small text uses the Nunito stack via a literal `var(--font-ui-desktop, 'Nunito Variable', ...)`
+  fallback rather than the token itself, since that token is only defined under `[data-shell='side']` and
+  this route deliberately never sets it.
+- **Discovery**: the Courses screen (`KidCoursesPage.tsx`/`DesktopCourses.tsx`) gained an "Explore courses"
+  section below the enrolled list — every published course the student is NOT actively enrolled in
+  (`useExploreList`, capped at 12, no search/filter/sort), reusing the same visibility rule and the existing
+  card look, with a quiet "View"/chevron action, never gold. Hidden entirely (no heading) when there is
+  nothing to explore. When there are no enrolled courses at all, the page shows Explore alone instead of
+  only the bare empty message, so a brand-new student has somewhere to go; `NoCoursesScreen` (Home's own
+  empty state) gained a "See available courses" link to `/courses` for the same reason — it is also reused,
+  unchanged, as the Courses screen's own "truly nothing anywhere" fallback, where the link is a harmless
+  no-op back to the same page (a system with zero published courses at all is an edge case this doesn't
+  specially handle).
+- **Gold audit**: the info page's one gold element is the Enroll/Enroll again button, present only when a
+  link exists; zero gold with no link. The Courses screen keeps its existing one gold element (the current
+  course's action) — Explore cards never are.
+- **Verified** (Chromium, live project, throwaway students and courses removed after, baseline counts of 3
+  courses / 17 lessons / 7 modules / 3 profiles confirmed): every state (published with/without a link,
+  draft, archived, a random uuid, an enrolled course unchanged, an expired enrollment); the role-switched RLS
+  and CHECK queries (`schema.md`, migration 033); the admin form (four invalid links each blocked with an
+  inline error and nothing saved, an empty value saving as `NULL`, a valid link round-tripping through
+  reload); Explore excluding draft/archived and losing an id the moment that course is actively enrolled;
+  tapping Enroll opens a new tab (confirmed via a real popup capture) and leaves the info page itself
+  untouched; 360/390/768/1023/1024/1280/1920 all without horizontal overflow; resize across 1024 mounts one
+  view; keyboard reach and a real focus ring on both the Back link and the Enroll button; Baloo 2 on the
+  h1, Nunito on the small desktop text. Not exercised: Android (no device or emulator attached) — based on
+  the code path (a plain external-origin `target="_blank"` anchor, no plugin), it is expected to open the
+  system browser the same way the Privacy/Terms links already do, but this was not confirmed on a device.
+- **Follow-ups, not built**: a parental/"ask a grown-up" confirmation step before the external link opens; a
+  safe published-lesson count and a syllabus/module preview (would need a dedicated student-safe read, since
+  `modules`/`lessons` RLS requires enrollment or `is_preview` today); how a student who used the link
+  actually becomes enrolled is still entirely external to the app, exactly as before.
+
 ### Game lessons (2026-09-26)
 
 A game lesson hosts a page the admin registered in `games` (`bundle_url`); there is no content to build.

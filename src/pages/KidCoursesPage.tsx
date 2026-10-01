@@ -1,23 +1,38 @@
 import { BookOpen, ChevronRight } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useKidHeader } from '@/components/kid/kidHeader'
 import { DesktopCourses, DesktopCoursesSkeleton } from '@/components/kid/courses/DesktopCourses'
 import { NoCoursesScreen, RetryScreen } from '@/components/kid/roadmap/StateScreens'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useCoursePicker, useCoursesProgress, useMyCourses, type CourseProgress, type MyCourse } from '@/hooks/useMyCourses'
+import { formatAmount } from '@/lib/currency'
+import {
+  useCoursePicker,
+  useCoursesProgress,
+  useExploreList,
+  useMyCourses,
+  type CourseProgress,
+  type ExploreCourse,
+  type MyCourse,
+} from '@/hooks/useMyCourses'
 import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 
 /**
  * `/courses`: every course the student is actively enrolled in (draft, archived
- * and trashed ones never show, the same rule as Home). Tapping one stamps it as
- * the most recently used course (`fn_touch_enrollment`, the same call the roadmap
- * makes) and goes Home, which then shows it. From 1024px `DesktopCourses` lays out
- * the same data as a grid (`useMediaQuery`, the same switch every desktop screen
+ * and trashed ones never show, the same rule as Home), then an "Explore courses"
+ * section for every other visible course — a student not enrolled anywhere still
+ * has somewhere to go here, not just the bare "No courses yet" message. Tapping
+ * an enrolled course stamps it as most recently used (`fn_touch_enrollment`, the
+ * roadmap's own call) and goes Home; tapping an Explore one opens its info page
+ * (`/courses/$courseId`, `CourseGate`). From 1024px `DesktopCourses` lays out the
+ * same data as a grid (`useMediaQuery`, the same switch every desktop screen
  * uses, so only one view is ever mounted).
  */
 export function KidCoursesPage() {
   useKidHeader('Courses')
   const desktop = useMediaQuery(LG_UP)
   const courses = useMyCourses()
+  const enrolledIds = (courses.data ?? []).map((c) => c.id)
+  const explore = useExploreList(enrolledIds)
 
   if (courses.isPending) {
     return desktop ? (
@@ -33,8 +48,20 @@ export function KidCoursesPage() {
   if (courses.isError) {
     return <RetryScreen title="Oops! We couldn't load your courses" onRetry={() => void courses.refetch()} />
   }
-  if (courses.data.length === 0) return <NoCoursesScreen />
-  return desktop ? <DesktopCourses courses={courses.data} /> : <CourseList courses={courses.data} />
+
+  const hasEnrolled = courses.data.length > 0
+  const hasExplore = (explore.courses?.length ?? 0) > 0
+  // Both lists truly empty, and Explore has settled (not just "still loading"): the bare empty state.
+  if (!hasEnrolled && !hasExplore && !explore.isPending) return <NoCoursesScreen />
+
+  return desktop ? (
+    <DesktopCourses courses={courses.data} explore={explore.courses} />
+  ) : (
+    <div className="kc-page">
+      {hasEnrolled ? <CourseList courses={courses.data} /> : null}
+      <ExploreSection courses={explore.courses} />
+    </div>
+  )
 }
 
 function CourseList({ courses }: { courses: MyCourse[] }) {
@@ -105,5 +132,41 @@ function CourseRow({
       </span>
       <ChevronRight className="kc-chevron size-6 flex-none" aria-hidden />
     </button>
+  )
+}
+
+/** Visible courses the student isn't enrolled in. Hidden entirely (no heading) when there are none. */
+function ExploreSection({ courses }: { courses: ExploreCourse[] | undefined }) {
+  if (!courses || courses.length === 0) return null
+  return (
+    <section className="kc-explore" aria-label="Explore courses" data-testid="explore-section">
+      <h2 className="kc-explore-title">Explore courses</h2>
+      <div className="kc-list">
+        {courses.map((course) => (
+          <ExploreRow key={course.id} course={course} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function ExploreRow({ course }: { course: ExploreCourse }) {
+  return (
+    <Link
+      to="/courses/$courseId"
+      params={{ courseId: course.id }}
+      className="kc-row kid-card kid-tap"
+      data-testid="explore-row"
+      data-course-id={course.id}
+    >
+      <span className="kc-thumb" aria-hidden>
+        {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt="" loading="lazy" /> : <BookOpen className="size-8" />}
+      </span>
+      <span className="kc-body">
+        <span className="kc-title">{course.title}</span>
+        <span className="kc-meta">{course.isFree ? 'Free' : course.priceAmount != null ? formatAmount(course.priceAmount, course.currency) : 'Learn more'}</span>
+      </span>
+      <span className="kc-view">View</span>
+    </Link>
   )
 }

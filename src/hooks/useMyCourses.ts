@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
@@ -113,4 +113,67 @@ export function useCoursePicker() {
   }
 
   return { pick: (id: string) => void pick(id), busyId, failed }
+}
+
+export interface ExploreCourse {
+  id: string
+  title: string
+  description: string | null
+  thumbnailUrl: string | null
+  isFree: boolean
+  priceAmount: number | null
+  currency: string
+}
+
+/** Cap on the Explore list — a plain cap, not pagination (no search/filter/sort either). A little
+ * more than the final cap is fetched so excluding enrolled courses still leaves a full page. */
+const EXPLORE_LIMIT = 12
+const EXPLORE_FETCH = EXPLORE_LIMIT + 8
+
+/**
+ * Every visible course, for the Courses screen's "Explore courses" section — the
+ * same visibility rule as everywhere else (published, not trashed;
+ * `courses_select_published_or_admin` has no enrollment check, so this needs no
+ * student-only view or RPC). Takes no `enrolledIds`: that exclusion is the
+ * caller's own `useMemo` over this plus `useMyCourses`' data (see
+ * `useExploreList`), not baked into the query, so the query itself stays a
+ * stable, cacheable key instead of silently going stale the moment enrolledIds
+ * changes identity.
+ */
+function useExploreCandidates() {
+  return useQuery<ExploreCourse[], Error>({
+    queryKey: ['kid', 'exploreCourses'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('courses')
+        .select('id, title, description, thumbnail_url, is_free, price_amount, currency')
+        .eq('status', 'published')
+        .is('deleted_at', null)
+        .order('published_at', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false })
+        .limit(EXPLORE_FETCH)
+      if (error) throw new Error(error.message)
+      return (data ?? []).map((c) => ({
+        id: c.id,
+        title: c.title,
+        description: c.description,
+        thumbnailUrl: c.thumbnail_url,
+        isFree: c.is_free,
+        priceAmount: c.price_amount,
+        currency: c.currency,
+      }))
+    },
+  })
+}
+
+/** `useExploreCandidates()` with the caller's active enrollments excluded and capped — what the
+ * Courses screen actually renders. */
+export function useExploreList(enrolledIds: readonly string[]) {
+  const candidates = useExploreCandidates()
+  const courses = useMemo(() => {
+    if (!candidates.data) return undefined
+    const enrolled = new Set(enrolledIds)
+    return candidates.data.filter((c) => !enrolled.has(c.id)).slice(0, EXPLORE_LIMIT)
+  }, [candidates.data, enrolledIds])
+  return { courses, isPending: candidates.isPending, isError: candidates.isError }
 }

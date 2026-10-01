@@ -137,6 +137,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           description: string | null
+          enroll_url: string | null
           enrollment_status: string
           external_product_id: string | null
           gamification_enabled: boolean
@@ -163,6 +164,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
+          enroll_url?: string | null
           enrollment_status?: string
           external_product_id?: string | null
           gamification_enabled?: boolean
@@ -189,6 +191,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           description?: string | null
+          enroll_url?: string | null
           enrollment_status?: string
           external_product_id?: string | null
           gamification_enabled?: boolean

@@ -1,14 +1,9 @@
 import { useEffect } from 'react'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useKidHeader } from '@/components/kid/kidHeader'
+import { CourseGate } from '@/components/kid/courses/CourseInfoPage'
 import { RoadmapPath } from '@/components/kid/roadmap/RoadmapPath'
-import {
-  EmptyCourseScreen,
-  NotEnrolledScreen,
-  RetryScreen,
-  RoadmapSkeleton,
-  UnavailableScreen,
-} from '@/components/kid/roadmap/StateScreens'
+import { EmptyCourseScreen, RetryScreen, RoadmapSkeleton, UnavailableScreen } from '@/components/kid/roadmap/StateScreens'
 import { useCourseRoadmap } from '@/hooks/useCourseRoadmap'
 import { useTouchEnrollment } from '@/hooks/useHomeCourse'
 import type { Roadmap } from '@/lib/roadmap'
@@ -48,7 +43,13 @@ export function CourseRoadmapView({
     case 'loading':
       return <RoadmapSkeleton />
     case 'not_enrolled':
-      return <NotEnrolledScreen />
+      // The engine can't itself tell "no enrollment, course visible" apart from
+      // "no enrollment, course is draft/archived/gone" (fn_is_enrolled is checked
+      // before the course row is), so CourseGate makes that call here: it reads
+      // the course row directly, which RLS already lets any student do for a
+      // published course, and shows the info page or the same "not available"
+      // screen a draft/archived course gets — never a third, more revealing state.
+      return <CourseGate courseId={courseId} />
     case 'unavailable':
       return <UnavailableScreen />
     case 'error':

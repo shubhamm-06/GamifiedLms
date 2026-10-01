@@ -8,13 +8,21 @@ export type LifecycleAction = 'publish' | 'archive' | 'restore'
 
 export const coursesQueryKey = ['admin', 'courses'] as const
 
-/** Postgres unique-violation — surfaced as an inline slug error, not a toast. */
+/** Postgres unique-violation / check-violation — surfaced as inline field errors, not a toast. */
 const UNIQUE_VIOLATION = '23505'
+const CHECK_VIOLATION = '23514'
 export const SLUG_TAKEN = 'SLUG_TAKEN'
+export const ENROLL_URL_INVALID = 'ENROLL_URL_INVALID'
 
 function mapWriteError(error: { code?: string; message: string }): Error {
   if (error.code === UNIQUE_VIOLATION && error.message.includes('slug')) {
     return new Error(SLUG_TAKEN)
+  }
+  // Backstop for `courses_enroll_url_format_check` (migration 033): the form
+  // validates this before submit, so this only fires if that check is ever
+  // bypassed (a direct API call, a future form regression).
+  if (error.code === CHECK_VIOLATION && error.message.includes('enroll_url')) {
+    return new Error(ENROLL_URL_INVALID)
   }
   return new Error(error.message)
 }
@@ -96,6 +104,8 @@ export interface CourseFormValues {
   enrollment_status: string
   default_lesson_xp: string
   gamification_enabled: boolean
+  /** Blank saves as NULL (no Enroll button on the student info page). Validated https-only, <= 2048 chars. */
+  enroll_url: string
 }
 
 /** Normalises form strings into the column types, blanks into nulls. */
@@ -115,6 +125,7 @@ function toRow(values: CourseFormValues) {
     enrollment_status: values.enrollment_status,
     default_lesson_xp: Number(values.default_lesson_xp),
     gamification_enabled: values.gamification_enabled,
+    enroll_url: values.enroll_url.trim() || null,
   }
 }
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useRouter } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import { BookOpen, Compass, LockKeyhole, Sprout, WifiOff } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -59,7 +59,8 @@ export function NotEnrolledScreen() {
   )
 }
 
-/** Home with nothing to show: not enrolled anywhere a student can read. */
+/** Home with nothing to show: not enrolled anywhere a student can read. The Courses
+ * screen itself still has an Explore section for this student — this just points there. */
 export function NoCoursesScreen() {
   return (
     <Screen
@@ -67,7 +68,11 @@ export function NoCoursesScreen() {
       icon={<BookOpen className="size-8" aria-hidden />}
       title="No courses yet"
       body="Ask a grown-up to help you get started."
-    />
+    >
+      <Link to="/courses" className="candy-btn-quiet kid-tap" data-testid="see-available-courses">
+        See available courses
+      </Link>
+    </Screen>
   )
 }
 

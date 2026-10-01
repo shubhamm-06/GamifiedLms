@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { isHttpsUrl } from '@/lib/externalLink'
 import { slugify } from '@/lib/slug'
 import type { CourseFormValues } from '@/hooks/admin/useCourses'
 
@@ -29,6 +30,7 @@ const EMPTY_COURSE_FORM: CourseFormValues = {
   enrollment_status: 'open',
   default_lesson_xp: '10',
   gamification_enabled: true,
+  enroll_url: '',
 }
 
 type FieldErrors = Partial<Record<keyof CourseFormValues, string>>
@@ -136,6 +138,11 @@ export function CourseForm({
       next.default_lesson_xp = 'Enter 0 or more.'
     }
 
+    const enrollUrl = values.enroll_url.trim()
+    if (enrollUrl && !isHttpsUrl(enrollUrl)) {
+      next.enroll_url = 'Must be a valid https:// link, no spaces, 2048 characters or fewer.'
+    }
+
     setErrors(next)
     if (Object.keys(next).length > 0) return null
     return { ...values, title, slug }
@@ -148,6 +155,7 @@ export function CourseForm({
   }
 
   const slugError = errors.slug ?? externalErrors?.slug
+  const enrollUrlError = errors.enroll_url ?? externalErrors?.enroll_url
 
   return (
     <form className="max-w-2xl space-y-5" onSubmit={handleSubmit} noValidate>
@@ -305,6 +313,22 @@ export function CourseForm({
               <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>
           </Select>
+        </Field>
+
+        <Field
+          id="enroll_url"
+          label="Enrollment link"
+          hint="Where the Enroll now button sends students, for example a payment page, form or WhatsApp link. Must start with https://. Leave empty to hide the button."
+          error={enrollUrlError}
+        >
+          <Input
+            id="enroll_url"
+            type="url"
+            placeholder="https://"
+            value={values.enroll_url}
+            aria-invalid={!!enrollUrlError}
+            onChange={(e) => set('enroll_url', e.target.value)}
+          />
         </Field>
       </Section>
 

@@ -101,9 +101,10 @@ src/
                desktop nav, >= 1024px); home/ (DesktopHome, the >= 1024px list-style Home);
                avatar/ (geometry, parts, registry: the avatar's SVG parts; Avatar.tsx and
                AvatarBuilder.tsx sit beside it); profile/ (DesktopProfile, ProfileIdentityCard,
-               ProfileStatCard, ProfileSections); badges/ (DesktopBadges); courses/ (DesktopCourses) —
-               the >= 1024px views, sharing DesktopPageHeader and each page's own mobile/desktop data hook
-               (useProfileData, useCoursePicker);
+               ProfileStatCard, ProfileSections); badges/ (DesktopBadges); courses/ (DesktopCourses,
+               CourseInfoPage — the not-yet-enrolled course info page, both widths) — the >= 1024px views,
+               sharing DesktopPageHeader and each page's own mobile/desktop data hook (useProfileData,
+               useCoursePicker);
                roadmap/ (RoadmapPath, RoadmapNode,
                RoadmapConnector, ModuleBar, ModuleDivider, PathDecor, LessonPopover, StateScreens,
                lessonTypeMeta); player/ (LessonPlayerShell,

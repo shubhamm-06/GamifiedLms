@@ -581,3 +581,10 @@ belongs in `context.md` or `state.md`, not here.
 - **The avatar option sets in `src/lib/avatar.ts` and the database function
   `public.avatar_config_is_valid` change together, in a migration.** A value
   the app offers but the CHECK rejects makes Save fail for the student.
+- **`courses.enroll_url` must only ever become a real `href` when it starts with
+  `https://` and contains no whitespace.** Checked three times on purpose — the
+  admin form, the database CHECK (`courses_enroll_url_format_check`), and
+  `isHttpsUrl()` again at click time — because this is the one place the kid app
+  renders an admin-authored link as a real, tappable navigation target. A
+  `javascript:` or otherwise malformed value reaching an `<a href>` here would be
+  a real injection, not a cosmetic bug.

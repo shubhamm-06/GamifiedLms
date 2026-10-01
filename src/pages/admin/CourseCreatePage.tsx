@@ -3,15 +3,17 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { CourseBuilder } from '@/components/admin/courses/CourseBuilder'
 import { CourseForm } from '@/components/admin/courses/CourseForm'
-import { SLUG_TAKEN, useCreateCourse, type CourseFormValues } from '@/hooks/admin/useCourses'
+import { ENROLL_URL_INVALID, SLUG_TAKEN, useCreateCourse, type CourseFormValues } from '@/hooks/admin/useCourses'
 
 export function CourseCreatePage() {
   const navigate = useNavigate()
   const createCourse = useCreateCourse()
   const [slugError, setSlugError] = useState<string | null>(null)
+  const [enrollUrlError, setEnrollUrlError] = useState<string | null>(null)
 
   function handleSubmit(values: CourseFormValues) {
     setSlugError(null)
+    setEnrollUrlError(null)
     createCourse.mutate(values, {
       onSuccess: (course) => {
         toast.success(`“${course.title}” created as a draft.`)
@@ -26,6 +28,10 @@ export function CourseCreatePage() {
       onError: (error: Error) => {
         if (error.message === SLUG_TAKEN) {
           setSlugError('This slug is already in use.')
+          return
+        }
+        if (error.message === ENROLL_URL_INVALID) {
+          setEnrollUrlError('Must be a valid https:// link, no spaces, 2048 characters or fewer.')
           return
         }
         toast.error(error.message)
@@ -53,7 +59,10 @@ export function CourseCreatePage() {
             mode="create"
             submitLabel="Save & continue"
             isSubmitting={createCourse.isPending}
-            externalErrors={slugError ? { slug: slugError } : undefined}
+            externalErrors={{
+              ...(slugError ? { slug: slugError } : {}),
+              ...(enrollUrlError ? { enroll_url: enrollUrlError } : {}),
+            }}
             onSubmit={handleSubmit}
             onCancel={() => navigate({ to: '/admin/courses' })}
           />

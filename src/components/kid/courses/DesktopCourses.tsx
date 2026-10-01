@@ -1,7 +1,9 @@
 import { BookOpen, ChevronRight, Compass } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { DesktopPageHeader } from '@/components/kid/DesktopPageHeader'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useCoursePicker, useCoursesProgress, type CourseProgress, type MyCourse } from '@/hooks/useMyCourses'
+import { formatAmount } from '@/lib/currency'
+import { useCoursePicker, useCoursesProgress, type CourseProgress, type ExploreCourse, type MyCourse } from '@/hooks/useMyCourses'
 
 /**
  * `/courses` at >= 1024px: the same enrollments as mobile (`useMyCourses`,
@@ -17,7 +19,7 @@ import { useCoursePicker, useCoursesProgress, type CourseProgress, type MyCourse
  * secondary link to switch to it, matching mobile's own chevron-only rows (mobile
  * has no per-row action label at all, current or not).
  */
-export function DesktopCourses({ courses }: { courses: MyCourse[] }) {
+export function DesktopCourses({ courses, explore }: { courses: MyCourse[]; explore: ExploreCourse[] | undefined }) {
   const progress = useCoursesProgress(courses.map((c) => c.id))
   const { pick, busyId, failed } = useCoursePicker()
   const currentId = courses[0]?.id
@@ -30,19 +32,57 @@ export function DesktopCourses({ courses }: { courses: MyCourse[] }) {
           We couldn&apos;t open that course. Please try again.
         </p>
       ) : null}
-      <ul className="kcd-grid" data-testid="course-grid">
+      {courses.length > 0 ? (
+        <ul className="kcd-grid" data-testid="course-grid">
+          {courses.map((course) => (
+            <CourseCard
+              key={course.id}
+              course={course}
+              progress={progress[course.id]}
+              current={course.id === currentId}
+              busy={busyId === course.id}
+              onPick={() => pick(course.id)}
+            />
+          ))}
+        </ul>
+      ) : null}
+      <ExploreSection courses={explore} />
+    </div>
+  )
+}
+
+/** Visible courses the student isn't enrolled in. Hidden entirely (no heading) when there are none. */
+function ExploreSection({ courses }: { courses: ExploreCourse[] | undefined }) {
+  if (!courses || courses.length === 0) return null
+  return (
+    <section className="kcd-explore" aria-label="Explore courses" data-testid="explore-section">
+      <h2 className="kcd-explore-title">Explore courses</h2>
+      <ul className="kcd-grid">
         {courses.map((course) => (
-          <CourseCard
-            key={course.id}
-            course={course}
-            progress={progress[course.id]}
-            current={course.id === currentId}
-            busy={busyId === course.id}
-            onPick={() => pick(course.id)}
-          />
+          <ExploreCard key={course.id} course={course} />
         ))}
       </ul>
-    </div>
+    </section>
+  )
+}
+
+function ExploreCard({ course }: { course: ExploreCourse }) {
+  return (
+    <li>
+      <Link to="/courses/$courseId" params={{ courseId: course.id }} className="kcd-card kid-tap" data-testid="explore-card" data-course-id={course.id}>
+        <span className="kcd-thumb" aria-hidden>
+          {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt="" loading="lazy" /> : <BookOpen className="size-8" />}
+        </span>
+        <span className="kcd-title" title={course.title}>
+          {course.title}
+        </span>
+        {course.description ? <span className="kcd-explore-desc">{course.description}</span> : null}
+        <span className="kcd-action" data-tone="quiet">
+          {course.isFree ? 'Free' : course.priceAmount != null ? formatAmount(course.priceAmount, course.currency) : 'View'}
+          <ChevronRight aria-hidden />
+        </span>
+      </Link>
+    </li>
   )
 }
 

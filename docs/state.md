@@ -189,6 +189,13 @@ The schema or docs anticipate each of these; no working code exists for any.
   builder is open keeps edit mode but loses its unsaved picks; a failed avatar Save still shows no message;
   Profile's stats are Level / XP / Day streak only (no badges summary exists on mobile either). All of this
   round (shell, Home, Profile, Badges, Courses, avatar v2) is still uncommitted.
+- **Course info page for not-yet-enrolled students, built and browser-verified (2026-10-01),
+  uncommitted.** `/courses/$courseId` for a non-enrolled student now shows the course (if published) with an
+  admin-set "Enroll now" link instead of the old bare "not on your list yet" screen; an Explore section on
+  the Courses screen makes it reachable (`ui.md` "Course info page for not-yet-enrolled students"). Migration
+  033 is APPLIED to the live project — no RLS change, verified role-switched. Known and left: no
+  published-lesson count or syllabus preview (no safe source exists yet, see the doc's follow-ups); no
+  parental gate before the external link opens; Android not exercised (no device).
 - **Avatar builder v2 built and browser-verified (2026-09-30), uncommitted.** A geometric mascot with
   eyes, mouth, glasses, headwear, extras, backdrop and per-part colours, a tabbed builder, animation on the
   preview only (`ui.md` "The avatar is procedural"). Migration 032 is APPLIED to the live project (the old
