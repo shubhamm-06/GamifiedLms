@@ -15,6 +15,8 @@ export function useMediaQuery(query: string): boolean {
 }
 
 export const MD_UP = '(min-width: 768px)'
+/** The kid app's desktop shell (sidebar + list-style Home) starts here; `ui.md` "Desktop shell". */
+export const LG_UP = '(min-width: 1024px)'
 export const REDUCED_MOTION = '(prefers-reduced-motion: reduce)'
 
 export function prefersReducedMotion(): boolean {

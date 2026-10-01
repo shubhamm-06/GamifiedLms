@@ -34,7 +34,11 @@ provisional, easy to hand-tune later.
 - **Typography:** Baloo 2 (`@fontsource-variable/baloo-2`, self-hosted),
   scoped by wrapper classes: `.auth-page` here, and `.kid-app` / `.kid-font` on
   the student screens (see "Kid-facing app" below). It never overrides the
-  app's global sans (Geist) on admin routes.
+  app's global sans (Geist) on admin routes. **Amended 2026-09-30: Baloo 2 is no longer the only
+  kid-app face.** Nunito (`@fontsource-variable/nunito`, latin variable file only, self-declared
+  `@font-face` in `styles.css`, bundled by Vite so it works offline in Capacitor) is allowed for small
+  UI text at the desktop shell (`.kid-app[data-shell='side']`, >= 1024px), never on mobile or admin
+  (see "Desktop Home polish" under "Desktop shell and Home").
 - **Card:** 26px border-radius, off-white surface (`#FFFEFB`, not pure
   white — distinguishes it from the page background), warm soft drop shadow
   (`rgba(58,42,26,…)`-based, not generic gray).
@@ -202,7 +206,8 @@ bottom padding clears it. Active tab: ink icon and label with a soft teal pill
 `preventDefault` on the link, so no navigation, no remount, no scroll change, and an open lesson
 popover stays open (the roadmap's outside-tap handler ignores `.kid-nav`). The lesson popover
 also treats the nav's top edge as the bottom of the viewport when deciding whether to flip
-above its node.
+above its node. **From 1024px this bottom nav is not rendered at all**: a left sidebar replaces it
+(below, "Desktop shell and Home (2026-09-30)"). Everything above is the mobile and 768-1023px nav.
 
 **Courses, Badges, Profile** (`KidCoursesPage`, `KidBadgesPage`, `KidProfilePage`). Courses is the
 course switcher: one `kid-card` button per active enrollment in a live, published course (title,
@@ -226,38 +231,92 @@ didn't match the app's language (a literal cartoon face, flat-outline stat icons
 button pills, one undifferentiated form) and were corrected the same day** — the paragraphs below
 describe the corrected, current state only; see `changelog.md` for both dates.
 
-**The avatar is procedural, never an image, and reads as an abstract emblem, not a character —
-no eyes, no mouth.** `AvatarConfig` (`src/lib/avatar.ts`) is `{ base, topper, face, accent }`, each
-from a small fixed set — `base` reuses the roadmap's own four module colours (gold, teal, coral,
-plum; `MODULE_COLOR_COUNT` in `lib/roadmap.ts`), `topper` is spiky/round/star/antenna/bow/none,
-`face` is happy/wink/silly/cool/sleepy, `accent` is star/stripe/dot/heart/none. `DEFAULT_AVATAR`
-(teal, round, happy, none) is what a student who has never customized one sees — fixed, not
-random, so it doesn't flicker between visits. **One shared component draws it everywhere**:
-`Avatar` (`components/kid/Avatar.tsx`), a 100x100 viewBox SVG of plain shapes (circle, path,
-polygon), coloured only through `style={{ fill: 'var(--x)' }}` (an SVG presentation attribute can't
-resolve `var()`; an inline style property can) — used in the builder's live preview, the profile
-page and the bottom nav's Profile tab (behind the same teal active pill the other tabs use, at both
-states; nothing else about the nav changed). `parseAvatarConfig` validates whatever comes back from
-the database (defensive, even though the CHECK constraint already guarantees the shape) and falls
-back to `DEFAULT_AVATAR` for anything else, including null. `topper` draws a bold crest above the
-base circle (a crown, an arch, a star burst, a stalked ball, a chevron banner); `face` — the stored
-field name is unchanged, but it now draws a single geometric band across the circle (a solid bar,
-a diagonal sash, a zigzag, a double bar, three notches), never eyes or a mouth; `accent` is a small
-badge bottom-right. The whole SVG carries one drop shadow keyed to the base colour's own `-d` token
-(`filter: drop-shadow(0 3px 0 var(--{base}-d))`), the same candy-lip lift every other circular icon
-in the app has (`.lp-callout-icon`, `.lp-medallion`) — it no longer sits flat. Every shape was
-checked at both full profile size (96–120px) and the actual ~28px nav-tab render size; where a
-shape got muddy that small the fix was a bolder/simpler geometry, not a smaller stroke. The profile
-page's own edit-pencil badge sits top-right (`.kp-avatar-edit`) opposite the SVG's own accent badge
-(bottom-right), so the two never overlap.
-- **The builder** (`AvatarBuilder`): a large live preview, a Shuffle button (one random pick per
-  category), then one horizontally-scrolling row per category — each chip IS the full avatar with
-  only that category swapped in, not an abstract swatch, so the choice is exactly what tapping it
-  gives. The candy 3D press (a `--ink` 18%-tint bottom lip that flattens on tap, `.av-chip`) is the
-  same physical feedback as the app's other buttons; the chosen chip gets a small teal check
-  instead of a second visual style. Save writes `profiles.avatar_config` and updates the shared
-  `useKidProfile` cache immediately (`setQueryData` then `invalidateQueries`), so the nav tab and
-  the profile page change together with no reload; Cancel discards the in-progress config.
+**The avatar is procedural, never an image (rebuilt 2026-09-30 as a small geometric mascot; v2).**
+It used to be an abstract emblem ({base, topper, face, accent}); it is now a character with eyes, a
+mouth, glasses, headwear, extras and a backdrop. Locked decisions that did not change: SVG built in
+code from design tokens, no art assets, one component everywhere.
+
+- **Config** (`src/lib/avatar.ts`, pure TypeScript, the one place option sets live):
+  `{ v: 2, base, eyes, mouth, glasses, head, extra, backdrop, tints }`. `base` is gold / teal / coral /
+  plum (the roadmap's module colours). `tints` holds a colour per slot the student has coloured
+  (`glasses`, `head`, `extra`, `backdrop`), each from six swatches: gold, teal, coral, plum, ink, cream.
+  A part with no stored tint uses its catalogue default. `DEFAULT_AVATAR` is the old default mapped
+  (teal, round cap, happy eyes, smile); the first spec said "plum" but the shipped default was always
+  teal, so it stays teal.
+- **Options per slot (Phase 1: every one is free for every student; unlocks are a deliberately deferred
+  later phase and nothing here knows about XP, badges or `gamification_enabled`).** Body colour 4.
+  Eyes 6: round, happy, sleepy, wink, sparkly, wide. Mouth 5: smile, big grin, open, tongue out,
+  surprised. Glasses 5: none, round, square, star, sunglasses (all tintable frames). Head 12: none, then
+  the five ported toppers (spiky hair, round cap, star topper, antenna, hair bow; body `-d` shade, not
+  tintable, exactly as before), then baseball cap, beanie, crown, wizard hat, graduation cap,
+  headphones (tintable). Extras 9: none, the four ported accents (gold star, tape stripe, dots, heart;
+  fixed colours), bow tie, scarf, cape (tintable), blush cheeks. Backdrop 6: none, solid, dots,
+  stripes, sunburst, rings (tintable, drawn as a circle behind the character where the white ring is).
+- **`normalizeAvatarConfig(raw)`** is the only reader of stored JSON (`useKidProfile` calls it; the
+  profile, the nav tab and the sidebar get its result). It never throws and never returns something
+  that renders blank: a non-object is the default; a bad VALUE falls back per field (one bad key does
+  not reset the avatar); bad tints are dropped. **Legacy mapping** (a config with no `v`): base stays;
+  topper becomes `head` and accent becomes `extra` with the same ids; the old cream-band `face`
+  becomes eyes + mouth (+ glasses): happy = happy eyes + smile, wink = winking eyes + grin, silly = wide
+  eyes + tongue, cool = round eyes + smile + sunglasses, sleepy = sleepy eyes + smile. New slots default to
+  none. Nothing is rewritten in the database on read; the first Save writes v2.
+  `scripts/check-avatar.mjs` (run with `node --experimental-strip-types scripts/check-avatar.mjs`; no
+  test runner exists in the repo) checks all of this, including every legacy combination.
+- **Registry and z-order** (`components/kid/avatar/`): `registry.tsx` maps every catalogue id to
+  `{ layer, Render }` (typed `Record<Id, ...>`, so a missing or extra entry is a compile error); `parts.tsx`
+  holds one small component per part; `geometry.ts` holds the anchors and the layer order. Adding a part
+  = a catalogue row in `lib/avatar.ts`, a registry entry, one SVG component, plus the id in the database
+  function's list (below). Layer order, back to front, defined once (`AVATAR_LAYERS`): backdrop,
+  extras-behind, body, eyes, mouth, cheeks, glasses, headwear, extras-front. (The first brief listed
+  extras-behind after body; a cape has to be BEHIND the body, so it draws before it.)
+- **Shared anchors** (one 100x100 viewBox; body circle centre (50, 61) radius 34; pale face plate; eye line
+  y 59 at x 38 / 62; cheek y 68; mouth y 72; chest y 84; headwear never lower than y 50). Every part is
+  drawn against these only, so any hat fits any head and any glasses fit any eyes on all four body
+  colours. Checked: every part x all four bodies, and 11 headwear x 4 glasses combinations (crown +
+  headphones is not possible: one headwear slot); nothing clipped or misaligned, no combo needed
+  restricting. Tint check: every tintable headwear in all six colours, glasses, scarf, bow tie, cape and
+  backdrops in six colours (a cream backdrop is near-invisible on the cream page, by design).
+- **Depth**: radial-gradient body (highlight to `-d`), soft highlight ellipse, ground-shadow ellipse,
+  part shading via `color-mix` against ink, glints on lenses. **No SVG filters** (blur, drop-shadow):
+  costly and inconsistent in Android WebView; the old CSS `drop-shadow` on the svg is gone too. Every
+  gradient and clipPath id carries a per-instance `useId` prefix; a shared id makes every avatar on the
+  page take the first one's gradient (verified: no duplicate ids with the preview, 12 tiles, nav and page
+  on screen, colours right in all). Readable at 24, 40 and 180px (strokes >= 2.5 units, chunky shapes).
+- **Where it renders** (all through `Avatar`, sizes unchanged): builder preview 152px (200px desktop,
+  the only animated one), builder tiles (static, ~68px), profile hero 96px, bottom-nav Profile tab 28px,
+  desktop sidebar Profile item 28px.
+- **Animation, preview only** (`animated`, Framer Motion): idle bob 2.5px over 3.2s, a blink every ~4s
+  (eyes scaleY), a 1.06 pop whenever an option, colour or Shuffle changes. Tiles, nav and sidebar are
+  plain `<svg>` with no motion code. All of it is off under `prefers-reduced-motion` (measured: one
+  distinct transform in six seconds, no blink, no pop).
+- **The builder** (`AvatarBuilder`, css `.avb-*`; replaces `.av-*`): the entry point, edit mode, Cancel
+  and Save semantics are unchanged (the page still owns `onSave`). *Mobile*: a fixed-height column so
+  the page does not scroll on a phone: preview (152px in the white ring) with Shuffle beside it, the
+  tab bar, the options region (the only scroller), then Cancel / Save. *From 1024px*: two columns,
+  preview + Shuffle + Cancel/Save on the left (sticky), tabs + options on the right, 6 tiles per row,
+  Nunito for the small text per the desktop type roles. **Seven tabs** (Colour, Eyes, Mouth, Glasses,
+  Head, Extras, Backdrop; Lucide icons), an accessible tablist (roving tabindex, arrows / Home / End),
+  never a scrollbar: below 30rem only the active tab shows its label (six 44px targets + the active
+  one fill 328px, a 360px phone less gutters); wider, all labels. **Tiles** are a radiogroup
+  (`role="radio"`, `aria-checked`, name from the part label, arrow keys): each is the FULL avatar with
+  that option applied (Eyes / Mouth / Glasses zoom the viewBox into the face), optional slots have a
+  "None" tile (ban icon), the chosen tile has the teal ring AND a check badge (never gold, not colour
+  alone). The colour row (six 44px swatches, check on the chosen one, names like "Teal") appears under
+  the grid only when the chosen part is tintable; the Colour tab is the four big body tiles (no separate
+  swatch row, it would only repeat them). **Shuffle** randomises every slot and every tintable
+  colour. Save avatar stays the only gold on the screen. The preview has an `aria-live="polite"`
+  description ("Your avatar: teal body, happy eyes, smile, round glasses, baseball cap") that changes only
+  when the config does. Save writes `profiles.avatar_config` and updates the `useKidProfile` cache at
+  once, so the nav and sidebar change with no reload. A failed save leaves the builder open with the
+  buttons re-enabled and no message (unchanged from the first builder; noted as a follow-up).
+- **Verified** (Chromium, live project, throwaway students removed after): 360x780, 390x844, 768x1024,
+  1280x800, 1920x1080: no horizontal scrollbar, all seven tabs inside the viewport at 360, the page does
+  not scroll on phones, the desktop layout correct; every tab screenshotted at 360 and 1280; keyboard
+  (tabs, tiles, swatches, Tab order Shuffle > tab > tile > swatch > Cancel > Save, 3px ink focus ring);
+  save, reload (persists, reappears in the nav, stored row is v2 with tints), Cancel discards, a failed
+  PATCH keeps the builder; tab switches settle in about 25-70ms including two frames. **Not
+  exercised:** Android WebView (`adb` is installed but no device or emulator is attached), a screen
+  reader, Firefox / Safari.
 - **Stat cards** (Level/XP/Streak): each icon is now a solid colour-circle badge with a cream
   icon and a `-d` shadow beneath — exactly `.lp-callout-icon`'s pattern (`.kp-stat-icon[data-color]`,
   reusing its `--callout`/`--callout-d` custom-property trick), one distinct token per stat (teal,
@@ -331,9 +390,7 @@ page's own edit-pencil badge sits top-right (`.kp-avatar-edit`) opposite the SVG
   `.kid-main`'s bottom padding already reserves `--kid-bottom-inset` for the nav — checked
   empirically at 360–430px width (640–932px tall, including a short 375×667 case) with nothing
   clipped behind the nav in the settled render.
-- **Natural next step, not built**: no avatar option is unlocked by XP or progress — pure
-  customization today, same as the brief asked; a later task could gate a topper or accent behind a
-  badge or a level.
+- **Unlocks are a later phase, deliberately not built**: every avatar option is free (Phase 1). A later task could gate a part behind a badge or a level; the catalogue has no ownership concept yet.
 
 **Module divider** (`ModuleDivider`, `.rm-divider`, 2026-09-26). Before the first node of every
 module after the first: a short rule, the module's name (`section.title`, the same text as the
@@ -600,7 +657,9 @@ both use sites below and deliberately NOT locked design tokens** ("Colour roles"
 they are the mark's own brand colors, not reused anywhere else in the UI, and must not be
 added to the token set or used to recolor anything else. This is the one place in the
 app hex is hardcoded on purpose (the launcher icon below is a separate raster asset,
-not CSS, so it has no token question).
+not CSS, so it has no token question). **Third use site (2026-09-30):** the desktop sidebar logo
+(`KidSidebar`) renders the same `OwlMark` component from `AppEntranceSplash.tsx`, so the mark's hex still lives
+in that one component; it is the brand mark itself, not a reuse of its colours, and it applies on the web too.
 - **Native cold-start splash** (`android/app/src/main/res/drawable/owl_splash_icon.xml`,
   `values/styles.xml` `AppTheme.NoActionBarLaunch`): a static vector redraw of the mark
   (eyes open, no blink — nothing here can move) as `windowSplashScreenAnimatedIcon`,
@@ -1845,6 +1904,10 @@ course name never appears. Same content at every size.
 
 ### Desktop widths (2026-09-27): one breakpoint, one column
 
+**Superseded from 1024px for the four nav screens only (2026-09-30):** Home, Badges, Courses and Profile
+now get a left sidebar in place of the bottom nav, and Home a list layout with a right rail (next
+section). Everything below still holds for 768-1023px and for every other kid screen at any width.
+
 The kid app is mobile-first and stays exactly that below **768px** (checked: the Home, video, doc, quiz
 and game pages are pixel-identical at 360, 390 and 430px before and after). From 768px it is a centred
 column, not a redesign: no sidebar, no second column, no moved controls. Single source of truth, in
@@ -1860,7 +1923,7 @@ column, not a redesign: no sidebar, no second column, no moved controls. Single 
 
 - The cream page fills the window; the top bar's background spans it and its row (Back) sits in the column.
 - **Bottom nav**: still at the bottom, but `--kid-col` wide, centred, with rounded top corners and a hairline
-  border, instead of an edge to edge stripe.
+  border, instead of an edge to edge stripe. (768-1023px only; from 1024px it is replaced by the sidebar.)
 - **Lesson pages** are one column at every width. The earlier "from lg the module list is a sticky left
   column" (legacy HTML doc lessons) and the 70rem main width at 1024px are gone.
 - **Media**: `.lp-video-bleed` and `.lp-game-bleed` are `position: relative; left: 50%; translateX(-50%)` at
@@ -1883,6 +1946,173 @@ column, not a redesign: no sidebar, no second column, no moved controls. Single 
   placeholder demo games are `example.com` pages, and on desktop a host with no CORS headers logs one blocked
   fetch to the console before the game loads straight from its URL (the cache falls back, nothing breaks);
   the admin panel was not touched.
+
+### Desktop shell and Home (2026-09-30): sidebar, list, right rail
+
+At **>= 1024px** (`LG_UP` in `useMediaQuery.ts`, Tailwind `lg`) the four nav screens change presentation;
+below it nothing changed (checked at 1023 and 390px against the old layout: bottom nav, path, stat bar).
+**This supersedes the earlier locked decision that "on desktop the bottom nav stays at the bottom,
+matching the content column width".** The lesson player, `/courses/$courseId`, admin, and Badges /
+Courses / Profile *content* are untouched (they only gain the shell and sit centred for now; grid
+redesigns come later).
+
+- **One switch, in JS.** `KidLayout` and `KidHomePage` read `useMediaQuery(LG_UP)` (a `useSyncExternalStore`
+  over `matchMedia`, correct on first render, no flash) and mount ONE view. CSS hiding is not used: the
+  mobile path auto-scrolls and opens a popover on mount and must not run on desktop. `KidLayout` also sets
+  `data-shell="side"` from the same value, so the shell CSS has no media query of its own and the mounted
+  nav and the CSS cannot disagree.
+- **Sidebar** (`KidSidebar`, `.kid-side`): fixed, 15rem (`--kid-side-w`), full height, `--surface` with a
+  hairline right border and a soft warm shadow. Top: the owl mark (`OwlMark`, exported from
+  `AppEntranceSplash.tsx`, `size` 40, decorative) plus the "Wisdom Hatch Kids" wordmark, a link Home. Then
+  `<nav aria-label="Main">` with Home, Badges, Courses, Profile from `KID_TABS` (same icons; Profile shows
+  the student's avatar), each full width and >= 48px tall. Active: the bottom nav's teal pill, bold label,
+  `aria-current="page"`; hover a light teal tint (mouse only); focus-visible is the shared 3px ink ring.
+  Tapping the active item is a no-op, as in the bottom nav. It is first in the DOM (fixed, so nothing moves)
+  so Tab goes sidebar, then the page. The bottom nav (`KidNav`) is not mounted at this width, so it is
+  neither focusable nor announced; `--kid-bottom-inset` is 0.
+- **Content area**: `.kid-app[data-shell="side"]` pads left by the sidebar; `.kid-main` is capped at
+  68.75rem (1100px), centred in the remaining space, with 2rem padding. Baloo 2 as everywhere under
+  `.kid-app`; admin is untouched. The top bar still shows its title on Badges / Courses / Profile, in the
+  old 40rem row (a known rough edge until those screens are redone).
+- **Desktop Home** (`components/kid/home/DesktopHome.tsx`): same data, no new query. `useHomeCourse` picks
+  the course; `useCourseRoadmap` (already shared with the mobile path; the only change is a new
+  `Roadmap.gamified` flag) supplies sections, lesson states, XP and the next-up id. It also stamps the
+  enrollment (`useTouchEnrollment`) as the mobile view does. Loading is a 5-row skeleton; not-enrolled,
+  unavailable, empty, error and "No courses yet" reuse the mobile screens and copy (rail hidden).
+  - **Main column**: one `<h1>` (course name) with a quiet teal-d "Switch course" link to `/courses`
+    (replaces the stat bar's course link). Every module is a collapsible `<section>` (see "Desktop Home
+    polish") with a header band (caption "SECTION N", `<h2>` title, "3 of 5 lessons"; teal-d as on the
+    mobile module bar, muted with a lock when every lesson in it is locked; not sticky). Lessons are `<li>`
+    rows, flat cards on `--surface` with a soft shadow and no 3D press, >= 60px tall.
+  - **Row states**, each an icon AND a word, never colour alone: **Completed** (teal check, "Review" link
+    text), **Next up** (the only gold: gold outline + tint, a gold play badge and a flat gold ink-text
+    "Start" button, or "Keep going" if in progress, the mobile wording), **Available** (open-lock icon,
+    teal-d "Start" and chevron; "In progress" if it is), **Locked** (lock, muted, `aria-disabled="true"`, a
+    plain `div` with no href, so not focusable and no navigation). Every unlocked row is a real link to the
+    lesson player (the same destination as the mobile popover). Each row also shows the type icon + word
+    (Video / Reading / Quiz / Game) and a "+N XP" chip on unlocked rows only (locked rows hide it, as the
+    mobile node does; this supersedes the first build, which kept a muted chip there).
+  - **On open** the next-up row (or, for a finished course, the "You finished every lesson!" note) is
+    scrolled to the middle, smooth unless `prefers-reduced-motion`, once per mount. Nothing opens by
+    itself; no popover, decoration, dividers or connector exist on desktop.
+  - **Right rail** (300px+, sticky): day-streak card (coral-d flame) and total-XP card (plum-d sparkle),
+    same values as the mobile stat bar (`useKidProfile`), plus a "Course progress" card (done of total
+    lessons, teal-d bar, `role="progressbar"`) from the roadmap already loaded. No gold. **A
+    gamification-off course** hides the XP chips (the roadmap already sets `xp` to null) and the streak and
+    XP cards, exactly as the mobile stat bar hides its pills; only the progress card remains.
+- **Accessibility**: one `<h1>`, sections `<h2>`, lessons in a `<ul>`; Tab order brand, four nav items,
+  "Switch course", unlocked rows (locked skipped); text on gold is ink; the section band's cream on teal-d
+  and teal-d on cream are the mobile pairs already measured; hit targets >= 44px; hover only under
+  `@media (hover: hover)`; transitions off under reduced motion.
+- **Verified** in Chromium against the live project with a throwaway student (removed after): 1280, 1366,
+  1440 and 1024px (sidebar, no bottom nav, no path, one gold element, next-up centred, 8 lessons visible at
+  1366x768, no horizontal overflow, no console errors), 1023 and 390px (unchanged), the in-progress and
+  gamification-off variants, reduced motion, Tab order, a locked click (no navigation), and Badges /
+  Courses / Profile inside the shell. Not exercised: a real Android tablet in the Capacitor shell (which
+  also gets this layout at >= 1024px wide), a screen reader, Firefox or Safari.
+
+#### Desktop Home polish (2026-09-30): Nunito type scale, collapsible sections
+
+Scope is `.kid-app[data-shell='side']` only (kid.css); mobile and 768-1023px markup and CSS are untouched.
+
+- **Type.** Token `--font-ui-desktop` = Nunito Variable, then Baloo 2 (so Devanagari still resolves), then
+  system. The scale is `--kd-text-*` / `--kd-leading-*` (12, 13, 14, 15, 16, 20, 28, 32px; leading 1.2 /
+  1.3 / 1.4), **not** `--text-*`, which is Tailwind's own theme namespace and would rewrite `text-sm` etc.
+  Roles: page `<h1>` Baloo 2 32/700; section caption Nunito 12/700, .08em, uppercase, cream mixed toward
+  teal-d; section title Baloo 2 20/700; "N of M lessons" Nunito 13/600; lesson title Nunito 16/700 lh 1.3;
+  meta Nunito 13/600 `--kid-muted-fg`; row action Nunito 14/700; "Review" is a quiet 14/600 muted link with
+  a chevron; the gold Start / Keep going is Nunito 15/800 ink on gold; sidebar labels Nunito 15/600, 700
+  when active (wordmark stays Baloo 2); rail number Baloo 2 28/700, rail label Nunito 13/600. Nunito is
+  fetched only where those selectors render (checked: no request at 390px).
+- **XP chip strengths** (locked rows have none; a gamification-off course has no xp at all): next-up full
+  (ink, 1.5px ring, coral-d icon), available softer (hairline ring, 600, dimmed icon), completed no ring,
+  no fill, muted text and icon.
+- **Sections are disclosure accordions.** The band is a `<button>` inside the `<h2>`
+  (`aria-expanded`, `aria-controls`, >= 44px, real focus ring), multi-open, local state keyed by section id,
+  not persisted. Default open: only the section holding the next-up lesson; a finished course opens the
+  last section; a single section is open; no next-up and unfinished opens the first. If a refetch moves
+  next-up into a closed section it opens once (render-time state adjustment, not an effect); closing it
+  afterwards sticks. Locked sections open too; their rows stay locked and inert. The band shows caption,
+  title, "N of M lessons", a slim decorative progress bar (`aria-hidden`), a check when complete, a chevron
+  rotating 90deg, and a quiet cream "Next up" pill (never gold) when collapsed and holding the next-up
+  lesson. A locked band uses ink text on the muted fill (muted-fg there was 4.2:1). "Expand all" /
+  "Collapse all" is a text link beside "Switch course" when there is more than one section.
+- **Motion and a11y.** The panel animates `grid-template-rows` 0fr -> 1fr over `--motion-base`; closed
+  content is `inert` (out of Tab order and the accessibility tree) and `visibility:hidden` after the
+  transition. Under `prefers-reduced-motion` the toggle is instant. Toggling never moves the page; closing
+  a section whose header is above the viewport scrolls the header back into view.
+- **Contrast** (computed in Chromium, alpha composited): all text >= 4.5:1 (lowest: band caption 5.07,
+  locked-row text 5.00, row meta and rail label 5.76; gold-button ink 7.33).
+- **Verified** (Chromium, live project, throwaway students removed after, baseline counts of 3 courses /
+  17 lessons / 7 modules confirmed): tsc, lint, build; 1024 / 1280 / 1366x768 / 1920 with no horizontal
+  overflow; 1023 and 390 unchanged; the four default-open cases (mid-course, finished, single section,
+  gamification off); toggle, multi-open, expand/collapse all, no page jump, keyboard Enter/Space with focus
+  kept, closed rows skipped by Tab; auto-open-once; reduced motion (0s durations, instant toggle); font
+  requests; live resize across 1023/1024. At 1366x768 the mid-course page shows 4 lesson rows and 4
+  section headers by default (5 headers counting the partly visible one) vs 8 lessons and 0 headers
+  before: fewer rows, but the whole course outline is now visible at once. The page reserves its scrollbar width (`scrollbar-gutter: stable` on html, desktop shell only) so opening a section never shifts the layout sideways (measured 0px). Known: crossing 1024 unmounts
+  the desktop view, so open sections reset. Not exercised: a real tablet, a screen reader, Firefox / Safari.
+
+### Desktop Profile and the shared page header (2026-10-01)
+
+At >= 1024px `/profile` is laid out for width; below it nothing changed (the 1023 and 390px screenshots are
+byte-identical to before). `KidProfilePage` is now a thin switch: the same `useMediaQuery(LG_UP)` the shell
+uses mounts `DesktopProfile` OR `MobileProfile` (the old page body, unchanged), never both, so the mobile
+view's effects never run on desktop. Whether the builder is open (`building`) lives in the switch, so a resize
+across 1024px keeps the page in edit mode.
+
+- **Shared `DesktopPageHeader`** (`components/kid/DesktopPageHeader.tsx`): one `<h1>` (Baloo 2 32/700, the
+  Home title role), an optional subtitle slot (desktop UI font 14/600, `--kid-muted-fg`) and an optional
+  right-aligned actions slot, inside the content area so it lines up with Home. **Badges and Courses have NOT
+  been converted**; they adopt it in their own passes (they keep the old top bar at every width today).
+- **Old top-bar title hidden on Profile at >= 1024px, and only there.** Cause of the narrow title: from 768px
+  `.kid-topbar-row` is capped at `--kid-col` (40rem) and centred, while the desktop `.kid-main` is 68.75rem,
+  so the title sat in a column narrower than the content; Badges and Courses share the bar. The page view
+  calls `useOwnDesktopHeader()` (kidHeader.ts), `KidLayout` sets `data-own-header` (only together with
+  `data-shell='side'`), and kid.css then hides the row and its border and sets `--kid-topbar-h: 0px`, as Home
+  does. It is only mounted at >= 1024px, so the mechanism cannot disagree with the shell.
+- **Layout**: a two-column grid, identity card 340-380px (`clamp(21.25rem, 30%, 23.75rem)`) and the rest,
+  inside the same 68.75rem content box as Home. DOM and Tab order: header, identity card, right column. Left:
+  `ProfileIdentityCard`, sticky at top 2rem: the avatar at 152px in its ring, the name (Baloo 2 28/700, two
+  lines then an ellipsis, `overflow-wrap: anywhere`, the full name in `title`), and the page's ONE gold
+  element, a flat ink-on-gold "Edit your avatar" button (the existing entry wording; it keeps
+  `data-testid="edit-avatar"`). Right: `ProfileStatCard` x3 in an auto-fit grid (Level, XP, Day streak: the
+  Home rail's `.khd-card`, Baloo 2 28 number, Nunito 13/600 label), the streak calendar ("Your last 5
+  weeks", capped at 21rem wide so its cells stay modest), Preferences & Support, Account & Security
+  (collapsed by default), and Log out, quiet and last (`.candy-btn-quiet`, left-aligned), bottom of the
+  column.
+- **Reuse, nothing new**: every value comes from `useKidProfile` / `useActivityDays` / `useUpdateAvatar`; the
+  sections moved unchanged into `components/kid/profile/ProfileSections.tsx` (shared by both views) and log
+  out into `hooks/useLogOut.ts`. **Content that exists on mobile and nowhere else stays as it was**: there is
+  no badges summary and no lessons-completed stat on the mobile Profile, so none was invented; Profile has
+  never hidden XP or streak for a gamification-off course (it is not course-scoped), so nothing is hidden here
+  either.
+- **Desktop type and cards**: only the existing roles (`--kd-text-*`, `--font-ui-desktop`). The sections keep
+  their mobile markup (`.kp-card`) with desktop overrides scoped under `.kpd-main`: 22px radius, Baloo 2 20/700
+  titles, Nunito for the small text, rows >= 44px with a hover wash (mouse only; the switches' hit area is
+  extended without changing how they look), no candy press on cards.
+- **Gold audit**: exactly one gold element in view mode, including with Account & Security open (the Terms
+  row's gold icon badge and the email-pending gold wash use coral and teal on desktop; the account forms'
+  submit buttons use the teal-d candy tone), and exactly one in edit mode (Save avatar).
+- **Edit mode**: the builder replaces the identity card and right column under the same header, whose title
+  becomes "Edit your avatar" (same size, so the header and sidebar do not move: measured identical rects). The
+  builder's own two-column layout is untouched. Focus moves to the builder's Shuffle button on entering and
+  back to "Edit your avatar" on Save or Cancel (transition-only effect, so a remount does not steal focus).
+  After Save the identity card and the sidebar show the new avatar at once (shared cache).
+- **States**: null avatar renders the default via `normalizeAvatarConfig`; a zero student shows 1 / 0 / 0; a
+  45+ character name, with or without spaces, stays inside the card; loading is a skeleton of the identity
+  card and stat cards; the error state is the existing `RetryScreen` alone (it brings its own h1, so no page
+  header there).
+- **Resize across 1024px** (single session): view mode swaps cleanly (one view mounted, sidebar and bottom
+  nav swap, `data-own-header` clears and returns). **In edit mode the page stays in edit mode, but the
+  builder's unsaved picks are lost** (they are local state inside `AvatarBuilder`, which remounts; keeping
+  them would need a change to the builder's internals, which this pass did not make).
+- **Verified** (Chromium, live project, throwaway students removed after): 1024 / 1280 / 1366x768 / 1440 /
+  1920 with no horizontal scroll and no console errors, content centred in 1100px, the identity card sticky
+  (32px from the top after scrolling); Tab order (sidebar, Edit your avatar, switches, links, Account, fields,
+  then Log out last), Enter/Space activation, 3px ink focus ring, no target under 44px; contrast all >= 4.5:1
+  (lowest 5.43); Baloo 2 on the h1, name, stat numbers and card titles, Nunito on the small text; Nunito is
+  not requested on /login. Not exercised: a real tablet, a screen reader, Firefox / Safari.
 
 ### Game lessons (2026-09-26)
 

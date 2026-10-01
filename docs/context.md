@@ -79,7 +79,8 @@ Everything is imported from `@tanstack/table-core` except `useTable`.
 - dnd-kit (`@dnd-kit/core` 6.3.1, `@dnd-kit/sortable` 10.0.0,
   `@dnd-kit/utilities` 3.2.2) — curriculum drag-and-drop; `cmdk` 1.1.1 —
   searchable combobox; `sonner` 2.0.8 — toasts; fonts via
-  `@fontsource-variable/baloo-2` (auth pages and student screens) and
+  `@fontsource-variable/baloo-2` (auth pages and student screens),
+  `@fontsource-variable/nunito` (small UI text at the kid desktop shell only, >= 1024px) and
   `@fontsource-variable/geist` (admin)
 - Vite 8.2.2, npm only — no pnpm/yarn/bun lockfiles
 
@@ -96,13 +97,18 @@ src/
                hand — see ui.md re: the shadcn CLI's Windows path bug)
     auth/      AuthCard, AuthField (login/signup shared UI)
     kid/       KidLayout (the student-route shell) + kidHeader.ts (its
-               context/hook), KidNav + kidTabs.ts (the bottom nav and its four tabs);
+               context/hook), KidNav + kidTabs.ts (the bottom nav and its four tabs), KidSidebar (the
+               desktop nav, >= 1024px); home/ (DesktopHome, the >= 1024px list-style Home);
+               avatar/ (geometry, parts, registry: the avatar's SVG parts; Avatar.tsx and
+               AvatarBuilder.tsx sit beside it); profile/ (DesktopProfile, ProfileIdentityCard,
+               ProfileStatCard, ProfileSections: the >= 1024px Profile and the account/preferences
+               sections both views share); DesktopPageHeader (the >= 1024px page header);
                roadmap/ (RoadmapPath, RoadmapNode,
                RoadmapConnector, ModuleBar, ModuleDivider, PathDecor, LessonPopover, StateScreens,
                lessonTypeMeta); player/ (LessonPlayerShell,
                ActiveTimeRing, PausedNotice, PlayerBar, PlayerSkeleton, PlayerScreens,
                VideoLesson, DocLesson, GameLesson, QuizLesson, QuizQuestion,
-               QuizResultView, LessonCompleteSheet, LessonMessage) — see ui.md
+               QuizResultView, LessonCompleteSheet) — see ui.md
     admin/     AdminGuard, AdminLayout (shell); one subfolder per domain, each
                holding that domain's table/dialogs/sections: users/ (its import/
                folder holds the CSV import dialog), courses/,
@@ -114,9 +120,10 @@ src/
                (the kid-facing lesson player);
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
                CourseEdit, Games, Orders, Settings, Gamification, Trash)
-  hooks/       TanStack Query hooks: useAppSettings, useCourseCount,
-               useLessonEngine (states/heartbeat/complete/quiz), useLessonClock (the
-               active-time heartbeat loop), useLessonContent (lesson row, game,
+  hooks/       TanStack Query hooks: useAppSettings,
+               useLessonEngine (states/complete/quiz), useLessonClock (the
+               active-time heartbeat loop; calls lib/lessonEngine directly),
+               useLessonContent (lesson row, game,
                quiz questions for the player),
                useCourseRoadmap (merges course content + engine states into the
                roadmap the course page renders), useMediaQuery; admin/ has

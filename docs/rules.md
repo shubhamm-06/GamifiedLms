@@ -570,3 +570,14 @@ belongs in `context.md` or `state.md`, not here.
   read once, stored as a Supabase secret, never committed, never printed to a
   terminal or into any file this session writes.** `env-deploy.md` names the
   secret (`FCM_SERVICE_ACCOUNT_JSON`), never its value.
+- **Avatar parts are kid-safe.** No facial hair of any kind, no brand logos,
+  no weapons, no political or religious symbols, nothing age-inappropriate;
+  every part stays friendly and neutral and works on the same mascot, none
+  gender-coded. A part that breaks this ships to every child.
+- **Avatar SVG uses no filters, and every gradient / clipPath id is unique per
+  component instance (`useId` prefix).** Filters are costly and inconsistent
+  in Android WebView; a shared id makes every avatar on the page (nav, hero,
+  tiles) render the first one's colours.
+- **The avatar option sets in `src/lib/avatar.ts` and the database function
+  `public.avatar_config_is_valid` change together, in a migration.** A value
+  the app offers but the CHECK rejects makes Save fail for the student.

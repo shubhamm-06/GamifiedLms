@@ -1,4 +1,4 @@
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { PushNotifications, type PermissionStatus } from '@capacitor/push-notifications'
 import { supabase } from './supabase'
 
@@ -58,17 +58,22 @@ async function doRegister(): Promise<void> {
 
     const token = await new Promise<string | null>((resolve) => {
       let settled = false
+      // Removed once this attempt settles: this runs on every KidLayout mount, so
+      // listeners left behind would pile up for the life of the app.
+      const handles: Promise<PluginListenerHandle>[] = []
       const finish = (value: string | null) => {
         if (settled) return
         settled = true
+        clearTimeout(timer)
+        for (const h of handles) void h.then((x) => x.remove()).catch(() => {})
         resolve(value)
       }
-      // Both listeners must be attached before register() is called, or the event can fire unheard.
-      void PushNotifications.addListener('registration', (t) => finish(t.value))
-      void PushNotifications.addListener('registrationError', () => finish(null))
-      void PushNotifications.register()
       // A device that never answers (no Play Services, no network) must not hang registration forever.
-      setTimeout(() => finish(null), 10_000)
+      const timer = setTimeout(() => finish(null), 10_000)
+      // Both listeners must be attached before register() is called, or the event can fire unheard.
+      handles.push(PushNotifications.addListener('registration', (t) => finish(t.value)))
+      handles.push(PushNotifications.addListener('registrationError', () => finish(null)))
+      void PushNotifications.register()
     })
     if (!token) return
 
@@ -115,8 +120,7 @@ export async function unregisterPushToken(): Promise<void> {
 export function listenForNotificationTaps(): void {
   if (!Capacitor.isNativePlatform()) return
   void PushNotifications.addListener('pushNotificationActionPerformed', () => {
-    // Intentionally a no-op beyond logging: the OS already brings the app to
-    // the foreground on its own activity stack, landing wherever it was.
-    console.info('[pushNotifications] notification tapped')
+    // Intentionally a no-op: the OS already brings the app to the foreground
+    // on its own activity stack, landing wherever it was.
   })
 }

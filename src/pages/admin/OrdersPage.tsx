@@ -261,7 +261,12 @@ export function OrdersPage() {
               </>
             ) : (
               <>
-                <Button size="sm" variant="outline" onClick={() => handleRestore(selectedIds)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={setTrashed.isPending}
+                  onClick={() => handleRestore(selectedIds)}
+                >
                   Restore
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => exportPaymentsCsv(selectedPayments)}>

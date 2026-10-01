@@ -23,8 +23,6 @@ export const GAME_ORIENTATIONS = [
   { value: 'landscape', label: 'Landscape' },
 ] as const
 
-export type GameOrientation = (typeof GAME_ORIENTATIONS)[number]['value']
-
 /** Quick picks for the minimum-time field. 0 is "Off". */
 export const MIN_TIME_CHIPS = [
   { label: 'Off', seconds: 0 },

@@ -5,10 +5,8 @@ import {
   completeGame,
   completeLesson,
   fetchCourseLessonStates,
-  heartbeatLesson,
   isRetryableEngineError,
   submitQuiz,
-  type LessonHeartbeat,
   type LessonStateRow,
   type QuizAnswers,
 } from '@/lib/lessonEngine'
@@ -39,33 +37,6 @@ export function useCourseLessonStates(courseId: string | undefined) {
     queryFn: () => fetchCourseLessonStates(courseId!),
     enabled: !!courseId,
     retry: retryTransient,
-  })
-}
-
-/**
- * One beat. Call it when a lesson opens and then every `HEARTBEAT_INTERVAL_MS`
- * while the lesson is in the foreground (see `lib/lessonEngine.ts` for the
- * exact counting rules). Not retried: the next beat is the retry, and a
- * replayed beat can never add more than the wall clock.
- */
-export function useLessonHeartbeat(courseId: string | undefined) {
-  const queryClient = useQueryClient()
-  return useMutation<LessonHeartbeat, LessonEngineError, string>({
-    mutationFn: heartbeatLesson,
-    onSuccess: (beat, lessonId) => {
-      if (!courseId) return
-      queryClient.setQueryData<LessonStateRow[]>(lessonEngineKeys.states(courseId), (rows) =>
-        rows?.map((row) =>
-          row.lessonId !== lessonId
-            ? row
-            : {
-                ...row,
-                activeSeconds: beat.activeSeconds,
-                state: row.state === 'available' ? 'in_progress' : row.state,
-              },
-        ),
-      )
-    },
   })
 }
 

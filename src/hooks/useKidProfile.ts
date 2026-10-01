@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { DEFAULT_AVATAR, parseAvatarConfig, type AvatarConfig } from '@/lib/avatar'
+import { DEFAULT_AVATAR, normalizeAvatarConfig, type AvatarConfig } from '@/lib/avatar'
 
 export const kidProfileKey = ['kid', 'profile'] as const
 
@@ -58,7 +58,7 @@ export function useKidProfile() {
 
       return {
         displayName: profileRes.data?.display_name ?? '',
-        avatarConfig: parseAvatarConfig(profileRes.data?.avatar_config),
+        avatarConfig: normalizeAvatarConfig(profileRes.data?.avatar_config),
         email,
         totalXp: statsRes.data?.total_xp ?? 0,
         level: statsRes.data?.level ?? 1,

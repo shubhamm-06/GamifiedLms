@@ -917,8 +917,7 @@
      that need a sentence, not just an icon. Neutral tint on purpose: neither is
      an error, so neither borrows the coral role. */
   .lp-offline-banner,
-  .lp-notice,
-  .lp-message {
+  .lp-notice {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -926,8 +925,7 @@
     border-radius: 14px;
   }
 
-  .lp-offline-banner,
-  .lp-message {
+  .lp-offline-banner {
     background: var(--kid-muted);
     color: var(--kid-muted-fg);
   }
@@ -935,8 +933,7 @@
   .lp-notice { background: color-mix(in srgb, var(--gold) 26%, var(--cream)); }
 
   .lp-offline-banner,
-  .lp-notice,
-  .lp-message {
+  .lp-notice {
     font-size: var(--kid-text-body);
     line-height: var(--kid-leading-body);
     font-weight: 600;
@@ -2428,69 +2425,173 @@
 
   /* --------------------------------------------------------- avatar builder */
 
-  .av-builder {
+  /* Mobile: a fixed-height column so the page itself does not scroll on a phone:
+     preview (always visible), the tab bar, the options region (the ONLY scroller),
+     then the Cancel / Save bar. Height = the viewport minus the top bar, the bottom
+     nav and the page padding (the same terms .kid-main uses). From 1024px it becomes
+     two columns (see the desktop block at the end of this section). */
+  .avb {
+    --avb-pad-top: 1rem; /* .kid-main's top padding (1.5rem from 768px, below) */
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 1rem;
+    gap: 0.75rem;
     width: 100%;
     max-width: 26rem;
+    height: calc(100vh - var(--sa-top) - var(--kid-topbar-h) - var(--avb-pad-top) - var(--sa-bottom) - var(--kid-bottom-inset) - 1.5rem);
+    height: calc(100dvh - var(--sa-top) - var(--kid-topbar-h) - var(--avb-pad-top) - var(--sa-bottom) - var(--kid-bottom-inset) - 1.5rem);
+    min-height: 31rem;
     margin-inline: auto;
-    padding-top: 0.5rem;
   }
 
-  .av-preview {
+  @media (min-width: 768px) {
+    .avb { --avb-pad-top: 1.5rem; }
+  }
+
+  .avb-stage {
+    display: flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  /* The white ring the avatar sits in (unchanged from the first builder). */
+  .avb-preview {
     display: grid;
     place-items: center;
-    padding: 0.5rem;
+    padding: 0.375rem;
     border-radius: 999px;
+    background: var(--surface);
     box-shadow: var(--kid-shadow);
   }
 
-  .av-category { width: 100%; }
+  .avb-editor {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 22px;
+    background: var(--surface);
+    box-shadow: var(--kid-shadow);
+  }
 
-  .av-category-label {
-    margin: 0 0 0.5rem;
-    font-size: var(--kid-text-label);
-    line-height: var(--kid-leading-label);
+  /* Seven tabs, never a scrollbar. Below 30rem only the active tab shows its label:
+     six 44px targets plus the active one (>= 64px) fill 328px, the width of a 360px
+     phone less the page gutters. From 30rem every tab shows its label. */
+  .avb-tabs {
+    display: flex;
+    flex: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+
+  .avb-tab {
+    display: flex;
+    flex: 0 0 2.75rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    min-width: 0;
+    height: 3.5rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--kid-muted-fg);
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+  }
+
+  .avb-tab-icon { width: 1.375rem; height: 1.375rem; }
+
+  .avb-tab-label {
+    display: none;
+    font-size: 0.75rem;
+    line-height: 1;
     font-weight: 700;
   }
 
-  /* One row per category: tap or swipe, snapping per chip. */
-  .av-row {
-    display: flex;
-    gap: 0.75rem;
-    overflow-x: auto;
-    padding-bottom: 0.25rem;
-    scroll-snap-type: x proximity;
+  /* Active: the teal pill, ink, bold label, plus an underline bar so it is not colour alone. */
+  .avb-tab[data-active='true'] {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 4rem;
+    background: color-mix(in srgb, var(--teal) 24%, var(--surface));
+    color: var(--ink);
   }
 
-  .av-chip {
+  .avb-tab[data-active='true']::after {
+    content: '';
+    position: absolute;
+    right: 0.75rem;
+    bottom: 0;
+    left: 0.75rem;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: var(--teal-d);
+  }
+
+  .avb-tab[data-active='true'] .avb-tab-label { display: block; }
+
+  @media (min-width: 30rem) {
+    .avb-tab { flex: 1 1 0; }
+    .avb-tab[data-active='true'] { min-width: 0; }
+    .avb-tab-label { display: block; }
+  }
+
+  .avb-panel {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 1rem;
+    min-height: 0;
+    padding: 0.875rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .avb-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.625rem;
+  }
+
+  /* A tile is the whole avatar with one option applied. Selected: a teal ring PLUS a
+     check badge (not gold, not colour alone). */
+  .avb-tile {
     position: relative;
     display: grid;
-    flex: none;
     place-items: center;
-    width: 4rem;
-    height: 4rem;
+    aspect-ratio: 1;
     padding: 0;
     border: 0;
-    border-radius: 999px;
-    background: var(--surface);
-    box-shadow: 0 4px 0 color-mix(in srgb, var(--ink) 18%, var(--surface));
-    scroll-snap-align: start;
-    transform: translateY(0);
-    transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--ink) 5%, var(--cream));
+    box-shadow: 0 3px 0 color-mix(in srgb, var(--ink) 14%, var(--surface));
     cursor: pointer;
+    transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
   }
 
-  .av-chip:active {
-    transform: translateY(4px);
-    box-shadow: 0 0 0 transparent;
+  .avb-tile:active { transform: translateY(2px); box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 14%, var(--surface)); }
+
+  .avb-tile[data-chosen='true'] {
+    background: color-mix(in srgb, var(--teal) 12%, var(--surface));
+    box-shadow: 0 0 0 3px var(--teal-d), 0 3px 0 color-mix(in srgb, var(--ink) 14%, var(--surface));
   }
 
-  .av-chip[data-chosen='true'] { box-shadow: 0 0 0 3px var(--teal-d), 0 4px 0 color-mix(in srgb, var(--ink) 18%, var(--surface)); }
+  .avb-tile-art {
+    display: grid;
+    place-items: center;
+    width: 86%;
+    height: 86%;
+  }
 
-  .av-chip-check {
+  .avb-tile-art svg { width: 100%; height: auto; }
+
+  .avb-none { width: 42%; height: 42%; color: var(--kid-muted-fg); }
+
+  .avb-check {
     position: absolute;
     right: -0.25rem;
     bottom: -0.25rem;
@@ -2504,20 +2605,110 @@
     box-shadow: 0 2px 0 color-mix(in srgb, var(--teal-d) 70%, var(--ink));
   }
 
-  .av-shuffle { align-self: center; }
-
-  .av-actions {
+  .avb-swatches {
     display: flex;
-    gap: 0.75rem;
-    width: 100%;
-    margin-top: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem 0.75rem;
   }
 
-  .av-actions .candy-btn,
-  .av-actions .candy-btn-quiet { flex: 1; }
+  .avb-swatch {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: var(--swatch);
+    color: var(--cream);
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 22%, transparent);
+    cursor: pointer;
+    transition: transform var(--motion-fast) var(--ease-standard);
+  }
+
+  .avb-swatch[data-swatch='gold'],
+  .avb-swatch[data-swatch='cream'] { color: var(--ink); }
+
+  .avb-swatch:active { transform: scale(0.94); }
+
+  .avb-swatch[data-chosen='true'] {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 22%, transparent), 0 0 0 3px var(--surface), 0 0 0 6px var(--teal-d);
+  }
+
+  /* The bottom bar: last in the column and sticky above the bottom nav if the
+     viewport is too short for the column to fit. Save is the only gold on the screen. */
+  .avb-actions {
+    position: sticky;
+    bottom: calc(var(--sa-bottom) + var(--kid-bottom-inset));
+    z-index: 5;
+    display: flex;
+    flex: none;
+    gap: 0.75rem;
+  }
+
+  .avb-actions .candy-btn,
+  .avb-actions .candy-btn-quiet { flex: 1; }
+
+  /* Desktop shell (>= 1024px): preview, Shuffle and the buttons stay on the left
+     (sticky); tabs, tiles and colours on the right. Nunito for the small UI text,
+     per the desktop type roles (ui.md). The stage has a fixed height so the actions
+     below it can stick at a known offset. */
+  .kid-app[data-shell='side'] .avb {
+    --avb-top: 2rem;
+    --avb-stage-h: 17rem;
+    display: grid;
+    grid-template-columns: 20rem minmax(0, 1fr);
+    grid-template-rows: var(--avb-stage-h) auto 1fr;
+    align-items: start;
+    gap: 0.75rem 2rem;
+    max-width: 62rem;
+    height: auto;
+    min-height: 0;
+  }
+
+  .kid-app[data-shell='side'] .avb-stage {
+    position: sticky;
+    top: var(--avb-top);
+    flex-direction: column;
+    height: var(--avb-stage-h);
+    gap: 0.75rem;
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .kid-app[data-shell='side'] .avb-actions {
+    top: calc(var(--avb-top) + var(--avb-stage-h) + 0.75rem);
+    bottom: auto;
+    grid-column: 1;
+    grid-row: 2;
+    width: 100%;
+  }
+
+  .kid-app[data-shell='side'] .avb-editor {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    overflow: visible;
+  }
+
+  .kid-app[data-shell='side'] .avb-panel { overflow: visible; padding: 1.25rem; }
+  .kid-app[data-shell='side'] .avb-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.875rem; }
+  .kid-app[data-shell='side'] .avb-tab { height: 3.75rem; flex: 1 1 0; }
+  .kid-app[data-shell='side'] .avb-tab[data-active='true'] { min-width: 0; }
+  .kid-app[data-shell='side'] .avb-tab-label { display: block; font-family: var(--font-ui-desktop); font-size: var(--kd-text-sm); font-weight: 700; }
+  .kid-app[data-shell='side'] .avb-actions button,
+  .kid-app[data-shell='side'] .avb-shuffle { font-family: var(--font-ui-desktop); font-size: var(--kd-text-base); font-weight: 800; }
+
+  @media (hover: hover) {
+    .avb-tab:not([data-active='true']):hover { background: color-mix(in srgb, var(--teal) 12%, var(--surface)); color: var(--ink); }
+    .avb-tile:not([data-chosen='true']):hover { background: color-mix(in srgb, var(--teal) 8%, var(--surface)); }
+    .avb-swatch:not([data-chosen='true']):hover { transform: scale(1.06); }
+  }
 
   @media (prefers-reduced-motion: reduce) {
-    .av-chip { transition: none; }
+    .avb-tab,
+    .avb-tile,
+    .avb-swatch { transition: none; }
   }
 
   @media (min-width: 640px) {
@@ -2954,5 +3145,894 @@
     .kid-statbar-course:hover { text-decoration-thickness: 3px; }
     .vp-btn:hover { background: color-mix(in srgb, var(--cream) 14%, transparent); }
     .candy-btn-quiet:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  }
+
+  /* ------------------------------------------------------------ desktop shell */
+
+  /* >= 1024px (LG_UP), the four top-level screens only: a fixed left sidebar takes
+     the bottom nav's place and the page sits to its right. There is deliberately no
+     media query here: KidLayout reads the same breakpoint in JS and sets
+     data-shell='side', so which nav is mounted and which CSS applies can never
+     disagree. Below 1024px none of this exists and nothing above changes. */
+  .kid-app[data-shell='side'] {
+    --kid-side-w: 15rem;
+    /* No bottom nav, so nothing reserves room for it. */
+    --kid-bottom-inset: 0px;
+    padding-left: var(--kid-side-w);
+
+    /* Desktop type. ONE deliberate exception to "Baloo 2 is the only kid font":
+       Nunito (self-hosted latin subset, styles.css) for small UI text, at this
+       shell only. Baloo 2 stays for the page title, section titles, the wordmark
+       and the big stat numbers. Baloo 2 is the fallback so non-latin text (Hindi)
+       still gets a real face. The scale is prefixed --kd- on purpose: --text-* is
+       Tailwind's own theme namespace, and redefining it here would change every
+       text-sm / text-xs used inside this scope. Nothing outside the desktop
+       shell's own selectors reads these, and admin never carries .kid-app. */
+    --font-ui-desktop: 'Nunito Variable', 'Baloo 2 Variable', 'Baloo 2', ui-rounded, system-ui, sans-serif;
+    --kd-text-xs: 0.75rem;     /* 12: section caption, chips */
+    --kd-text-sm: 0.8125rem;   /* 13: meta line, counts, stat labels */
+    --kd-text-md: 0.875rem;    /* 14: row actions, text links */
+    --kd-text-base: 0.9375rem; /* 15: sidebar labels, the gold button */
+    --kd-text-lg: 1rem;        /* 16: lesson titles */
+    --kd-text-xl: 1.25rem;     /* 20: section titles */
+    --kd-text-2xl: 1.75rem;    /* 28: stat numbers */
+    --kd-text-3xl: 2rem;       /* 32: page title */
+    --kd-leading-tight: 1.2;
+    --kd-leading-snug: 1.3;
+    --kd-leading-normal: 1.4;
+  }
+
+  /* Reserve the page scrollbar's width whether or not the page scrolls. Without it,
+     opening a section makes the page tall enough to scroll, the scrollbar appears,
+     the viewport gets narrower and the centred content jumps left by its width.
+     Only while the desktop shell is mounted (overlay scrollbars, e.g. Android, reserve 0). */
+  html:has(.kid-app[data-shell='side']) { scrollbar-gutter: stable; }
+
+  .kid-app[data-shell='side'] .kid-main {
+    max-width: 68.75rem;
+    padding: 2rem 2rem 3rem;
+  }
+
+  .kid-side {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 35;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    width: var(--kid-side-w);
+    padding: 1.25rem 0.75rem;
+    overflow-y: auto;
+    background: var(--surface);
+    border-right: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+    box-shadow: 10px 0 28px -20px color-mix(in srgb, var(--ink) 30%, transparent);
+  }
+
+  .kid-side-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-height: 3rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 16px;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .kid-side-brand svg { flex: none; }
+
+  /* Baloo 2, inherited. */
+  .kid-side-wordmark {
+    font-size: var(--kid-text-label);
+    line-height: 1.15;
+    font-weight: 700;
+  }
+
+  .kid-side-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kid-side-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 3rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 16px;
+    color: var(--kid-muted-fg);
+    text-decoration: none;
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-base);
+    line-height: var(--kd-leading-snug);
+    font-weight: 600;
+    transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+  }
+
+  /* Active: ink and bolder on the bottom nav's soft teal pill. Not gold (that is "the next action"). */
+  .kid-side-item[aria-current='page'] {
+    background: color-mix(in srgb, var(--teal) 26%, var(--surface));
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .kid-side-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+  }
+
+  /* ---------------------------------------------------------- desktop Home */
+
+  /* Two columns: the lesson list, and a sticky rail of stats. Gold appears once on
+     the page, on the next-up row and its button. The 68.75rem content box comes
+     from .kid-main above. */
+  .khd {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 19rem;
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .khd-main {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .khd-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Baloo 2, inherited: the one big personality moment on the page. */
+  .khd-title {
+    margin: 0;
+    color: var(--ink);
+    font-size: var(--kd-text-3xl);
+    line-height: var(--kd-leading-tight);
+    font-weight: 700;
+  }
+
+  .khd-head-links {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  /* Quiet text links (a button and a link share the look): teal-d on cream is 6.2:1. */
+  .khd-switch {
+    display: inline-flex;
+    align-items: center;
+    min-height: 2.75rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--teal-d);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-md);
+    line-height: var(--kd-leading-snug);
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+    cursor: pointer;
+  }
+
+  .khd-section { display: block; }
+
+  .khd-band-heading {
+    margin: 0;
+    font: inherit;
+  }
+
+  /* The section header band IS the toggle: a real button inside the h2, the mobile
+     module bar's colours, no gold. Text and count on the first row, a slim
+     decorative progress bar under them. */
+  .khd-band {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'text side' 'bar bar';
+    align-items: center;
+    column-gap: 1rem;
+    row-gap: 0.5rem;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0.75rem 1rem 0.625rem;
+    border: 0;
+    border-radius: 18px;
+    background: var(--teal-d);
+    color: var(--cream);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--motion-fast) var(--ease-standard);
+  }
+
+  /* Locked: the muted fill and the lock icon say "not yet"; the text stays ink so the
+     small caption and count keep AA contrast on the fill (muted-fg on it is only 4.2:1). */
+  .khd-band[data-locked='true'] {
+    background: var(--kid-muted);
+    color: var(--ink);
+  }
+
+  .khd-band-text {
+    display: flex;
+    flex-direction: column;
+    grid-area: text;
+    min-width: 0;
+    gap: 0.0625rem;
+  }
+
+  .khd-band-caption {
+    color: color-mix(in srgb, var(--cream) 86%, var(--teal-d));
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-xs);
+    line-height: var(--kd-leading-normal);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .khd-band[data-locked='true'] .khd-band-caption { color: inherit; }
+
+  /* Baloo 2, inherited. */
+  .khd-band-title {
+    font-size: var(--kd-text-xl);
+    line-height: var(--kd-leading-tight);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .khd-band-side {
+    display: inline-flex;
+    align-items: center;
+    grid-area: side;
+    gap: 0.75rem;
+  }
+
+  .khd-band-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-sm);
+    line-height: var(--kd-leading-normal);
+    font-weight: 600;
+  }
+
+  /* A quiet hint on a COLLAPSED band that holds the next-up lesson. Cream text on a
+     faint cream wash, never gold: gold stays with the one next action. */
+  .khd-band-hint {
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cream) 16%, transparent);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-xs);
+    line-height: var(--kd-leading-normal);
+    font-weight: 700;
+  }
+
+  .khd-band-done {
+    display: grid;
+    place-items: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    background: var(--cream);
+    color: var(--teal-d);
+  }
+
+  .khd-band-done svg { width: 0.875rem; height: 0.875rem; }
+  .khd-band-count svg { width: 0.875rem; height: 0.875rem; }
+
+  .khd-band-chevron {
+    transition: transform var(--motion-base) ease;
+  }
+
+  .khd-band[aria-expanded='true'] .khd-band-chevron { transform: rotate(90deg); }
+
+  .khd-band-bar {
+    display: block;
+    grid-area: bar;
+    height: 0.25rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cream) 22%, transparent);
+  }
+
+  .khd-band[data-locked='true'] .khd-band-bar { background: color-mix(in srgb, var(--ink) 12%, transparent); }
+
+  .khd-band-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--cream);
+  }
+
+  .khd-band[data-locked='true'] .khd-band-bar-fill { background: var(--kid-muted-fg); }
+
+  /* Height animates 0fr -> 1fr: no JS measuring. Closed content is inert (out of the
+     tab order and the accessibility tree) and, after the transition, visibility:hidden. */
+  .khd-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    visibility: hidden;
+    transition: grid-template-rows var(--motion-base) ease, visibility 0s linear var(--motion-base);
+  }
+
+  .khd-collapse[data-open='true'] {
+    grid-template-rows: 1fr;
+    visibility: visible;
+    transition: grid-template-rows var(--motion-base) ease, visibility 0s;
+  }
+
+  /* The side margin gives the rows' shadows room inside the clip. */
+  .khd-collapse-inner {
+    min-height: 0;
+    margin-inline: -0.5rem;
+    overflow: hidden;
+  }
+
+  .khd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    margin: 0;
+    padding: 0.5rem 0.5rem 1.25rem;
+    list-style: none;
+  }
+
+  /* A row is a flat card: warm soft shadow, no candy press. */
+  .khd-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    min-height: 3.5rem;
+    padding: 0.375rem 1rem;
+    border-radius: 18px;
+    background: var(--surface);
+    color: var(--ink);
+    text-decoration: none;
+    box-shadow:
+      0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent),
+      0 8px 18px -12px color-mix(in srgb, var(--ink) 32%, transparent);
+    transition: background-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
+  }
+
+  .khd-row:focus-visible { outline-offset: 2px; }
+
+  /* Next up: the one gold element. A gold outline and tint on the row, a gold button. */
+  .khd-row[data-state='next'] {
+    background: color-mix(in srgb, var(--gold) 10%, var(--surface));
+    box-shadow:
+      inset 0 0 0 2px var(--gold),
+      0 8px 18px -12px color-mix(in srgb, var(--gold-d) 60%, transparent);
+  }
+
+  /* Locked: muted and inert. No pointer, no shadow. */
+  .khd-row[data-state='locked'] {
+    background: color-mix(in srgb, var(--ink) 5%, var(--cream));
+    color: var(--kid-muted-fg);
+    box-shadow: none;
+    cursor: default;
+  }
+
+  .khd-status {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    background: var(--kid-muted);
+    color: var(--ink);
+  }
+
+  .khd-row[data-state='completed'] .khd-status {
+    background: color-mix(in srgb, var(--teal) 22%, var(--surface));
+    color: var(--teal-d);
+  }
+
+  .khd-row[data-state='available'] .khd-status {
+    background: color-mix(in srgb, var(--teal) 14%, var(--surface));
+    color: var(--teal-d);
+  }
+
+  .khd-row[data-state='next'] .khd-status {
+    background: var(--gold);
+    color: var(--ink);
+  }
+
+  .khd-row[data-state='locked'] .khd-status { color: var(--kid-muted-fg); }
+
+  .khd-row-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+    gap: 0.0625rem;
+  }
+
+  .khd-row-title {
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-lg);
+    line-height: var(--kd-leading-snug);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+
+  .khd-row-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--kid-muted-fg);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-sm);
+    line-height: var(--kd-leading-normal);
+    font-weight: 600;
+  }
+
+  .khd-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .khd-type svg { flex: none; width: 0.875rem; height: 0.875rem; }
+
+  /* The XP chip has three strengths. Next up: full. Available: softer. Completed:
+     no border, muted text and icon. Locked rows do not render one (as on mobile),
+     and a gamification-off course has no xp at all. */
+  .khd-chip {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 18%, transparent);
+    color: var(--ink);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-xs);
+    line-height: var(--kd-leading-normal);
+    font-weight: 700;
+  }
+
+  .khd-chip svg { width: 0.8125rem; height: 0.8125rem; color: var(--coral-d); }
+
+  .khd-row[data-state='available'] .khd-chip {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 11%, transparent);
+    font-weight: 600;
+  }
+
+  .khd-row[data-state='available'] .khd-chip svg { opacity: 0.7; }
+
+  .khd-row[data-state='completed'] .khd-chip {
+    padding-inline: 0.25rem;
+    background: transparent;
+    box-shadow: none;
+    color: var(--kid-muted-fg);
+    font-weight: 600;
+  }
+
+  .khd-row[data-state='completed'] .khd-chip svg { color: inherit; }
+
+  .khd-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    gap: 0.125rem;
+    min-height: 2.75rem;
+    border-radius: 999px;
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-md);
+    line-height: 1;
+    font-weight: 700;
+  }
+
+  .khd-cta svg { flex: none; width: 1rem; height: 1rem; }
+
+  /* Ink on gold, never gold text on cream. Flat: no 3D press. The one intentionally
+     loud element besides the page title. */
+  .khd-cta[data-tone='gold'] {
+    padding: 0 1.25rem;
+    background: var(--gold);
+    color: var(--ink);
+    font-size: var(--kd-text-base);
+    font-weight: 800;
+  }
+
+  .khd-cta[data-tone='teal'] {
+    padding: 0 0.25rem 0 0.75rem;
+    color: var(--teal-d);
+  }
+
+  /* Review: a quiet text link with a chevron, not a heavy label. */
+  .khd-cta[data-tone='quiet'] {
+    padding: 0 0.25rem 0 0.75rem;
+    color: var(--kid-muted-fg);
+    font-weight: 600;
+  }
+
+  .khd-complete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: fit-content;
+    margin: 0 auto;
+    padding: 0.75rem 1.25rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--teal) 16%, var(--surface));
+    color: var(--ink);
+    font-size: var(--kid-text-body);
+    line-height: var(--kid-leading-body);
+    font-weight: 700;
+  }
+
+  /* ---- right rail: sticky stat cards. No gold here. */
+  .khd-rail {
+    position: sticky;
+    top: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .khd-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    border-radius: 22px;
+    background: var(--surface);
+    box-shadow: var(--kid-shadow);
+  }
+
+  .khd-card-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    background: var(--kid-muted);
+    color: var(--ink);
+  }
+
+  .khd-card[data-kind='streak'] .khd-card-icon {
+    background: color-mix(in srgb, var(--coral) 16%, var(--surface));
+    color: var(--coral-d);
+  }
+
+  .khd-card[data-kind='xp'] .khd-card-icon {
+    background: color-mix(in srgb, var(--plum) 16%, var(--surface));
+    color: var(--plum-d);
+  }
+
+  .khd-card[data-kind='progress'] .khd-card-icon {
+    background: color-mix(in srgb, var(--teal) 16%, var(--surface));
+    color: var(--teal-d);
+  }
+
+  /* Baloo 2, inherited: the big number. */
+  .khd-card-value {
+    margin: 0;
+    color: var(--ink);
+    font-size: var(--kd-text-2xl);
+    line-height: var(--kd-leading-tight);
+    font-weight: 700;
+  }
+
+  .khd-card-label {
+    margin: 0;
+    color: var(--kid-muted-fg);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-sm);
+    line-height: var(--kd-leading-normal);
+    font-weight: 600;
+  }
+
+  .khd-progress-body { flex: 1; min-width: 0; }
+
+  .khd-card-progress .khd-card-value {
+    font-size: var(--kd-text-xl);
+    line-height: var(--kd-leading-snug);
+  }
+
+  .khd-bar {
+    height: 0.625rem;
+    margin-top: 0.5rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: var(--kid-muted);
+  }
+
+  .khd-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--teal-d);
+  }
+
+  /* Hover for a mouse only (a touch screen has none). */
+  @media (hover: hover) {
+    .kid-side-item:not([aria-current='page']):hover {
+      background: color-mix(in srgb, var(--teal) 14%, var(--surface));
+      color: var(--ink);
+    }
+    .kid-side-brand:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+    .khd-band:hover { background: color-mix(in srgb, var(--teal-d) 84%, var(--teal)); }
+    .khd-band[data-locked='true']:hover { background: color-mix(in srgb, var(--kid-muted) 88%, var(--ink)); }
+    a.khd-row:hover {
+      background: color-mix(in srgb, var(--teal) 8%, var(--surface));
+      box-shadow:
+        0 1px 2px color-mix(in srgb, var(--ink) 10%, transparent),
+        0 12px 22px -12px color-mix(in srgb, var(--ink) 38%, transparent);
+    }
+    a.khd-row[data-state='next']:hover {
+      background: color-mix(in srgb, var(--gold) 18%, var(--surface));
+      box-shadow:
+        inset 0 0 0 2px var(--gold),
+        0 12px 22px -12px color-mix(in srgb, var(--gold-d) 70%, transparent);
+    }
+    a.khd-row:hover .khd-cta[data-tone='gold'] { filter: brightness(1.06); }
+    .khd-switch:hover { text-decoration-thickness: 3px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .kid-side-item,
+    .khd-row,
+    .khd-band,
+    .khd-band-chevron { transition: none; }
+    /* Instant toggle: no height animation, and no delayed visibility flip. */
+    .khd-collapse,
+    .khd-collapse[data-open='true'] { transition: none; }
+  }
+
+  /* ------------------------------------------------ desktop page header + Profile */
+
+  /* Pages that draw their own DesktopPageHeader (Profile now; Badges and Courses
+     later) hide the old top-bar title row, exactly as Home collapses it: only at
+     >= 1024px (data-shell='side') and only while such a page is mounted
+     (data-own-header, set by useOwnDesktopHeader). The bar keeps its safe-area padding. */
+  .kid-app[data-shell='side'][data-own-header] { --kid-topbar-h: 0px; }
+  .kid-app[data-shell='side'][data-own-header] .kid-topbar { border-bottom: 0; }
+  .kid-app[data-shell='side'][data-own-header] .kid-topbar-row { display: none; }
+
+  /* The h1 is desktop Home's course-title role (32/700 Baloo 2); the subtitle is the
+     desktop UI font 14/600 in the muted token. */
+  .kid-app[data-shell='side'] .kdh {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.25rem 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .kid-app[data-shell='side'] .kdh-title {
+    margin: 0;
+    color: var(--ink);
+    font-size: var(--kd-text-3xl);
+    line-height: var(--kd-leading-tight);
+    font-weight: 700;
+  }
+
+  .kid-app[data-shell='side'] .kdh-sub {
+    margin: 0.25rem 0 0;
+    color: var(--kid-muted-fg);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-md);
+    line-height: var(--kd-leading-normal);
+    font-weight: 600;
+  }
+
+  .kid-app[data-shell='side'] .kdh-actions { display: flex; align-items: center; gap: 1rem; }
+
+  /* Two columns: a sticky identity card (340-380px) and the rest. */
+  .kid-app[data-shell='side'] .kpd { min-width: 0; }
+
+  .kid-app[data-shell='side'] .kpd-body {
+    display: grid;
+    grid-template-columns: clamp(21.25rem, 30%, 23.75rem) minmax(0, 1fr);
+    gap: 2rem;
+    align-items: start;
+  }
+
+  .kid-app[data-shell='side'] .kpd-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  .kid-app[data-shell='side'] .kpd-identity {
+    position: sticky;
+    top: 2rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    min-width: 0;
+    padding: 1.75rem 1.5rem;
+    border-radius: 22px;
+    background: var(--surface);
+    box-shadow: var(--kid-shadow);
+    text-align: center;
+  }
+
+  /* The avatar in its ring: a raised circle, the shape the builder's preview uses. */
+  .kid-app[data-shell='side'] .kpd-avatar-ring {
+    display: grid;
+    place-items: center;
+    padding: 0.5rem;
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 8%, transparent), 0 14px 26px -14px color-mix(in srgb, var(--ink) 34%, transparent);
+  }
+
+  /* Baloo 2 (inherited). Two lines at most, then an ellipsis; an unbroken long name wraps
+     anywhere instead of pushing the column wider. The full name is in the title attribute. */
+  .kid-app[data-shell='side'] .kpd-name {
+    display: -webkit-box;
+    max-width: 100%;
+    margin: 0;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    color: var(--ink);
+    font-size: var(--kd-text-2xl);
+    line-height: var(--kd-leading-snug);
+    font-weight: 700;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  /* The page's one gold element: flat (no candy press), ink on gold, like Home's Start button. */
+  .kid-app[data-shell='side'] .kpd-edit {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1.5rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--gold);
+    color: var(--ink);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-base);
+    line-height: 1;
+    font-weight: 800;
+    cursor: pointer;
+    transition: filter var(--motion-fast) var(--ease-standard);
+  }
+
+  .kid-app[data-shell='side'] .kpd-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kid-app[data-shell='side'] .kpd-stat { gap: 0.75rem; padding: 1rem; }
+  .kid-app[data-shell='side'] .kpd-stat .khd-card-value,
+  .kid-app[data-shell='side'] .kpd-stat .khd-card-label { margin: 0; }
+
+  /* The panels reuse the mobile sections (.kp-card) with the desktop card look and type. */
+  .kid-app[data-shell='side'] .kpd-main .kp-card {
+    padding: 1.5rem;
+    border-radius: 22px;
+  }
+
+  .kid-app[data-shell='side'] .kpd-main .kp-card-title {
+    margin: 0 0 1rem;
+    font-size: var(--kd-text-xl);
+    line-height: var(--kd-leading-tight);
+    font-weight: 700;
+  }
+
+  .kid-app[data-shell='side'] .kpd-main .kp-collapse-heading { margin: 0; }
+  .kid-app[data-shell='side'] .kpd-main .kp-collapse-trigger { min-height: 2.75rem; }
+
+  /* Small text in the desktop UI font at the Home roles. */
+  .kid-app[data-shell='side'] .kpd-main .kp-subsection-title,
+  .kid-app[data-shell='side'] .kpd-main .kp-toggle-label,
+  .kid-app[data-shell='side'] .kpd-main .kp-row-text,
+  .kid-app[data-shell='side'] .kpd-main .kp-form-current,
+  .kid-app[data-shell='side'] .kpd-main .kp-form-note,
+  .kid-app[data-shell='side'] .kpd-main .kp-form-pending,
+  .kid-app[data-shell='side'] .kpd-main .kp-about-version,
+  .kid-app[data-shell='side'] .kpd-main .kp-card-note,
+  .kid-app[data-shell='side'] .kpd-main .kp-danger-link,
+  .kid-app[data-shell='side'] .kpd-main .kp-danger-note,
+  .kid-app[data-shell='side'] .kpd-main .kp-cal-weekdays,
+  .kid-app[data-shell='side'] .kpd-main .auth-field label,
+  .kid-app[data-shell='side'] .kpd-main .auth-field input {
+    font-family: var(--font-ui-desktop);
+  }
+
+  .kid-app[data-shell='side'] .kpd-main .kp-subsection-title { font-size: var(--kd-text-sm); line-height: var(--kd-leading-normal); font-weight: 800; letter-spacing: 0.06em; }
+  .kid-app[data-shell='side'] .kpd-main .kp-toggle-label,
+  .kid-app[data-shell='side'] .kpd-main .kp-row-text { font-size: var(--kd-text-lg); line-height: var(--kd-leading-snug); font-weight: 600; }
+  .kid-app[data-shell='side'] .kpd-main .kp-form-current,
+  .kid-app[data-shell='side'] .kpd-main .kp-form-note,
+  .kid-app[data-shell='side'] .kpd-main .kp-form-pending,
+  .kid-app[data-shell='side'] .kpd-main .kp-about-version,
+  .kid-app[data-shell='side'] .kpd-main .kp-card-note,
+  .kid-app[data-shell='side'] .kpd-main .kp-danger-link,
+  .kid-app[data-shell='side'] .kpd-main .kp-danger-note { font-size: var(--kd-text-base); line-height: var(--kd-leading-normal); }
+
+  /* The calendar grid stops growing at a sensible size instead of stretching across the column. */
+  .kid-app[data-shell='side'] .kpd-main .kp-cal-weekdays,
+  .kid-app[data-shell='side'] .kpd-main .kp-cal-grid { max-width: 21rem; }
+
+  /* Settings rows: real 44px targets with a hover wash (mouse only). The switch's own
+     visual is 28px tall, so its hit area is extended without changing how it looks. */
+  .kid-app[data-shell='side'] .kpd-main .kp-row {
+    min-height: 2.75rem;
+    margin-inline: -0.625rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: 12px;
+  }
+
+  .kid-app[data-shell='side'] .kpd-main .kp-toggle-row { min-height: 2.75rem; }
+  .kid-app[data-shell='side'] .kpd-main .kp-toggle::after { content: ''; position: absolute; inset: -0.6875rem -0.25rem; }
+  .kid-app[data-shell='side'] .kpd-main .kp-danger-link { min-height: 2.75rem; }
+
+  /* No gold beside "Edit your avatar": the account forms' submit buttons (shown when
+     Account & Security is open) use the teal-d candy tone instead. */
+  .kid-app[data-shell='side'] .kpd-main .kp-form-btn.candy-btn {
+    --c: var(--teal-d);
+    --c-d: color-mix(in srgb, var(--teal-d) 70%, var(--ink));
+    --c-on: var(--cream);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-base);
+  }
+
+  /* Gold stays with "Edit your avatar": the Terms row's gold icon badge and the email-pending
+     note's gold wash use coral and teal here. */
+  .kid-app[data-shell='side'] .kpd-main .kp-row-icon[data-color='gold'] { --callout: var(--coral); --callout-d: var(--coral-d); }
+  .kid-app[data-shell='side'] .kpd-main .kp-form-pending { background: color-mix(in srgb, var(--teal) 14%, var(--surface)); }
+
+  /* Log out: quiet, last, bottom of the right column, well away from the main action. */
+  .kid-app[data-shell='side'] .kpd-logout {
+    align-self: flex-start;
+    margin-top: 0.5rem;
+    min-height: 2.75rem;
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-base);
+    font-weight: 700;
+  }
+
+  @media (hover: hover) {
+    .kid-app[data-shell='side'] .kpd-edit:hover { filter: brightness(1.06); }
+    .kid-app[data-shell='side'] .kpd-main .kp-row:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+    .kid-app[data-shell='side'] .kpd-main .kp-row:hover .kp-row-text { text-decoration: none; }
+    .kid-app[data-shell='side'] .kpd-main .kp-collapse-trigger:hover .kp-collapse-chevron { color: var(--ink); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .kid-app[data-shell='side'] .kpd-edit { transition: none; }
   }
 }

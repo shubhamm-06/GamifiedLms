@@ -106,10 +106,6 @@ export function nextOpenLesson(states: LessonStateRow[], lessonId: string): Less
   return next && next.state !== 'locked' ? next : null
 }
 
-export function secondsLeft(minTimeSeconds: number, activeSeconds: number): number {
-  return Math.max(0, minTimeSeconds - activeSeconds)
-}
-
 /** "1:05" for the ring and helper text. */
 export const clockText = formatClock
 

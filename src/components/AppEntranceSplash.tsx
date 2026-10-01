@@ -77,17 +77,25 @@ export function AppEntranceSplash({ children }: { children: React.ReactNode }) {
 /**
  * The Wisdom Hatch Kids owl mark: the exact finalized SVG, inline (not `<img>`)
  * so the pupil group can be targeted for the one-shot blink. Do not redesign
- * or recolor it.
+ * or recolor it. Also the logo in the desktop sidebar (`KidSidebar`), which
+ * passes a small `size` and `decorative` (its wordmark beside it names the app).
  */
-function OwlMark({ blink = false }: { blink?: boolean }) {
+export function OwlMark({
+  blink = false,
+  size = 200,
+  decorative = false,
+}: {
+  blink?: boolean
+  size?: number
+  decorative?: boolean
+}) {
   return (
     <svg
       viewBox="390 120 420 420"
-      width="200"
-      height="200"
+      width={size}
+      height={size}
       xmlns="http://www.w3.org/2000/svg"
-      role="img"
-      aria-label="Wisdom Hatch Kids"
+      {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': 'Wisdom Hatch Kids' })}
     >
       <circle cx="600" cy="330" r="190" fill="#ffffff" />
       <ellipse cx="600" cy="345" rx="120" ry="124" fill="#18B6C9" />

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Outlet, useRouter, useRouterState } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 import { registerPushNotifications } from '@/lib/pushNotifications'
 import { KidHeaderContext } from './kidHeader'
 import { KidNav } from './KidNav'
+import { KidSidebar } from './KidSidebar'
 import { OfflineBanner } from './OfflineBanner'
 import { tabForPath } from './kidTabs'
 
@@ -20,14 +22,19 @@ import { tabForPath } from './kidTabs'
 export function KidLayout({ children }: { children?: ReactNode }) {
   const router = useRouter()
   // The four nav destinations are top level: no Back arrow (it would only leave the app),
-  // and the bottom nav is shown.
+  // and the bottom nav (a sidebar from 1024px) is shown.
   const tab = useRouterState({ select: (st) => tabForPath(st.location.pathname) })
+  // From 1024px the four screens get a left sidebar instead of the bottom nav (mounted, not
+  // just hidden, so the hidden one is neither focusable nor announced). Read synchronously.
+  const desktop = useMediaQuery(LG_UP)
+  const side = !!tab && desktop
   const [title, setTitle] = useState('')
   const [fallbackPath, setFallbackPath] = useState('/')
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null)
+  const [ownHeader, setOwnHeader] = useState(false)
   const value = useMemo(
-    () => ({ title, setTitle, fallbackPath, setFallbackPath, rightSlot, setRightSlot }),
-    [title, fallbackPath, rightSlot],
+    () => ({ title, setTitle, fallbackPath, setFallbackPath, rightSlot, setRightSlot, ownHeader, setOwnHeader }),
+    [title, fallbackPath, rightSlot, ownHeader],
   )
 
   function goBack() {
@@ -47,7 +54,15 @@ export function KidLayout({ children }: { children?: ReactNode }) {
 
   return (
     <KidHeaderContext.Provider value={value}>
-      <div className="kid-app" data-nav={tab ? 'true' : undefined} data-home={tab?.to === '/' ? 'true' : undefined}>
+      <div
+        className="kid-app"
+        data-nav={tab ? 'true' : undefined}
+        data-home={tab?.to === '/' ? 'true' : undefined}
+        data-shell={side ? 'side' : undefined}
+        data-own-header={side && ownHeader ? 'true' : undefined}
+      >
+        {/* First in the DOM so keyboard order is sidebar, then the page; it is fixed-position, so this moves nothing on screen. */}
+        {tab && side ? <KidSidebar activeTo={tab.to} /> : null}
         <header className="kid-topbar">
           <div className="kid-topbar-row">
             {tab ? (
@@ -64,7 +79,7 @@ export function KidLayout({ children }: { children?: ReactNode }) {
           </div>
         </header>
         <main className="kid-main">{children ?? <Outlet />}</main>
-        {tab ? <KidNav activeTo={tab.to} /> : null}
+        {tab && !side ? <KidNav activeTo={tab.to} /> : null}
         <OfflineBanner />
       </div>
     </KidHeaderContext.Provider>

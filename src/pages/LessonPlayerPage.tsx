@@ -341,7 +341,13 @@ function PlayerLesson({
   } else if (finishError && lesson.type !== 'quiz') {
     bar = (
       <PlayerBar hint={finishError}>
-        <PrimaryButton variant="candy" loading={complete.isPending} onClick={() => void finish()} testId="finish-retry">
+        <PrimaryButton
+          variant="candy"
+          // A game lesson finishes through completeGame, not complete: both, or a game retry stays tappable mid-request.
+          loading={complete.isPending || completeGame.isPending}
+          onClick={() => void finish()}
+          testId="finish-retry"
+        >
           {playerCopy.button.tryAgain}
         </PrimaryButton>
       </PlayerBar>

@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 
 export type Course = Tables<'courses'>
-export type CourseStatus = 'draft' | 'published' | 'archived'
 export type LifecycleAction = 'publish' | 'archive' | 'restore'
 
 export const coursesQueryKey = ['admin', 'courses'] as const

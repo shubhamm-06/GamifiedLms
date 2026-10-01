@@ -1,171 +1,170 @@
-import type { AvatarAccent, AvatarBase, AvatarConfig, AvatarFace, AvatarTopper } from '@/lib/avatar'
+import { useEffect, useId, useState, type ReactNode } from 'react'
+import { motion, useAnimationControls, useReducedMotion } from 'framer-motion'
+import { tintFor, type AvatarConfig, type AvatarTintSlot } from '@/lib/avatar'
+import { ANCHOR, AVATAR_FACE_VIEWBOX, AVATAR_LAYERS, AVATAR_VIEWBOX, cssColor, lightOf, type AvatarLayer } from './avatar/geometry'
+import { lookupPart } from './avatar/registry'
 
 /**
  * The one place the avatar is drawn. Every screen that shows an avatar (the
- * builder's live preview, the profile page, the nav tab) renders this same
- * component from the same `AvatarConfig` — nothing else builds SVG for it or
- * duplicates a piece of this geometry.
+ * builder's preview and option tiles, the profile page, the nav tab, the desktop
+ * sidebar) renders this component from a config that has already been through
+ * `normalizeAvatarConfig` (useKidProfile does that).
  *
- * An abstract emblem, not a character: a bold coloured base circle, a crest
- * ("topper") above it, a banner across it (the `face` field — the name is
- * unchanged from migration 026's stored shape, only what it draws changed:
- * it was literal eyes and a mouth, now it is a geometric band, so nothing
- * here reads as a face), and a small corner mark ("accent"). Every one of the
- * four pieces has to read on its own at nav-tab size (~28px), so each is a
- * single bold shape, never a fussy multi-part drawing.
+ * A small geometric mascot: a gradient body with a soft highlight, a pale face
+ * plate, and parts drawn back to front in the fixed AVATAR_LAYERS order against
+ * the shared anchors (avatar/geometry.ts), so any combination fits. Parts come
+ * from the registry (avatar/registry.tsx). Colours are tokens only, set through
+ * `style`. NO SVG filters (costly and inconsistent in Android WebView): depth is
+ * gradients and plain shapes.
  *
- * Pure shapes (circle, path, polygon) on a 100x100 viewBox, coloured only with
- * the locked tokens via inline `style` (an SVG presentation attribute can't
- * resolve `var()`; a style property can), so nothing here is a hex literal.
- * The whole emblem gets one candy-style drop shadow in the base colour's `-d`
- * shade, the same lift every other circular icon in the app has. `size` is
- * the rendered box in CSS pixels; the SVG itself scales to fill it.
+ * Gradient and clipPath ids are prefixed with a per-instance `useId`, because
+ * dozens of avatars share one page (nav, hero, builder tiles); a shared id would
+ * make every one of them pick up the first instance's gradient.
+ *
+ * `animated` (the builder's big preview only): a slow idle bob, an occasional
+ * blink, and a small pop when `popKey` changes. All of it is off under
+ * prefers-reduced-motion, and a static avatar is a plain <svg> with no motion code.
+ * `view="face"` zooms the viewBox into the face for the Eyes/Mouth/Glasses tiles.
  */
 export function Avatar({
   config,
   size = 40,
   className,
+  animated = false,
+  popKey,
+  view = 'full',
+  label = 'Avatar',
   'data-testid': testId = 'avatar',
 }: {
   config: AvatarConfig
   size?: number
   className?: string
+  animated?: boolean
+  popKey?: number
+  view?: 'full' | 'face'
+  /** Accessible name. Pass `null`-ish "" via aria-hidden on a wrapper for decorative tiles instead. */
+  label?: string
   'data-testid'?: string
 }) {
-  const { base, topper, face, accent } = config
-  return (
+  const uid = `av${useId().replace(/[^a-zA-Z0-9]/g, '')}`
+  const reduced = useReducedMotion()
+  const live = animated && !reduced
+  const blink = useBlink(live)
+  const pop = useAnimationControls()
+  useEffect(() => {
+    if (live && popKey) void pop.start({ scale: [1, 1.06, 1], transition: { duration: 0.3, ease: 'easeOut' } })
+  }, [live, popKey, pop])
+
+  const byLayer = collectLayers(config, uid)
+  const svg = (
     <svg
-      viewBox="0 0 100 100"
+      viewBox={view === 'face' ? AVATAR_FACE_VIEWBOX : `0 0 ${AVATAR_VIEWBOX} ${AVATAR_VIEWBOX}`}
       width={size}
       height={size}
       className={className}
       role="img"
-      aria-label="Avatar"
+      aria-label={label}
       data-testid={testId}
-      data-base={base}
-      data-topper={topper}
-      data-face={face}
-      data-accent={accent}
-      style={{ overflow: 'visible', filter: `drop-shadow(0 3px 0 var(--${base}-d))` }}
+      data-base={config.base}
+      data-eyes={config.eyes}
+      data-mouth={config.mouth}
+      data-glasses={config.glasses}
+      data-head={config.head}
+      data-extra={config.extra}
+      data-backdrop={config.backdrop}
+      style={{ display: 'block' }}
     >
-      <Topper shape={topper} base={base} />
-      <circle cx="50" cy="54" r="38" style={{ fill: `var(--${base})` }} />
-      <Band shape={face} base={base} />
-      <Accent shape={accent} />
-      <circle cx="50" cy="54" r="38" style={{ fill: 'none', stroke: `var(--${base}-d)`, strokeWidth: 3 }} />
+      {AVATAR_LAYERS.map((layer) => {
+        if (layer === 'body') return <Body key={layer} base={config.base} uid={uid} />
+        const nodes = byLayer[layer]
+        if (nodes.length === 0) return null
+        if (layer === 'eyes') {
+          return (
+            <g key={layer} data-layer={layer} style={{ transform: blink ? 'scaleY(0.1)' : 'none', transformOrigin: `50px ${ANCHOR.eyeY}px`, transition: 'transform 90ms ease-out' }}>
+              {nodes}
+            </g>
+          )
+        }
+        return (
+          <g key={layer} data-layer={layer}>
+            {nodes}
+          </g>
+        )
+      })}
     </svg>
+  )
+
+  if (!animated) return svg
+  return (
+    <motion.div animate={pop} style={{ width: size, height: size }}>
+      <motion.div animate={live ? { y: [0, -2.5, 0] } : { y: 0 }} transition={live ? { duration: 3.2, repeat: Infinity, ease: 'easeInOut' } : undefined}>
+        {svg}
+      </motion.div>
+    </motion.div>
   )
 }
 
-/** A crest above the circle: one bold, chunky shape per option, sized to stay legible small. */
-function Topper({ shape, base }: { shape: AvatarTopper; base: AvatarBase }) {
-  const shadow = `var(--${base}-d)`
-  switch (shape) {
-    case 'spiky':
-      return <polygon points="14,28 26,2 38,28 50,0 62,28 74,2 86,28 80,38 20,38" style={{ fill: shadow }} />
-    case 'round':
-      return <path d="M 14 32 A 36 30 0 0 1 86 32 L 86 42 L 14 42 Z" style={{ fill: shadow }} />
-    case 'star':
-      return (
-        <polygon
-          points="50,0 61,22 85,25 67,42 72,66 50,54 28,66 33,42 15,25 39,22"
-          style={{ fill: shadow }}
-        />
-      )
-    case 'antenna':
-      return (
-        <>
-          <rect x="44" y="4" width="12" height="26" rx="6" style={{ fill: shadow }} />
-          <circle cx="50" cy="6" r="9" style={{ fill: shadow }} />
-        </>
-      )
-    case 'bow':
-      return (
-        <g transform="translate(50 14)">
-          <polygon points="0,0 -22,-12 -22,12" style={{ fill: shadow }} />
-          <polygon points="0,0 22,-12 22,12" style={{ fill: shadow }} />
-        </g>
-      )
-    case 'none':
-      return null
-  }
+/** True for ~130ms about every 4s (a little jittered so it does not look mechanical); always false when not live. */
+function useBlink(live: boolean): boolean {
+  const [blink, setBlink] = useState(false)
+  useEffect(() => {
+    if (!live) return
+    let closer: ReturnType<typeof setTimeout>
+    let opener: ReturnType<typeof setTimeout>
+    const schedule = () => {
+      closer = setTimeout(() => {
+        setBlink(true)
+        opener = setTimeout(() => {
+          setBlink(false)
+          schedule()
+        }, 130)
+      }, 3400 + Math.random() * 1400)
+    }
+    schedule()
+    return () => {
+      clearTimeout(closer)
+      clearTimeout(opener)
+    }
+  }, [live])
+  return live && blink
 }
 
-/** A single geometric band across the circle: a crest banner, never eyes or a mouth. */
-function Band({ shape, base }: { shape: AvatarFace; base: AvatarBase }) {
-  const cream = 'var(--cream)'
-  const shadow = `var(--${base}-d)`
-  switch (shape) {
-    case 'happy':
-      return <rect x="22" y="49" width="56" height="12" rx="6" style={{ fill: cream }} />
-    case 'wink':
-      return <rect x="18" y="49" width="64" height="12" rx="6" transform="rotate(-10 50 55)" style={{ fill: cream }} />
-    case 'silly':
-      return (
-        <path
-          d="M 22 50 L 34 58 L 46 50 L 58 58 L 70 50 L 78 58"
-          style={{ fill: 'none', stroke: cream, strokeWidth: 8, strokeLinecap: 'round', strokeLinejoin: 'round' }}
-        />
-      )
-    case 'cool':
-      return (
-        <>
-          <rect x="22" y="45" width="56" height="7" rx="3.5" style={{ fill: cream }} />
-          <rect x="22" y="59" width="56" height="7" rx="3.5" style={{ fill: cream }} />
-        </>
-      )
-    case 'sleepy':
-      return (
-        <>
-          <rect x="24" y="51" width="14" height="9" rx="4.5" style={{ fill: cream }} />
-          <rect x="43" y="51" width="14" height="9" rx="4.5" style={{ fill: cream }} />
-          <rect x="62" y="51" width="14" height="9" rx="4.5" style={{ fill: cream }} />
-        </>
-      )
-    default:
-      return <rect x="22" y="49" width="56" height="12" rx="6" style={{ fill: shadow, opacity: 0 }} />
+/** Every chosen part's node, grouped by the layer it draws in. */
+function collectLayers(config: AvatarConfig, uid: string): Record<AvatarLayer, ReactNode[]> {
+  const out = Object.fromEntries(AVATAR_LAYERS.map((l) => [l, [] as ReactNode[]])) as unknown as Record<AvatarLayer, ReactNode[]>
+  const add = (category: 'eyes' | 'mouth' | 'glasses' | 'head' | 'extra' | 'backdrop', slot?: AvatarTintSlot) => {
+    const entry = lookupPart(category, config[category])
+    if (!entry) return
+    const tint = slot ? tintFor(config, slot) : null
+    out[entry.layer].push(<entry.Render key={`${category}-${config[category]}`} tint={cssColor(tint ?? 'ink')} base={config.base} uid={uid} />)
   }
+  add('backdrop', 'backdrop')
+  add('extra', 'extra')
+  add('eyes')
+  add('mouth')
+  add('glasses', 'glasses')
+  add('head', 'head')
+  return out
 }
 
-/** A small corner mark, bottom-right — the profile page's own edit-pencil badge sits opposite it (top-right), so the two never overlap. */
-function Accent({ shape }: { shape: AvatarAccent }) {
-  const ink = 'var(--ink)'
-  switch (shape) {
-    case 'star':
-      return (
-        <polygon
-          points="74,72 78,80 87,81 80,87 82,96 74,92 66,96 68,87 61,81 70,80"
-          style={{ fill: 'var(--gold)', stroke: ink, strokeWidth: 2 }}
-        />
-      )
-    case 'stripe':
-      return (
-        <rect
-          x="12"
-          y="48"
-          width="76"
-          height="11"
-          rx="5.5"
-          transform="rotate(-20 50 54)"
-          style={{ fill: 'var(--cream)', opacity: 0.55 }}
-        />
-      )
-    case 'dot':
-      return (
-        <>
-          <circle cx="70" cy="72" r="4" style={{ fill: 'var(--cream)', opacity: 0.95 }} />
-          <circle cx="81" cy="64" r="3.2" style={{ fill: 'var(--cream)', opacity: 0.95 }} />
-          <circle cx="63" cy="82" r="2.6" style={{ fill: 'var(--cream)', opacity: 0.95 }} />
-        </>
-      )
-    case 'heart':
-      return (
-        <path
-          d="M 75 76 C 70 71, 62 74, 62 80 C 62 85, 75 94, 75 94 C 75 94, 88 85, 88 80 C 88 74, 80 71, 75 76 Z"
-          style={{ fill: 'var(--coral)', stroke: ink, strokeWidth: 1.5 }}
-        />
-      )
-    case 'none':
-      return null
-  }
+/** Gradient body, ground shadow, soft highlight and the pale plate the face sits on. */
+function Body({ base, uid }: { base: AvatarConfig['base']; uid: string }) {
+  const body = `var(--${base})`
+  const dark = `var(--${base}-d)`
+  const { cx, bodyCy, bodyR, plateCy, plateRx, plateRy } = ANCHOR
+  return (
+    <g data-layer="body">
+      <defs>
+        <radialGradient id={`${uid}-body`} cx="36%" cy="28%" r="90%">
+          <stop offset="0" style={{ stopColor: lightOf(body) }} />
+          <stop offset="0.5" style={{ stopColor: body }} />
+          <stop offset="1" style={{ stopColor: dark }} />
+        </radialGradient>
+      </defs>
+      <ellipse cx={cx} cy={ANCHOR.bodyBottom + 1} rx={24} ry={3.2} style={{ fill: 'var(--ink)', opacity: 0.16 }} />
+      <circle cx={cx} cy={bodyCy} r={bodyR} style={{ fill: `url(#${uid}-body)`, stroke: dark, strokeWidth: 2.4 }} />
+      <ellipse cx={36} cy={41} rx={10} ry={5.4} transform="rotate(-32 36 41)" style={{ fill: 'var(--cream)', opacity: 0.32 }} />
+      <ellipse cx={cx} cy={plateCy} rx={plateRx} ry={plateRy} style={{ fill: `color-mix(in srgb, ${body} 14%, var(--cream))` }} />
+    </g>
+  )
 }

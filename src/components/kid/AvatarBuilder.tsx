@@ -1,77 +1,64 @@
-import { useState } from 'react'
-import { Check, Shuffle } from 'lucide-react'
+import { useId, useRef, useState, type KeyboardEvent } from 'react'
+import { Ban, Check, Crown, Eye, Glasses, Image, Palette, Shuffle, Smile, Sparkles, type LucideIcon } from 'lucide-react'
 import { Avatar } from './Avatar'
+import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 import {
-  AVATAR_ACCENTS,
-  AVATAR_BASES,
-  AVATAR_FACES,
-  AVATAR_TOPPERS,
+  AVATAR_CATALOG,
+  AVATAR_CATEGORIES,
+  AVATAR_SWATCHES,
+  describeAvatar,
+  isTintSlot,
   randomAvatarConfig,
+  tintFor,
+  type AvatarCategory,
   type AvatarConfig,
+  type AvatarTintSlot,
 } from '@/lib/avatar'
 
-const CATEGORY_LABEL: Record<'base' | 'topper' | 'face' | 'accent', string> = {
-  base: 'Colour',
-  topper: 'Topper',
-  face: 'Face',
-  accent: 'Accent',
+const TABS: Record<AvatarCategory, { label: string; Icon: LucideIcon }> = {
+  base: { label: 'Colour', Icon: Palette },
+  eyes: { label: 'Eyes', Icon: Eye },
+  mouth: { label: 'Mouth', Icon: Smile },
+  glasses: { label: 'Glasses', Icon: Glasses },
+  head: { label: 'Head', Icon: Crown },
+  extra: { label: 'Extras', Icon: Sparkles },
+  backdrop: { label: 'Backdrop', Icon: Image },
 }
 
+/** Eyes, mouth and glasses tiles zoom into the face so their detail is legible. */
+const ZOOMED: readonly AvatarCategory[] = ['eyes', 'mouth', 'glasses']
+
 /**
- * One category's row of choices: each chip is the full avatar with only that
- * category swapped in, so the child sees exactly what tapping it would give
- * them, not an abstract swatch. A horizontal scroller (tap or swipe), snap per
- * chip, the same candy-press feedback as the app's other tappable circles.
- * The picked chip gets a small teal check instead of a second visual style.
+ * Arrow-key navigation shared by tabs, tiles and swatches (roving tabindex):
+ * returns the index to move to, or null when the key is not a navigation key.
  */
-function CategoryRow<K extends 'base' | 'topper' | 'face' | 'accent'>({
-  category,
-  options,
-  config,
-  onPick,
-}: {
-  category: K
-  options: readonly AvatarConfig[K][]
-  config: AvatarConfig
-  onPick: (value: AvatarConfig[K]) => void
-}) {
-  return (
-    <div className="av-category" data-testid={`av-category-${category}`}>
-      <p className="av-category-label">{CATEGORY_LABEL[category]}</p>
-      <div className="av-row">
-        {options.map((option) => {
-          const chosen = config[category] === option
-          return (
-            <button
-              key={String(option)}
-              type="button"
-              className="av-chip kid-tap"
-              data-chosen={chosen ? 'true' : undefined}
-              aria-pressed={chosen}
-              aria-label={`${CATEGORY_LABEL[category]}: ${option}`}
-              onClick={() => onPick(option)}
-              data-testid={`av-option-${category}-${option}`}
-            >
-              <Avatar config={{ ...config, [category]: option }} size={56} />
-              {chosen ? (
-                <span className="av-chip-check" aria-hidden>
-                  <Check className="size-3.5" strokeWidth={3.5} />
-                </span>
-              ) : null}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
+function navTarget(e: KeyboardEvent, index: number, count: number): number | null {
+  switch (e.key) {
+    case 'ArrowRight':
+    case 'ArrowDown':
+      return (index + 1) % count
+    case 'ArrowLeft':
+    case 'ArrowUp':
+      return (index - 1 + count) % count
+    case 'Home':
+      return 0
+    case 'End':
+      return count - 1
+    default:
+      return null
+  }
 }
 
 /**
- * The avatar builder: a live preview up top, one horizontally-scrolling row
- * of choices per category, a Shuffle button that randomizes all four at once,
- * and Save/Cancel. Nothing here writes to the database — the page that opens
- * this owns `onSave`, so the same builder could be reused anywhere a config
- * needs picking.
+ * The avatar builder: a big live preview (the only animated avatar), one tab per
+ * body part, a wrapping grid of tiles that each show the FULL avatar with that
+ * option applied, a colour row for the selected part when it can be coloured,
+ * and Cancel / Save. Nothing here writes to the database: the page that opens
+ * this owns `onSave`. Every option is free (Phase 1; no unlocks).
+ *
+ * Mobile: preview on top, tabs, the options region (the only scroller), then the
+ * bottom bar. From 1024px: preview, Shuffle and the buttons on the left, tabs
+ * and options on the right (kid.css, `.avb`).
  */
 export function AvatarBuilder({
   initial,
@@ -85,23 +72,90 @@ export function AvatarBuilder({
   onCancel: () => void
 }) {
   const [config, setConfig] = useState(initial)
+  const [tab, setTab] = useState<AvatarCategory>('base')
+  const [pop, setPop] = useState(0)
+  const desktop = useMediaQuery(LG_UP)
+  const uid = useId()
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({})
+
+  const change = (next: AvatarConfig) => {
+    setConfig(next)
+    setPop((n) => n + 1)
+  }
+  const pick = (category: AvatarCategory, id: string) => change({ ...config, [category]: id } as AvatarConfig)
+  const tint = (slot: AvatarTintSlot, swatch: (typeof AVATAR_SWATCHES)[number]['id']) =>
+    change({ ...config, tints: { ...config.tints, [slot]: swatch } })
+
+  const description = describeAvatar(config)
+  const tabId = (c: AvatarCategory) => `${uid}-tab-${c}`
+  const panelId = `${uid}-panel`
+
+  function onTabKey(e: KeyboardEvent, index: number) {
+    const to = navTarget(e, index, AVATAR_CATEGORIES.length)
+    if (to === null) return
+    e.preventDefault()
+    const next = AVATAR_CATEGORIES[to]
+    setTab(next)
+    tabRefs.current[next]?.focus()
+  }
 
   return (
-    <div className="av-builder" data-testid="avatar-builder">
-      <div className="av-preview">
-        <Avatar config={config} size={120} />
+    <div className="avb" data-testid="avatar-builder">
+      <div className="avb-stage">
+        <div className="avb-preview" data-testid="av-preview">
+          <Avatar config={config} size={desktop ? 200 : 152} animated popKey={pop} label={description} data-testid="av-preview-avatar" />
+        </div>
+        <p className="sr-only" aria-live="polite" data-testid="av-description">
+          {description}
+        </p>
+        <button type="button" className="candy-btn-quiet avb-shuffle kid-tap" onClick={() => change(randomAvatarConfig())} data-testid="av-shuffle">
+          <Shuffle className="size-5" aria-hidden />
+          Shuffle
+        </button>
       </div>
-      <button type="button" className="candy-btn-quiet kid-tap av-shuffle" onClick={() => setConfig(randomAvatarConfig())} data-testid="av-shuffle">
-        <Shuffle className="size-5" aria-hidden />
-        Shuffle
-      </button>
 
-      <CategoryRow category="base" options={AVATAR_BASES} config={config} onPick={(v) => setConfig((c) => ({ ...c, base: v }))} />
-      <CategoryRow category="topper" options={AVATAR_TOPPERS} config={config} onPick={(v) => setConfig((c) => ({ ...c, topper: v }))} />
-      <CategoryRow category="face" options={AVATAR_FACES} config={config} onPick={(v) => setConfig((c) => ({ ...c, face: v }))} />
-      <CategoryRow category="accent" options={AVATAR_ACCENTS} config={config} onPick={(v) => setConfig((c) => ({ ...c, accent: v }))} />
+      <div className="avb-editor">
+        <div className="avb-tabs" role="tablist" aria-label="Avatar parts">
+          {AVATAR_CATEGORIES.map((c, i) => {
+            const { label, Icon } = TABS[c]
+            const active = tab === c
+            return (
+              <button
+                key={c}
+                ref={(el) => {
+                  tabRefs.current[c] = el
+                }}
+                type="button"
+                role="tab"
+                id={tabId(c)}
+                aria-selected={active}
+                aria-controls={panelId}
+                aria-label={label}
+                tabIndex={active ? 0 : -1}
+                className="avb-tab kid-tap"
+                data-active={active ? 'true' : undefined}
+                onClick={() => setTab(c)}
+                onKeyDown={(e) => onTabKey(e, i)}
+                data-testid={`av-tab-${c}`}
+              >
+                <Icon className="avb-tab-icon" aria-hidden />
+                <span className="avb-tab-label" aria-hidden>
+                  {label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
 
-      <div className="av-actions">
+        <div className="avb-panel" role="tabpanel" id={panelId} aria-labelledby={tabId(tab)} data-testid="av-panel">
+          <OptionGrid category={tab} config={config} onPick={pick} />
+          {isTintSlot(tab) && tintFor(config, tab) !== null ? (
+            <SwatchRow label={`${TABS[tab].label} colour`} value={tintFor(config, tab)!} onPick={(s) => tint(tab, s)} />
+          ) : null}
+        </div>
+      </div>
+
+      <div className="avb-actions">
         <button type="button" className="candy-btn-quiet kid-tap" onClick={onCancel} disabled={saving} data-testid="av-cancel">
           Cancel
         </button>
@@ -109,6 +163,102 @@ export function AvatarBuilder({
           {saving ? 'Saving…' : 'Save avatar'}
         </button>
       </div>
+    </div>
+  )
+}
+
+/** One category's tiles: a radiogroup, each tile the full avatar with only that option swapped in. */
+function OptionGrid({ category, config, onPick }: { category: AvatarCategory; config: AvatarConfig; onPick: (category: AvatarCategory, id: string) => void }) {
+  const options = AVATAR_CATALOG[category] as readonly { id: string; label: string }[]
+  const refs = useRef<(HTMLButtonElement | null)[]>([])
+  const current = config[category] as string
+  const zoomed = ZOOMED.includes(category)
+
+  function onKey(e: KeyboardEvent, index: number) {
+    const to = navTarget(e, index, options.length)
+    if (to === null) return
+    e.preventDefault()
+    onPick(category, options[to].id)
+    refs.current[to]?.focus()
+  }
+
+  return (
+    <div className="avb-grid" role="radiogroup" aria-label={`${TABS[category].label} options`} data-testid={`av-grid-${category}`}>
+      {options.map((o, i) => {
+        const chosen = current === o.id
+        const isNone = o.id === 'none'
+        return (
+          <button
+            key={o.id}
+            ref={(el) => {
+              refs.current[i] = el
+            }}
+            type="button"
+            role="radio"
+            aria-checked={chosen}
+            aria-label={o.label}
+            tabIndex={chosen ? 0 : -1}
+            className="avb-tile kid-tap"
+            data-chosen={chosen ? 'true' : undefined}
+            onClick={() => onPick(category, o.id)}
+            onKeyDown={(e) => onKey(e, i)}
+            data-testid={`av-option-${category}-${o.id}`}
+          >
+            <span className="avb-tile-art" aria-hidden>
+              {isNone ? (
+                <Ban className="avb-none" />
+              ) : (
+                <Avatar config={{ ...config, [category]: o.id } as AvatarConfig} size={72} view={zoomed ? 'face' : 'full'} data-testid="av-tile-avatar" />
+              )}
+            </span>
+            {chosen ? (
+              <span className="avb-check" aria-hidden>
+                <Check className="size-3.5" strokeWidth={3.5} />
+              </span>
+            ) : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function SwatchRow({ label, value, onPick }: { label: string; value: (typeof AVATAR_SWATCHES)[number]['id']; onPick: (id: (typeof AVATAR_SWATCHES)[number]['id']) => void }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([])
+  function onKey(e: KeyboardEvent, index: number) {
+    const to = navTarget(e, index, AVATAR_SWATCHES.length)
+    if (to === null) return
+    e.preventDefault()
+    onPick(AVATAR_SWATCHES[to].id)
+    refs.current[to]?.focus()
+  }
+  return (
+    <div className="avb-swatches" role="radiogroup" aria-label={label} data-testid="av-swatches">
+      {AVATAR_SWATCHES.map((s, i) => {
+        const chosen = s.id === value
+        return (
+          <button
+            key={s.id}
+            ref={(el) => {
+              refs.current[i] = el
+            }}
+            type="button"
+            role="radio"
+            aria-checked={chosen}
+            aria-label={s.label}
+            tabIndex={chosen ? 0 : -1}
+            className="avb-swatch kid-tap"
+            data-swatch={s.id}
+            data-chosen={chosen ? 'true' : undefined}
+            style={{ '--swatch': `var(--${s.id})` } as React.CSSProperties}
+            onClick={() => onPick(s.id)}
+            onKeyDown={(e) => onKey(e, i)}
+            data-testid={`av-swatch-${s.id}`}
+          >
+            {chosen ? <Check className="size-4" strokeWidth={3.5} aria-hidden /> : null}
+          </button>
+        )
+      })}
     </div>
   )
 }

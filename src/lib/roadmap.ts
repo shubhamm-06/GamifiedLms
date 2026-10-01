@@ -79,6 +79,8 @@ export interface Roadmap {
   courseComplete: boolean
   /** Effective XP of the lessons not yet completed; null when gamification is off. */
   xpAvailable: number | null
+  /** The course has gamification on (XP, streak and levels are shown). */
+  gamified: boolean
 }
 
 export const MODULE_COLOR_COUNT = 4
@@ -159,5 +161,6 @@ export function buildRoadmap(content: CourseContent, states: LessonStateRow[]): 
     currentLessonId: current?.lessonId ?? null,
     courseComplete: totalLessons > 0 && doneLessons === totalLessons,
     xpAvailable,
+    gamified,
   }
 }

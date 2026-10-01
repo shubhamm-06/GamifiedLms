@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
+import { DesktopHome } from '@/components/kid/home/DesktopHome'
 import { useKidHeader } from '@/components/kid/kidHeader'
 import { StatBar } from '@/components/kid/StatBar'
 import { NoCoursesScreen, RetryScreen, RoadmapSkeleton } from '@/components/kid/roadmap/StateScreens'
 import { useHomeCourse } from '@/hooks/useHomeCourse'
+import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 import { CourseRoadmapView } from '@/pages/CoursePage'
 
 /** Clears the top bar title for the states that have no course (the roadmap sets its own). */
@@ -17,9 +19,15 @@ function PlainHome({ children }: { children: ReactNode }) {
  * read is a friendly empty state, not an error; exactly one enrollment is
  * simply the most recent one. A signed-out visitor never sees this: the student
  * layout route sends them to /login first, and back here afterwards.
+ *
+ * From 1024px (`LG_UP`) it is the list-style `DesktopHome` instead of the winding path.
+ * The choice is a JS media query, not CSS hiding, so exactly one view mounts and the
+ * path's auto-scroll and popover never run on desktop. Below 1024px nothing changed.
  */
 export function KidHomePage() {
   const home = useHomeCourse()
+  const desktop = useMediaQuery(LG_UP)
+  if (desktop) return <DesktopHome home={home} />
   return (
     <div className="kid-home">
       <StatBar courseId={home.data ?? null} />

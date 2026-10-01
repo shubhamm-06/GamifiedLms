@@ -162,6 +162,35 @@ The schema or docs anticipate each of these; no working code exists for any.
   `prefers-reduced-motion`, and how the launcher icon actually looks under a real
   OEM mask have only been checked by reading the code and the generated PNGs
   on-screen here, not seen on a phone or in a launcher.
+- **Desktop shell and list-style Home built and browser-verified (2026-09-30), not seen on a real tablet.**
+  From 1024px the four nav screens get a left sidebar instead of the bottom nav, and Home a lesson list
+  with a sticky stats rail instead of the winding path (`ui.md` "Desktop shell and Home"). It supersedes
+  the 2026-09-27 "bottom nav stays at the bottom on desktop" decision; below 1024px, and the lesson
+  player, `/courses/$courseId` and admin at any width, nothing changed. Checked in Chromium at
+  1024-1440px and at 1023/390px against the old layout. Not exercised: an Android tablet or a Chromebook in
+  the Capacitor shell (both cross 1024px and get this layout, and lose the bottom nav there), a screen
+  reader, other browsers. Known and left: Badges / Courses / Profile only gained the shell (their top-bar
+  title still sits in the old 40rem row); `/courses/$courseId` keeps the mobile path at desktop widths, so
+  a deep link there looks different from Home; the sidebar wordmark is a fixed string, not
+  `app_settings.site_name`; the owl mark now has a third use site (`ui.md` "Splash, entrance and
+  launcher owl"). Polished the same day: Nunito type scale and collapsible sections (`ui.md` "Desktop
+  Home polish"); locked rows no longer show an XP chip; crossing 1024px remounts the view so open sections
+  reset. Uncommitted at the time of writing.
+- **Desktop Profile built and browser-verified (2026-10-01), uncommitted.** Two columns at >= 1024px (sticky
+  identity card with the one gold "Edit your avatar", stats grid, calendar, preferences, account, quiet Log
+  out), a shared `DesktopPageHeader`, and the old top-bar title hidden on Profile only at that width
+  (`ui.md` "Desktop Profile"). **Badges and Courses are NOT converted yet** and will adopt
+  `DesktopPageHeader` in their own passes (their top-bar title is still the narrow 40rem row). Known and left:
+  resizing across 1024px while editing keeps edit mode but loses the builder's unsaved picks; a failed avatar
+  Save still shows no message; the stats are Level / XP / Day streak only (no badges summary exists on mobile
+  either).
+- **Avatar builder v2 built and browser-verified (2026-09-30), uncommitted.** A geometric mascot with
+  eyes, mouth, glasses, headwear, extras, backdrop and per-part colours, a tabbed builder, animation on the
+  preview only (`ui.md` "The avatar is procedural"). Migration 032 is APPLIED to the live project (the old
+  CHECK rejected extra keys). All options free (Phase 1). Known and left: a failed Save shows no message
+  (the builder simply stays open, as before); a cream backdrop is near-invisible; Android WebView not
+  exercised (no device; `color-mix()` in SVG `style` and the `useId` gradient ids are the things to watch);
+  the mascot fills ~68% of its box, a little smaller than the old emblem (76%), at the same rendered size.
 - **Manual push notifications: built, deployed and sent for real** (migration
   031, deployed 2026-09-29, `ui.md` "Push notifications", `schema.md` "Edge
   Functions", `env-deploy.md`). `device_push_tokens`/`notifications_sent`
@@ -505,6 +534,46 @@ worked on.
 
 ## Known shortcuts / tech debt
 
+- **Open findings from the 2026-09-30 code audit, reported not fixed** (each
+  either touches locked behavior, an Edge Function, or is a judgment call):
+  - **Game frame sandbox contradicts `rules.md`.** `rules.md` says a game iframe
+    is `sandbox="allow-scripts"` only, never `allow-same-origin`; `ui.md`
+    ("The frame") and `GameLesson.tsx` give a live (non-cached) load
+    `allow-scripts allow-same-origin`, reasoning the game is on another origin.
+    `safeMediaUrl` only checks `https:`, not that the origin differs from the
+    app's, so an admin-entered `bundle_url` on the app's own origin
+    (`https://localhost` in the native shell, the Vercel domain on the web)
+    would run with scripts and same-origin together and could read the
+    student's session from storage. Needs a decision: fix the doc or the code
+    (and add a same-origin refusal either way).
+  - **Pushes still reach trashed students.** `send-push-notification`'s course
+    target takes every `status = 'active'` enrollment (no `expires_at` check,
+    no `fn_user_is_trashed` filter), and trashing a user leaves their
+    `device_push_tokens` row and `"all-students"` topic subscription in place
+    (the row only cascades on a hard delete). Fix belongs in the Edge Function
+    and/or the trash action.
+  - **Streak calendar days are UTC days.** `StreakCalendar` and
+    `useActivityDays` bucket by UTC date, so for an IST student the day turns
+    over at 05:30 local. Consistent with itself (and likely with the server's
+    streak), so changing it is a product decision, not a bug fix.
+  - **Two expiry details.** Manual enroll computes `expires_at` from the admin
+    browser's clock (`useEnrollUser`) while `fn_create_manual_order` uses the
+    server's; and a date picked in the restore dialog becomes local midnight
+    at the *start* of that day, so access ends as the chosen day begins.
+  - **Dead right-slot plumbing.** Nothing renders into the kid top bar's right
+    slot any more (`ActiveTimeRing` is only used by the dev gallery), so
+    `KidLayout`'s `rightSlot` state, the context fields and the
+    `kid-topbar-right` div are unused; the div may be load-bearing for the
+    title's centering, so it was left. `ui.md`'s player component tree still
+    describes the ring as portalled there (stale since the 2026-09-24 layout).
+  - **Unused shadcn primitive** `components/ui/sheet.tsx` (never imported).
+  - **~15 `as unknown as` casts** on embedded-select results (`useTrash`,
+    `useUserDetail`, `useDashboard`, `usePayments`, `useUsers`); each needs
+    checking against the inferred type before removal.
+  - **Duplicate helpers** (merging is a refactor): `formatRelativeTime`
+    (Dashboard, Notifications), `mapWriteError` (courses, games, badges hooks),
+    `computeChangedPositions`/`useReorderSensors`/`DragHandle` (CurriculumTab,
+    SimpleSortableList), `initialsOf`, `downloadTemplate`.
 - **Dashboard revenue is summed client-side.** PostgREST aggregate functions
   aren't guaranteed enabled on this project, and adding a view/RPC needs a
   migration. Fine at current volume; revisit if `payments` grows.
