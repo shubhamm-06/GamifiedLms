@@ -1,26 +1,28 @@
-import { useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
 import { BookOpen, ChevronRight } from 'lucide-react'
 import { useKidHeader } from '@/components/kid/kidHeader'
+import { DesktopCourses, DesktopCoursesSkeleton } from '@/components/kid/courses/DesktopCourses'
 import { NoCoursesScreen, RetryScreen } from '@/components/kid/roadmap/StateScreens'
 import { Skeleton } from '@/components/ui/skeleton'
-import { homeCourseKey } from '@/hooks/useHomeCourse'
-import { useCoursesProgress, useMyCourses, type CourseProgress, type MyCourse } from '@/hooks/useMyCourses'
-import { supabase } from '@/lib/supabase'
+import { useCoursePicker, useCoursesProgress, useMyCourses, type CourseProgress, type MyCourse } from '@/hooks/useMyCourses'
+import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 
 /**
  * `/courses`: every course the student is actively enrolled in (draft, archived
  * and trashed ones never show, the same rule as Home). Tapping one stamps it as
  * the most recently used course (`fn_touch_enrollment`, the same call the roadmap
- * makes) and goes Home, which then shows it.
+ * makes) and goes Home, which then shows it. From 1024px `DesktopCourses` lays out
+ * the same data as a grid (`useMediaQuery`, the same switch every desktop screen
+ * uses, so only one view is ever mounted).
  */
 export function KidCoursesPage() {
   useKidHeader('Courses')
+  const desktop = useMediaQuery(LG_UP)
   const courses = useMyCourses()
 
   if (courses.isPending) {
-    return (
+    return desktop ? (
+      <DesktopCoursesSkeleton />
+    ) : (
       <div className="kc-list" aria-busy="true" aria-label="Loading your courses">
         {[0, 1].map((i) => (
           <Skeleton key={i} className="h-28 w-full rounded-[26px] bg-ink/10" />
@@ -32,30 +34,12 @@ export function KidCoursesPage() {
     return <RetryScreen title="Oops! We couldn't load your courses" onRetry={() => void courses.refetch()} />
   }
   if (courses.data.length === 0) return <NoCoursesScreen />
-  return <CourseList courses={courses.data} />
+  return desktop ? <DesktopCourses courses={courses.data} /> : <CourseList courses={courses.data} />
 }
 
 function CourseList({ courses }: { courses: MyCourse[] }) {
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const progress = useCoursesProgress(courses.map((c) => c.id))
-  const [busyId, setBusyId] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
-
-  async function pick(courseId: string) {
-    if (busyId) return
-    setBusyId(courseId)
-    setFailed(false)
-    const { error } = await supabase.rpc('fn_touch_enrollment', { p_course_id: courseId })
-    if (error) {
-      setBusyId(null)
-      setFailed(true)
-      return
-    }
-    // Home reads this key before it refetches, so it opens on the course just picked.
-    queryClient.setQueryData(homeCourseKey, courseId)
-    void navigate({ to: '/' })
-  }
+  const { pick, busyId, failed } = useCoursePicker()
 
   return (
     <div className="kc-list" data-testid="course-list">
@@ -65,13 +49,7 @@ function CourseList({ courses }: { courses: MyCourse[] }) {
         </p>
       ) : null}
       {courses.map((course) => (
-        <CourseRow
-          key={course.id}
-          course={course}
-          progress={progress[course.id]}
-          busy={busyId === course.id}
-          onPick={() => void pick(course.id)}
-        />
+        <CourseRow key={course.id} course={course} progress={progress[course.id]} busy={busyId === course.id} onPick={() => pick(course.id)} />
       ))}
     </div>
   )

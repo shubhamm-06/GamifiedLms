@@ -8,9 +8,8 @@ import { DesktopProfile } from '@/components/kid/profile/DesktopProfile'
 import { AccountSection, PreferencesSection } from '@/components/kid/profile/ProfileSections'
 import { RetryScreen } from '@/components/kid/roadmap/StateScreens'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useActivityDays, useKidProfile, useUpdateAvatar } from '@/hooks/useKidProfile'
+import { useProfileData } from '@/hooks/useKidProfile'
 import { useBackClosable } from '@/hooks/useBackClosable'
-import { useLogOut } from '@/hooks/useLogOut'
 import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 
 /**
@@ -32,10 +31,7 @@ export function KidProfilePage() {
 }
 
 function MobileProfile({ building, setBuilding }: { building: boolean; setBuilding: (building: boolean) => void }) {
-  const profile = useKidProfile()
-  const activity = useActivityDays()
-  const updateAvatar = useUpdateAvatar()
-  const { leaving, logOut } = useLogOut()
+  const { profile, activity, updateAvatar, leaving, logOut } = useProfileData()
 
   if (profile.isPending) {
     return (

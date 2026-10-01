@@ -50,6 +50,26 @@ function navTarget(e: KeyboardEvent, index: number, count: number): number | nul
 }
 
 /**
+ * A roving-tabindex radiogroup of `items.length` buttons: ref callbacks to attach
+ * (by index) and a keydown handler that moves focus and calls `onPick`. Shared by
+ * the tile grid and the swatch row, which differ only in what they render per item.
+ */
+function useRovingRadio<T>(items: readonly T[], onPick: (item: T) => void) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([])
+  const ref = (i: number) => (el: HTMLButtonElement | null) => {
+    refs.current[i] = el
+  }
+  function onKey(e: KeyboardEvent, index: number) {
+    const to = navTarget(e, index, items.length)
+    if (to === null) return
+    e.preventDefault()
+    onPick(items[to])
+    refs.current[to]?.focus()
+  }
+  return { ref, onKey }
+}
+
+/**
  * The avatar builder: a big live preview (the only animated avatar), one tab per
  * body part, a wrapping grid of tiles that each show the FULL avatar with that
  * option applied, a colour row for the selected part when it can be coloured,
@@ -170,17 +190,9 @@ export function AvatarBuilder({
 /** One category's tiles: a radiogroup, each tile the full avatar with only that option swapped in. */
 function OptionGrid({ category, config, onPick }: { category: AvatarCategory; config: AvatarConfig; onPick: (category: AvatarCategory, id: string) => void }) {
   const options = AVATAR_CATALOG[category] as readonly { id: string; label: string }[]
-  const refs = useRef<(HTMLButtonElement | null)[]>([])
   const current = config[category] as string
   const zoomed = ZOOMED.includes(category)
-
-  function onKey(e: KeyboardEvent, index: number) {
-    const to = navTarget(e, index, options.length)
-    if (to === null) return
-    e.preventDefault()
-    onPick(category, options[to].id)
-    refs.current[to]?.focus()
-  }
+  const { ref, onKey } = useRovingRadio(options, (o) => onPick(category, o.id))
 
   return (
     <div className="avb-grid" role="radiogroup" aria-label={`${TABS[category].label} options`} data-testid={`av-grid-${category}`}>
@@ -190,9 +202,7 @@ function OptionGrid({ category, config, onPick }: { category: AvatarCategory; co
         return (
           <button
             key={o.id}
-            ref={(el) => {
-              refs.current[i] = el
-            }}
+            ref={ref(i)}
             type="button"
             role="radio"
             aria-checked={chosen}
@@ -224,14 +234,7 @@ function OptionGrid({ category, config, onPick }: { category: AvatarCategory; co
 }
 
 function SwatchRow({ label, value, onPick }: { label: string; value: (typeof AVATAR_SWATCHES)[number]['id']; onPick: (id: (typeof AVATAR_SWATCHES)[number]['id']) => void }) {
-  const refs = useRef<(HTMLButtonElement | null)[]>([])
-  function onKey(e: KeyboardEvent, index: number) {
-    const to = navTarget(e, index, AVATAR_SWATCHES.length)
-    if (to === null) return
-    e.preventDefault()
-    onPick(AVATAR_SWATCHES[to].id)
-    refs.current[to]?.focus()
-  }
+  const { ref, onKey } = useRovingRadio(AVATAR_SWATCHES, (s) => onPick(s.id))
   return (
     <div className="avb-swatches" role="radiogroup" aria-label={label} data-testid="av-swatches">
       {AVATAR_SWATCHES.map((s, i) => {
@@ -239,9 +242,7 @@ function SwatchRow({ label, value, onPick }: { label: string; value: (typeof AVA
         return (
           <button
             key={s.id}
-            ref={(el) => {
-              refs.current[i] = el
-            }}
+            ref={ref(i)}
             type="button"
             role="radio"
             aria-checked={chosen}

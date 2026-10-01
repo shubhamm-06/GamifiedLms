@@ -162,28 +162,33 @@ The schema or docs anticipate each of these; no working code exists for any.
   `prefers-reduced-motion`, and how the launcher icon actually looks under a real
   OEM mask have only been checked by reading the code and the generated PNGs
   on-screen here, not seen on a phone or in a launcher.
-- **Desktop shell and list-style Home built and browser-verified (2026-09-30), not seen on a real tablet.**
-  From 1024px the four nav screens get a left sidebar instead of the bottom nav, and Home a lesson list
-  with a sticky stats rail instead of the winding path (`ui.md` "Desktop shell and Home"). It supersedes
-  the 2026-09-27 "bottom nav stays at the bottom on desktop" decision; below 1024px, and the lesson
-  player, `/courses/$courseId` and admin at any width, nothing changed. Checked in Chromium at
-  1024-1440px and at 1023/390px against the old layout. Not exercised: an Android tablet or a Chromebook in
-  the Capacitor shell (both cross 1024px and get this layout, and lose the bottom nav there), a screen
-  reader, other browsers. Known and left: Badges / Courses / Profile only gained the shell (their top-bar
-  title still sits in the old 40rem row); `/courses/$courseId` keeps the mobile path at desktop widths, so
-  a deep link there looks different from Home; the sidebar wordmark is a fixed string, not
-  `app_settings.site_name`; the owl mark now has a third use site (`ui.md` "Splash, entrance and
-  launcher owl"). Polished the same day: Nunito type scale and collapsible sections (`ui.md` "Desktop
-  Home polish"); locked rows no longer show an XP chip; crossing 1024px remounts the view so open sections
-  reset. Uncommitted at the time of writing.
-- **Desktop Profile built and browser-verified (2026-10-01), uncommitted.** Two columns at >= 1024px (sticky
-  identity card with the one gold "Edit your avatar", stats grid, calendar, preferences, account, quiet Log
-  out), a shared `DesktopPageHeader`, and the old top-bar title hidden on Profile only at that width
-  (`ui.md` "Desktop Profile"). **Badges and Courses are NOT converted yet** and will adopt
-  `DesktopPageHeader` in their own passes (their top-bar title is still the narrow 40rem row). Known and left:
-  resizing across 1024px while editing keeps edit mode but loses the builder's unsaved picks; a failed avatar
-  Save still shows no message; the stats are Level / XP / Day streak only (no badges summary exists on mobile
-  either).
+- **Desktop shell built and browser-verified (2026-09-30 through 2026-10-01), not seen on a real tablet.**
+  From 1024px the four nav screens get a left sidebar instead of the bottom nav. Home is a lesson list with a
+  sticky stats rail and collapsible sections (`ui.md` "Desktop shell and Home", "Desktop Home polish");
+  Profile is a two-column identity card + stats/settings layout (`ui.md` "Desktop Profile"); Badges and
+  Courses are grids under the same shared `DesktopPageHeader` (`ui.md` "Desktop Badges and Courses") — **all
+  four nav screens are now converted.** This supersedes the 2026-09-27 "bottom nav stays at the bottom on
+  desktop" decision; below 1024px, and the lesson player / `/courses/$courseId` / admin at any width, nothing
+  changed (checked against the old layout at 1023/390px throughout). **2026-10-01 simplification pass**:
+  the per-page "I draw my own header" signal was a context flag a page set via `useEffect` after mounting
+  (`useOwnDesktopHeader`, a one-frame flash risk); it is now a static `ownsDesktopHeader` field on each
+  `KID_TABS` entry, read straight off the route by `KidLayout`, the same way `data-home` already was —
+  Badges and Courses needed one line each to adopt it. The avatar builder's tile grid and swatch row shared
+  one keyboard-roving-focus implementation instead of two (`useRovingRadio`); Profile's two views shared one
+  data hook instead of duplicating four (`useProfileData`); a 13-selector CSS allowlist for the desktop UI
+  font on Profile became one cascade rule plus two named exceptions. Verified behavior-identical: tsc/lint/
+  build/`check-avatar.mjs` pass, and a reduced-motion pixel diff of the avatar builder before/after read
+  `maxDelta: 0` (the only non-identical screenshots anywhere in the diff were the builder's own idle-bob/blink
+  animation, present before this pass too). `docs/ui.md` also had roughly 760 lines of stale, pre-2026-09-27
+  duplicate content removed (an old copy of the Admin/Component-conventions sections and a superseded lesson
+  page layout description, left over from an earlier reorganization) — same information, already correct
+  earlier in the file. Not exercised: an Android tablet or a Chromebook in the Capacitor shell (both cross
+  1024px and get this layout), a screen reader, other browsers. Known and left: `/courses/$courseId` keeps
+  the mobile path at desktop widths, so a deep link there looks different from Home (a separate task); the
+  sidebar wordmark is a fixed string, not `app_settings.site_name`; resizing across 1024px while the avatar
+  builder is open keeps edit mode but loses its unsaved picks; a failed avatar Save still shows no message;
+  Profile's stats are Level / XP / Day streak only (no badges summary exists on mobile either). All of this
+  round (shell, Home, Profile, Badges, Courses, avatar v2) is still uncommitted.
 - **Avatar builder v2 built and browser-verified (2026-09-30), uncommitted.** A geometric mascot with
   eyes, mouth, glasses, headwear, extras, backdrop and per-part colours, a tabbed builder, animation on the
   preview only (`ui.md` "The avatar is procedural"). Migration 032 is APPLIED to the live project (the old

@@ -3,11 +3,9 @@ import { Flame, LogOut, Sparkles, Trophy } from 'lucide-react'
 import { AvatarBuilder } from '@/components/kid/AvatarBuilder'
 import { DesktopPageHeader } from '@/components/kid/DesktopPageHeader'
 import { StreakCalendar } from '@/components/kid/StreakCalendar'
-import { useOwnDesktopHeader } from '@/components/kid/kidHeader'
 import { RetryScreen } from '@/components/kid/roadmap/StateScreens'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useActivityDays, useKidProfile, useUpdateAvatar } from '@/hooks/useKidProfile'
-import { useLogOut } from '@/hooks/useLogOut'
+import { useProfileData } from '@/hooks/useKidProfile'
 import { ProfileIdentityCard } from './ProfileIdentityCard'
 import { ProfileStatCard } from './ProfileStatCard'
 import { AccountSection, PreferencesSection } from './ProfileSections'
@@ -27,11 +25,7 @@ import { AccountSection, PreferencesSection } from './ProfileSections'
  * are local to it and start over, as they do on any remount).
  */
 export function DesktopProfile({ building, setBuilding }: { building: boolean; setBuilding: (building: boolean) => void }) {
-  useOwnDesktopHeader()
-  const profile = useKidProfile()
-  const activity = useActivityDays()
-  const updateAvatar = useUpdateAvatar()
-  const { leaving, logOut } = useLogOut()
+  const { profile, activity, updateAvatar, leaving, logOut } = useProfileData()
 
   const editRef = useRef<HTMLButtonElement>(null)
   const builderRef = useRef<HTMLDivElement>(null)

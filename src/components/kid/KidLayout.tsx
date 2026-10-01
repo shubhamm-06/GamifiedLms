@@ -31,10 +31,9 @@ export function KidLayout({ children }: { children?: ReactNode }) {
   const [title, setTitle] = useState('')
   const [fallbackPath, setFallbackPath] = useState('/')
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null)
-  const [ownHeader, setOwnHeader] = useState(false)
   const value = useMemo(
-    () => ({ title, setTitle, fallbackPath, setFallbackPath, rightSlot, setRightSlot, ownHeader, setOwnHeader }),
-    [title, fallbackPath, rightSlot, ownHeader],
+    () => ({ title, setTitle, fallbackPath, setFallbackPath, rightSlot, setRightSlot }),
+    [title, fallbackPath, rightSlot],
   )
 
   function goBack() {
@@ -59,7 +58,7 @@ export function KidLayout({ children }: { children?: ReactNode }) {
         data-nav={tab ? 'true' : undefined}
         data-home={tab?.to === '/' ? 'true' : undefined}
         data-shell={side ? 'side' : undefined}
-        data-own-header={side && ownHeader ? 'true' : undefined}
+        data-own-header={side && tab?.ownsDesktopHeader ? 'true' : undefined}
       >
         {/* First in the DOM so keyboard order is sidebar, then the page; it is fixed-position, so this moves nothing on screen. */}
         {tab && side ? <KidSidebar activeTo={tab.to} /> : null}

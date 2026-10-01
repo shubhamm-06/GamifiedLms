@@ -1,7 +1,10 @@
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { fetchCourseLessonStates, isRetryableEngineError, type LessonStateRow } from '@/lib/lessonEngine'
 import { lessonEngineKeys } from '@/hooks/useLessonEngine'
+import { homeCourseKey } from '@/hooks/useHomeCourse'
 
 export const myCoursesKey = ['kid', 'myCourses'] as const
 
@@ -80,4 +83,34 @@ export function useCoursesProgress(courseIds: string[]): Record<string, CoursePr
       : { status: r?.isError ? 'error' : 'loading', done: 0, total: 0 }
   })
   return out
+}
+
+/**
+ * Switching the active course from `/courses`: stamps the pick (`fn_touch_enrollment`,
+ * the same call the roadmap makes), seeds Home's query so it opens on that course, and
+ * navigates there. Shared by the mobile and desktop course lists so the one picking
+ * flow (and its busy/error state) is not duplicated between them.
+ */
+export function useCoursePicker() {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+
+  async function pick(courseId: string) {
+    if (busyId) return
+    setBusyId(courseId)
+    setFailed(false)
+    const { error } = await supabase.rpc('fn_touch_enrollment', { p_course_id: courseId })
+    if (error) {
+      setBusyId(null)
+      setFailed(true)
+      return
+    }
+    // Home reads this key before it refetches, so it opens on the course just picked.
+    queryClient.setQueryData(homeCourseKey, courseId)
+    void navigate({ to: '/' })
+  }
+
+  return { pick: (id: string) => void pick(id), busyId, failed }
 }

@@ -9,9 +9,6 @@ export interface KidHeaderValue {
   /** The right end of the top bar, for a page's own small control (the lesson player's time ring). */
   rightSlot: HTMLElement | null
   setRightSlot: (el: HTMLElement | null) => void
-  /** True while a page draws its own desktop page header (DesktopPageHeader), so the shell hides the old top-bar title row. */
-  ownHeader: boolean
-  setOwnHeader: (own: boolean) => void
 }
 
 export const KidHeaderContext = createContext<KidHeaderValue | null>(null)
@@ -28,18 +25,4 @@ export function useKidHeader(title: string, fallbackPath = '/') {
     setTitle?.(title)
     setFallbackPath?.(fallbackPath)
   }, [title, fallbackPath, setTitle, setFallbackPath])
-}
-
-/**
- * Called by a page's >= 1024px view (which is only mounted at that width) to say
- * it renders its own `DesktopPageHeader`: while mounted, `KidLayout` hides the
- * old narrow top-bar title row (`data-own-header`, kid.css). Below 1024px the
- * view is not mounted, so the top bar is untouched.
- */
-export function useOwnDesktopHeader() {
-  const setOwnHeader = useContext(KidHeaderContext)?.setOwnHeader
-  useEffect(() => {
-    setOwnHeader?.(true)
-    return () => setOwnHeader?.(false)
-  }, [setOwnHeader])
 }

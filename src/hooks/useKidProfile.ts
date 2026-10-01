@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { DEFAULT_AVATAR, normalizeAvatarConfig, type AvatarConfig } from '@/lib/avatar'
+import { useLogOut } from './useLogOut'
 
 export const kidProfileKey = ['kid', 'profile'] as const
 
@@ -255,4 +256,15 @@ export function useActivityDays(days = 35) {
     staleTime: 0,
     refetchOnMount: 'always',
   })
+}
+
+/** Every piece of data and mutation the Profile page needs, shared by the mobile and
+ * desktop views (`KidProfilePage`, `DesktopProfile`) so the two stay in lockstep —
+ * one place to add or change a dependency instead of two. */
+export function useProfileData() {
+  const profile = useKidProfile()
+  const activity = useActivityDays()
+  const updateAvatar = useUpdateAvatar()
+  const { leaving, logOut } = useLogOut()
+  return { profile, activity, updateAvatar, leaving, logOut }
 }

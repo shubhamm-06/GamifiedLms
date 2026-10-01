@@ -1,20 +1,27 @@
 import { Award, Lock } from 'lucide-react'
+import { DesktopBadges, DesktopBadgesSkeleton } from '@/components/kid/badges/DesktopBadges'
 import { useKidHeader } from '@/components/kid/kidHeader'
 import { RetryScreen, Screen } from '@/components/kid/roadmap/StateScreens'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useKidBadges } from '@/hooks/useKidProfile'
+import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 
 /**
  * `/badges`: every active badge, earned ones first in colour, the rest dimmed
  * with a lock. Deliberately minimal (no celebration, no filters): a real design
- * pass is a follow-up.
+ * pass is a follow-up. From 1024px `DesktopBadges` lays out the same badges as a
+ * wider grid with its own page header (the same `useMediaQuery` switch every
+ * desktop screen uses, so only one view is ever mounted).
  */
 export function KidBadgesPage() {
   useKidHeader('Badges')
+  const desktop = useMediaQuery(LG_UP)
   const badges = useKidBadges()
 
   if (badges.isPending) {
-    return (
+    return desktop ? (
+      <DesktopBadgesSkeleton />
+    ) : (
       <div className="kb-grid" aria-busy="true" aria-label="Loading your badges">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-44 w-full rounded-[26px] bg-ink/10" />
@@ -35,6 +42,7 @@ export function KidBadgesPage() {
       />
     )
   }
+  if (desktop) return <DesktopBadges badges={badges.data} />
   const earned = badges.data.filter((b) => b.earned).length
   return (
     <>
