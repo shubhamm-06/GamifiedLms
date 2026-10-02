@@ -12,7 +12,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { isHttpsUrl } from '@/lib/externalLink'
-import { slugify } from '@/lib/slug'
+import { courseSlugFromTitle, isValidCourseSlug } from '@/lib/slug'
 import type { CourseFormValues } from '@/hooks/admin/useCourses'
 
 /** Defaults for create mode. Not exported — the form owns its blank state. */
@@ -33,6 +33,9 @@ const EMPTY_COURSE_FORM: CourseFormValues = {
   enroll_url: '',
 }
 
+export const SLUG_FORMAT_MESSAGE =
+  'Use lowercase letters, numbers and single hyphens, up to 80 characters. It cannot look like an ID.'
+
 type FieldErrors = Partial<Record<keyof CourseFormValues, string>>
 
 interface CourseFormProps {
@@ -47,7 +50,7 @@ interface CourseFormProps {
   submitLabel?: string
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+export function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-4 rounded-lg border p-4">
       <h2 className="text-sm font-semibold">{title}</h2>
@@ -56,7 +59,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   )
 }
 
-function Field({
+export function Field({
   id,
   label,
   hint,
@@ -106,7 +109,7 @@ export function CourseForm({
       ...prev,
       title,
       // Mirrors into slug until the slug field is edited by hand.
-      slug: slugTouched ? prev.slug : slugify(title),
+      slug: slugTouched ? prev.slug : courseSlugFromTitle(title),
     }))
   }
 
@@ -114,10 +117,11 @@ export function CourseForm({
     const next: FieldErrors = {}
     const title = values.title.trim()
     // An empty slug falls back to the title rather than blocking submit.
-    const slug = values.slug.trim() || slugify(title)
+    const slug = values.slug.trim() || courseSlugFromTitle(title)
 
     if (!title) next.title = 'Title is required.'
     if (!slug) next.slug = 'Slug is required.'
+    else if (!isValidCourseSlug(slug)) next.slug = SLUG_FORMAT_MESSAGE
 
     if (!values.is_free) {
       const price = Number(values.price_amount)
@@ -172,7 +176,11 @@ export function CourseForm({
         <Field
           id="slug"
           label="Slug"
-          hint="Used in URLs. Fills in from the title until you edit it."
+          hint={
+            mode === 'edit'
+              ? 'The course link ends with this. Changing it breaks links people already have (the course id link keeps working).'
+              : 'The course link ends with this. Fills in from the title until you edit it.'
+          }
           error={slugError}
         >
           <Input

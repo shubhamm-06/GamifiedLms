@@ -130,6 +130,8 @@ export type Database = {
         Row: {
           access_duration_days: number | null
           access_type: string
+          age_max: number | null
+          age_min: number | null
           created_at: string
           created_by: string | null
           currency: string
@@ -140,14 +142,29 @@ export type Database = {
           enroll_url: string | null
           enrollment_status: string
           external_product_id: string | null
+          faqs: Json
           gamification_enabled: boolean
           id: string
+          instructor_bio: string | null
+          instructor_name: string | null
+          instructor_photo_url: string | null
+          instructor_role: string | null
           is_free: boolean
+          language: string | null
+          learning_outcomes: string[]
+          page_font: string
+          page_layout: Json
+          page_hidden_sections: string[]
+          page_options: Json
+          page_theme: string
           price_amount: number | null
           published_at: string | null
+          requirements: string[]
           slug: string
           status: string
           subtitle: string | null
+          tagline: string | null
+          testimonials: Json
           thumbnail_url: string | null
           title: string
           total_lessons: number
@@ -157,6 +174,8 @@ export type Database = {
         Insert: {
           access_duration_days?: number | null
           access_type?: string
+          age_max?: number | null
+          age_min?: number | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -167,14 +186,29 @@ export type Database = {
           enroll_url?: string | null
           enrollment_status?: string
           external_product_id?: string | null
+          faqs?: Json
           gamification_enabled?: boolean
           id?: string
+          instructor_bio?: string | null
+          instructor_name?: string | null
+          instructor_photo_url?: string | null
+          instructor_role?: string | null
           is_free?: boolean
+          language?: string | null
+          learning_outcomes?: string[]
+          page_font?: string
+          page_layout?: Json
+          page_hidden_sections?: string[]
+          page_options?: Json
+          page_theme?: string
           price_amount?: number | null
           published_at?: string | null
+          requirements?: string[]
           slug: string
           status?: string
           subtitle?: string | null
+          tagline?: string | null
+          testimonials?: Json
           thumbnail_url?: string | null
           title: string
           total_lessons?: number
@@ -184,6 +218,8 @@ export type Database = {
         Update: {
           access_duration_days?: number | null
           access_type?: string
+          age_max?: number | null
+          age_min?: number | null
           created_at?: string
           created_by?: string | null
           currency?: string
@@ -194,14 +230,29 @@ export type Database = {
           enroll_url?: string | null
           enrollment_status?: string
           external_product_id?: string | null
+          faqs?: Json
           gamification_enabled?: boolean
           id?: string
+          instructor_bio?: string | null
+          instructor_name?: string | null
+          instructor_photo_url?: string | null
+          instructor_role?: string | null
           is_free?: boolean
+          language?: string | null
+          learning_outcomes?: string[]
+          page_font?: string
+          page_layout?: Json
+          page_hidden_sections?: string[]
+          page_options?: Json
+          page_theme?: string
           price_amount?: number | null
           published_at?: string | null
+          requirements?: string[]
           slug?: string
           status?: string
           subtitle?: string | null
+          tagline?: string | null
+          testimonials?: Json
           thumbnail_url?: string | null
           title?: string
           total_lessons?: number
@@ -1299,6 +1350,21 @@ export type Database = {
     }
     Functions: {
       avatar_config_is_valid: { Args: { cfg: Json }; Returns: boolean }
+      course_faqs_are_valid: { Args: { faqs: Json }; Returns: boolean }
+      course_https_url_is_valid: { Args: { v: Json }; Returns: boolean }
+      course_hidden_sections_are_valid: { Args: { keys: string[] }; Returns: boolean }
+      course_json_text_is_valid: { Args: { hi: number; lo: number; v: Json }; Returns: boolean }
+      course_json_text_list_is_valid: {
+        Args: { max_items: number; max_len: number; min_items: number; v: Json }
+        Returns: boolean
+      }
+      course_page_layout_is_valid: { Args: { layout: Json }; Returns: boolean }
+      course_page_options_are_valid: { Args: { opts: Json }; Returns: boolean }
+      course_testimonials_are_valid: { Args: { items: Json }; Returns: boolean }
+      course_text_list_is_valid: {
+        Args: { items: string[]; max_items: number; max_len: number }
+        Returns: boolean
+      }
       fn_admin_course_progress_summary: {
         Args: { p_course_id: string; p_user_id: string }
         Returns: {
@@ -1354,6 +1420,7 @@ export type Database = {
           xp_transaction_count: number
         }[]
       }
+      fn_course_outline: { Args: { p_course_id: string }; Returns: Json }
       fn_course_is_live: { Args: { p_course_id: string }; Returns: boolean }
       fn_course_is_reachable: { Args: { p_course_id: string }; Returns: boolean }
       fn_course_lesson_states: {

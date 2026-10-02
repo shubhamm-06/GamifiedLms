@@ -154,7 +154,7 @@ function ExploreRow({ course }: { course: ExploreCourse }) {
   return (
     <Link
       to="/courses/$courseId"
-      params={{ courseId: course.id }}
+      params={{ courseId: course.slug }}
       className="kc-row kid-card kid-tap"
       data-testid="explore-row"
       data-course-id={course.id}

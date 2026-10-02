@@ -588,3 +588,45 @@ belongs in `context.md` or `state.md`, not here.
   renders an admin-authored link as a real, tappable navigation target. A
   `javascript:` or otherwise malformed value reaching an `<a href>` here would be
   a real injection, not a cosmetic bug.
+- **The parent-facing course page (`.cp`, `components/kid/coursePage/`) is the one student-facing surface
+  that is NOT Baloo 2, and Baloo 2 must never reach the admin.** The page sets its own type (Inter, Source
+  Serif 4 or Nunito by preset) and is the only student screen allowed to; everything else in the kid app stays
+  Baloo 2 (plus the documented Nunito desktop UI text), and admin stays Geist. A leak either way (page
+  fonts or `.kid-app` styles bleeding into the editor's live preview, or the kid font appearing on an admin
+  route) silently restyles screens that were never meant to change.
+- **Admin-authored course page text is plain text, never HTML or Markdown.** Every page column
+  (`tagline`, `learning_outcomes`, `requirements`, `faqs`, `instructor_*`, and `courses.description` on that
+  page) is rendered as React text nodes; never pass any of it to `dangerouslySetInnerHTML` or a Markdown/HTML
+  renderer. `instructor_photo_url` becomes an `<img src>` only when it matches `https://` (database CHECK
+  `courses_instructor_photo_url_check`). The page is shown to children's parents and the text is
+  admin-controlled, so an HTML path would be a stored-injection hole.
+- **`fn_course_outline` must keep returning only titles, types, positions, minutes and the preview flag of
+  published lessons.** It is SECURITY DEFINER and runs for students who are not enrolled and, since migration 035, for signed-out visitors (anon); adding a content,
+  URL, bundle or quiz column to its JSON, or loosening its published/not-trashed filters, would hand
+  paid content to anyone.
+- **A course slug must stay URL-safe and must never look like a UUID** (`courses_slug_format_check`, migration 036).
+  Course URLs carry the slug, and the app distinguishes a slug from a course id purely by shape (`isUuid`,
+  `useCourseRef`, `useCourseInfo`); a UUID-shaped slug could shadow a real course id, and a slug with a slash, space
+  or capital would produce a broken or non-canonical link. Keep the form's validation (`isValidCourseSlug`) and the
+  constraint in step.
+- **Testimonials on the course page must be real and must never identify a child.** Only real feedback the admin
+  has permission to share; a first name and initial for the parent; never a child's name or photo (the column has
+  no field for one and the CHECK rejects unknown keys); no star ratings at all (aggregated, average or per review; the column
+  rejects a `rating` key). Demo data is always attributed to "Sample parent". A fabricated or child-identifying review on a page shown to parents is a trust
+  and child-safety failure, not a style problem.
+- **`courses.page_layout` is the one source of truth for section order and visibility once it is non-empty.** The
+  editor writes the full layout and saves `page_hidden_sections` as empty; `page_hidden_sections` is read ONLY
+  when `page_layout` is empty (legacy rows). Writing hidden keys to both would make the admin's switches and the
+  page disagree.
+- **The parent-facing course page is mobile first.** Every change to it is checked at 360, 375 and 390 wide with
+  VIEWPORT screenshots (never full-page captures, which draw sticky and fixed bars in the wrong place) before
+  tablet and desktop. Most parents open it on a phone or in the Android app; a layout that is only checked on a
+  laptop ships broken to most of its readers.
+- **Icons on the course page are functional only: one set, secondary ink, no coloured backgrounds, never the sole
+  carrier of meaning.** Every icon sits beside a text label (`aria-hidden`), icon-only controls have accessible
+  names, gold stays the Enroll button only, and the first phone screen shows at most 6 icons.
+- **A testimonial's source icon and link are supporting metadata and must stay honest.** The icon only says where the
+  feedback was posted and never carries meaning alone (it always has an accessible label); `post_url` may only point at
+  the real, public post, and only with the poster's permission (the database refuses a link without a source and any
+  non-`https` link). The icon is a plain outline in secondary ink, never a brand-coloured badge, and a photo is shown only
+  when one is set and loads (adults only, never a child; no placeholder or initials in its place).

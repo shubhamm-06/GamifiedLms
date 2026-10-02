@@ -69,7 +69,7 @@ function ExploreSection({ courses }: { courses: ExploreCourse[] | undefined }) {
 function ExploreCard({ course }: { course: ExploreCourse }) {
   return (
     <li>
-      <Link to="/courses/$courseId" params={{ courseId: course.id }} className="kcd-card kid-tap" data-testid="explore-card" data-course-id={course.id}>
+      <Link to="/courses/$courseId" params={{ courseId: course.slug }} className="kcd-card kid-tap" data-testid="explore-card" data-course-id={course.id}>
         <span className="kcd-thumb" aria-hidden>
           {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt="" loading="lazy" /> : <BookOpen className="size-8" />}
         </span>

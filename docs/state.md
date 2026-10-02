@@ -189,6 +189,36 @@ The schema or docs anticipate each of these; no working code exists for any.
   builder is open keeps edit mode but loses its unsaved picks; a failed avatar Save still shows no message;
   Profile's stats are Level / XP / Day streak only (no badges summary exists on mobile either). All of this
   round (shell, Home, Profile, Badges, Courses, avatar v2) is still uncommitted.
+- **Testimonials v2 (2026-10-02, uncommitted).** One simple card for every count (no stars, no featured layout, no
+  placeholder avatar), an optional photo that exists only when set and loaded, and an optional icon-only source with an
+  optional link to the real post (`ui.md` "Testimonials v2"). Migration 039 APPLIED (removes `rating` from stored rows,
+  new validator; `schema.md`). Admin Reviews editor has Source and Link fields with hostname auto-detect. Demo data
+  re-seeded. Known and left: Android not exercised (no device); the source shows as an icon only (no text label).
+- **Course page mobile-first pass (2026-10-02, uncommitted).** The page CSS is rewritten mobile first (own 48px top
+  bar, full-bleed cover, aligned 64px bottom bar, one-section outline without an accordion, no automatic "What's
+  included" on phones), functional icons added (`ui.md` "Course page: mobile first"), admin routes lazy-loaded (main
+  chunk 484 -> 210 KB gzip, no zod or editor code for students), fonts and cover started early. Cold LCP on Slow 4G
+  10.4 s -> 6.1 s, CLS 0. Known and left: the ~2.5 s LCP target is not met without pre-rendering; Inter `cv08`
+  unavailable; not tested on a real Android WebView, iOS Safari or a screen reader.
+- **Course page v3 built and browser-verified (2026-10-01, uncommitted).** Calmer page (one section wrapper, one
+  spacing scale, merged "How it works", reviews, custom text/list/image sections) and a rewritten Course page
+  editor with ordered, renamable, hideable sections (`ui.md` "Parent-facing course page v3"). Migrations 037 and 038
+  APPLIED (`schema.md` "Course page configuration"). New dependency: `zod` (shared schema). Demo data seeded on four
+  "Demo:" courses (`supabase/seed-demo/`). Known and left: Inter `cv08` unavailable in the bundled font; fact values
+  may wrap at narrow widths; no preview lessons; Android not exercised. The `zz-pub-*` test users and the four
+  `aaaaaaaa-...` ZZ courses from the public-page work are still in the live DB (a cleanup was declined earlier;
+  "ZZ Public Course" and "ZZ Second Course" are published, so students see them in Explore).
+- **Course links are slug-based (2026-10-01, uncommitted).** `/course/<slug>` and `/courses/<slug>` (an id still works and is rewritten to the slug); migration 036 constrains slugs; every in-app link to a course page uses the slug. Known and left: renaming a course's slug breaks links that used the old slug (no slug history or redirect table); lesson-player URLs still carry ids.
+- **Public course page, no login (2026-10-01, uncommitted).** `/course/$courseId` shows the parent-facing page to a signed-out visitor (migration 035 lets anon execute `fn_course_outline`; the course row was already anon-readable). Signed-out `/courses/<id>` redirects to it. The admin tab has a "Copy public link" button. Known and left: anon can already read every column of a published course row through the REST API, including ones the page does not use (`external_product_id`, `default_lesson_xp`, ...); a column-limited view or function for anon would close that but was out of scope. Also: `/course/<id>` has no social-share preview tags (a client-rendered SPA; link unfurlers will not see the title).
+- **Parent-facing course page v2 + admin "Course page" tab, built and browser-verified (2026-10-01),
+  uncommitted.** The not-enrolled course page was rebuilt as a flat, white, parent-oriented page (outline,
+  quick facts, learning outcomes, FAQ, Made by, theme and font presets) driven by one pure model shared with an
+  admin live preview; the course edit screen gained a third "Course page" tab with its own Save that writes only
+  the 14 new page columns (`ui.md` "Parent-facing course page v2"). Migration 034 is APPLIED to the live project
+  (`schema.md`; adds the page columns and `fn_course_outline`, no RLS change, verified role-switched). New
+  packages: `@fontsource/inter`, `@fontsource/source-serif-4` (lazy-loaded, about 97 KB and 43 KB). Known and
+  left: no section reordering, testimonials or free-preview
+  lessons; no parental gate before the external link; Android not exercised (no device).
 - **Course info page for not-yet-enrolled students, built and browser-verified (2026-10-01),
   uncommitted.** `/courses/$courseId` for a non-enrolled student now shows the course (if published) with an
   admin-set "Enroll now" link instead of the old bare "not on your list yet" screen; an Explore section on

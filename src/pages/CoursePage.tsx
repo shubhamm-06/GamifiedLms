@@ -4,6 +4,7 @@ import { useKidHeader } from '@/components/kid/kidHeader'
 import { CourseGate } from '@/components/kid/courses/CourseInfoPage'
 import { RoadmapPath } from '@/components/kid/roadmap/RoadmapPath'
 import { EmptyCourseScreen, RetryScreen, RoadmapSkeleton, UnavailableScreen } from '@/components/kid/roadmap/StateScreens'
+import { useCourseRef } from '@/hooks/useCourseRef'
 import { useCourseRoadmap } from '@/hooks/useCourseRoadmap'
 import { useTouchEnrollment } from '@/hooks/useHomeCourse'
 import type { Roadmap } from '@/lib/roadmap'
@@ -14,9 +15,13 @@ import type { Roadmap } from '@/lib/roadmap'
  * for the most recently used course.
  */
 export function CoursePage() {
-  const { courseId } = useParams({ strict: false }) as { courseId: string }
+  // The URL segment is the course slug (or an id, for older links); resolve it before anything reads the course.
+  const { courseId: ref } = useParams({ strict: false }) as { courseId: string }
   const { open } = useSearch({ strict: false }) as { open?: string }
-  return <CourseRoadmapView courseId={courseId} openLessonId={open ?? null} />
+  const course = useCourseRef(ref)
+  if (course.status === 'pending') return <RoadmapSkeleton />
+  if (course.status === 'missing') return <UnavailableScreen />
+  return <CourseRoadmapView courseId={course.id} openLessonId={open ?? null} />
 }
 
 /**

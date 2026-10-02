@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
-export type CourseTab = 'basics' | 'curriculum'
+export type CourseTab = 'basics' | 'curriculum' | 'page'
 
 interface CourseBuilderProps {
   tab: CourseTab
@@ -11,6 +11,8 @@ interface CourseBuilderProps {
   curriculumLocked: boolean
   basics: ReactNode
   curriculum: ReactNode
+  /** The parent-facing "Course page" editor; also needs a saved course row. */
+  page: ReactNode
 }
 
 export function CourseBuilder({
@@ -19,6 +21,7 @@ export function CourseBuilder({
   curriculumLocked,
   basics,
   curriculum,
+  page,
 }: CourseBuilderProps) {
   return (
     <Tabs value={tab} onValueChange={(value) => onTabChange(value as CourseTab)}>
@@ -40,6 +43,20 @@ export function CourseBuilder({
         ) : (
           <TabsTrigger value="curriculum">Curriculum</TabsTrigger>
         )}
+        {curriculumLocked ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <TabsTrigger value="page" disabled>
+                  Course page
+                </TabsTrigger>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>Save the course first</TooltipContent>
+          </Tooltip>
+        ) : (
+          <TabsTrigger value="page">Course page</TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="basics" className="pt-4">
@@ -47,6 +64,9 @@ export function CourseBuilder({
       </TabsContent>
       <TabsContent value="curriculum" className="pt-4">
         {curriculum}
+      </TabsContent>
+      <TabsContent value="page" className="pt-4">
+        {page}
       </TabsContent>
     </Tabs>
   )

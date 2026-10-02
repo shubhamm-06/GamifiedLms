@@ -2,42 +2,37 @@ import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
-  Outlet,
+  lazyRouteComponent,
+  redirect,
 } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
-import { AdminGuard, AdminPageSkeleton } from '@/components/admin/AdminGuard'
-import { AdminLayout } from '@/components/admin/AdminLayout'
+import { AdminPageSkeleton } from '@/components/admin/AdminGuard'
 import { KidLayout } from '@/components/kid/KidLayout'
-import { redirectIfAdminAlreadySignedIn, requireAdmin } from '@/lib/adminSession'
-import { queryClient } from '@/lib/queryClient'
-import { requireStudentSession } from '@/lib/studentSession'
 import { CoursePage } from '@/pages/CoursePage'
 import { LessonPlayerPage } from '@/pages/LessonPlayerPage'
-import { LessonPlayerGallery } from '@/pages/dev/LessonPlayerGallery'
 import { KidBadgesPage } from '@/pages/KidBadgesPage'
 import { KidCoursesPage } from '@/pages/KidCoursesPage'
 import { KidHomePage } from '@/pages/KidHomePage'
 import { KidProfilePage } from '@/pages/KidProfilePage'
 import { LoginPage } from '@/pages/LoginPage'
+import { PublicCoursePage } from '@/pages/PublicCoursePage'
 import { SignupPage } from '@/pages/SignupPage'
+import { redirectIfAdminAlreadySignedIn, requireAdmin } from '@/lib/adminSession'
+import { queryClient } from '@/lib/queryClient'
+import { hasSession, requireStudentSession } from '@/lib/studentSession'
+import { LessonPlayerGallery } from '@/pages/dev/LessonPlayerGallery'
 import type { CourseTab } from '@/components/admin/courses/CourseBuilder'
-import { CourseCreatePage } from '@/pages/admin/CourseCreatePage'
-import { CourseEditPage } from '@/pages/admin/CourseEditPage'
-import { CoursesPage } from '@/pages/admin/CoursesPage'
-import { DashboardPage } from '@/pages/admin/DashboardPage'
-import { GamesPage } from '@/pages/admin/GamesPage'
-import { GamificationPage } from '@/pages/admin/GamificationPage'
-import { NotificationsPage } from '@/pages/admin/NotificationsPage'
-import { OrdersPage } from '@/pages/admin/OrdersPage'
-import { SettingsPage } from '@/pages/admin/SettingsPage'
-import { TrashPage } from '@/pages/admin/TrashPage'
-import { UserDetailPage } from '@/pages/admin/UserDetailPage'
-import { UsersPage } from '@/pages/admin/UsersPage'
 
 interface RouterContext {
   queryClient: QueryClient
 }
 
+/**
+ * Admin pages load lazily (their own chunks, see `adminRoute`); student and auth pages stay in
+ * the main bundle ON PURPOSE: lazy-loading them was measured (2026-10-02, Slow 4G, 4x CPU) to make
+ * the course page SLOWER (FCP 5.6 s -> 8.8 s), because the extra round trip for the route chunk
+ * costs more than the bytes it saves on a high-latency link (ui.md "Mobile performance").
+ */
 const rootRoute = createRootRouteWithContext<RouterContext>()()
 
 const loginRoute = createRoute({
@@ -60,6 +55,21 @@ const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/signup',
   component: SignupPage,
+})
+
+/**
+ * The parent-facing course page for someone who is NOT signed in (a shared link): no login,
+ * no app shell. Deliberately outside `studentRoute`. A signed-in visitor is sent on to
+ * `/courses/$courseId`, where the app decides (enrolled: roadmap; otherwise this same page
+ * inside the shell), so there is one behaviour per person, not two pages to keep in step.
+ */
+const publicCourseRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/course/$courseRef',
+  beforeLoad: async ({ params }) => {
+    if (await hasSession()) throw redirect({ to: '/courses/$courseId', params: { courseId: params.courseRef } })
+  },
+  component: PublicCoursePage,
 })
 
 /**
@@ -148,25 +158,20 @@ const adminRoute = createRoute({
   beforeLoad: ({ context, location }) => requireAdmin(context.queryClient, location.href),
   pendingComponent: AdminPageSkeleton,
   pendingMs: 0,
-  component: () => (
-    <AdminGuard>
-      <AdminLayout>
-        <Outlet />
-      </AdminLayout>
-    </AdminGuard>
-  ),
+  // Lazy (its own chunk, like every admin page below): students never download admin code.
+  component: lazyRouteComponent(() => import('@/components/admin/AdminShell'), 'AdminShell'),
 })
 
 const adminIndexRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: '/',
-  component: DashboardPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/DashboardPage'), 'DashboardPage'),
 })
 
 const adminUsersRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'users',
-  component: UsersPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/UsersPage'), 'UsersPage'),
 })
 
 // Stands alone the same way `courses/$courseId/edit` does — there is
@@ -175,19 +180,19 @@ const adminUsersRoute = createRoute({
 const adminUserDetailRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'users/$userId',
-  component: UserDetailPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/UserDetailPage'), 'UserDetailPage'),
 })
 
 const adminCoursesRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'courses',
-  component: CoursesPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/CoursesPage'), 'CoursesPage'),
 })
 
 const adminGamesRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'games',
-  component: GamesPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/GamesPage'), 'GamesPage'),
 })
 
 /**
@@ -202,7 +207,7 @@ function validateOrdersView(search: Record<string, unknown>): { view: 'active' |
 const adminOrdersRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'orders',
-  component: OrdersPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/OrdersPage'), 'OrdersPage'),
   validateSearch: validateOrdersView,
 })
 
@@ -223,20 +228,20 @@ function validateTrashTab(search: Record<string, unknown>): { tab: TrashTab } {
 const adminTrashRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'trash',
-  component: TrashPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/TrashPage'), 'TrashPage'),
   validateSearch: validateTrashTab,
 })
 
 const adminGamificationRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'gamification',
-  component: GamificationPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/GamificationPage'), 'GamificationPage'),
 })
 
 const adminNotificationsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'notifications',
-  component: NotificationsPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/NotificationsPage'), 'NotificationsPage'),
 })
 
 /**
@@ -254,7 +259,7 @@ function validateSettingsTab(
 const adminSettingsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'settings',
-  component: SettingsPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/SettingsPage'), 'SettingsPage'),
   validateSearch: validateSettingsTab,
 })
 
@@ -263,13 +268,13 @@ const adminSettingsRoute = createRoute({
  * Create mode has no course row yet, so it can only ever be on Basics.
  */
 function validateCourseTab(search: Record<string, unknown>): { tab: CourseTab } {
-  return { tab: search.tab === 'curriculum' ? 'curriculum' : 'basics' }
+  return { tab: search.tab === 'curriculum' || search.tab === 'page' ? search.tab : 'basics' }
 }
 
 const adminCourseCreateRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'courses/new',
-  component: CourseCreatePage,
+  component: lazyRouteComponent(() => import('@/pages/admin/CourseCreatePage'), 'CourseCreatePage'),
 })
 
 // `$courseId/edit` stands on its own — there is deliberately no
@@ -278,13 +283,14 @@ const adminCourseCreateRoute = createRoute({
 const adminCourseEditRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: 'courses/$courseId/edit',
-  component: CourseEditPage,
+  component: lazyRouteComponent(() => import('@/pages/admin/CourseEditPage'), 'CourseEditPage'),
   validateSearch: validateCourseTab,
 })
 
 const routeTree = rootRoute.addChildren([
   loginRoute,
   signupRoute,
+  publicCourseRoute,
   ...devRoutes,
   studentRoute.addChildren([indexRoute, badgesRoute, coursesRoute, profileRoute, courseRoute, lessonRoute]),
   adminRoute.addChildren([

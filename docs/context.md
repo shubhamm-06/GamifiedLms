@@ -102,23 +102,27 @@ src/
                avatar/ (geometry, parts, registry: the avatar's SVG parts; Avatar.tsx and
                AvatarBuilder.tsx sit beside it); profile/ (DesktopProfile, ProfileIdentityCard,
                ProfileStatCard, ProfileSections); badges/ (DesktopBadges); courses/ (DesktopCourses,
-               CourseInfoPage — the not-yet-enrolled course info page, both widths) — the >= 1024px views,
+               CourseInfoPage — data gate for the not-yet-enrolled course page) — the >= 1024px views,
                sharing DesktopPageHeader and each page's own mobile/desktop data hook (useProfileData,
                useCoursePicker);
+               coursePage/ (CoursePageView, coursePage.css (mobile first, incl. the preset @font-face rules), fonts.ts, icons.ts
+               (the one icon map), testimonialSources.tsx + testimonialSourceLabels.ts (the testimonial source icons): the parent-facing course page, one component for
+               all widths via container queries, scoped under `.cp`, rendered by the student page and the admin preview);
                roadmap/ (RoadmapPath, RoadmapNode,
                RoadmapConnector, ModuleBar, ModuleDivider, PathDecor, LessonPopover, StateScreens,
                lessonTypeMeta); player/ (LessonPlayerShell,
                ActiveTimeRing, PausedNotice, PlayerBar, PlayerSkeleton, PlayerScreens,
                VideoLesson, DocLesson, GameLesson, QuizLesson, QuizQuestion,
                QuizResultView, LessonCompleteSheet) — see ui.md
-    admin/     AdminGuard, AdminLayout (shell); one subfolder per domain, each
+    admin/     AdminGuard, AdminLayout (shell), AdminShell (the lazily loaded /admin route component: no admin code in the student bundle); one subfolder per domain, each
                holding that domain's table/dialogs/sections: users/ (its import/
-               folder holds the CSV import dialog), courses/,
+               folder holds the CSV import dialog), courses/ (its page/ folder is the
+               "Course page" tab: CoursePageTab, SectionsEditor, PageEditors, CoursePagePreview),
                games/, orders/, settings/, gamification/; plus selection/
                (the shared multi-select kit) and trash/ (Trash page table + dialogs)
   pages/       route-level components: KidHomePage (`/`, the kid Home), KidCoursesPage, KidBadgesPage,
                KidProfilePage (the other three bottom-nav screens), LoginPage, SignupPage,
-               CoursePage (the kid-facing course roadmap), LessonPlayerPage
+               CoursePage (the kid-facing course roadmap), PublicCoursePage (the signed-out parent-facing course page, `/course/$id`), LessonPlayerPage
                (the kid-facing lesson player);
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
                CourseEdit, Games, Orders, Settings, Gamification, Trash)
@@ -128,9 +132,10 @@ src/
                useLessonContent (lesson row, game,
                quiz questions for the player),
                useCourseRoadmap (merges course content + engine states into the
-               roadmap the course page renders), useMediaQuery; admin/ has
+               roadmap the course page renders), useCourseRef (course slug or id from the URL to the course id), useCourseInfo (course row +
+               fn_course_outline + own enrollment history, for the not-enrolled page), useMediaQuery; admin/ has
                one file per domain (useUsers, useUserMutations, useUserDetail,
-               useCourses, useCurriculum, useGames, usePayments,
+               useCourses, useCoursePage (the Course page tab's save), useCurriculum, useGames, usePayments,
                useManualOrderProviders, useCurrencies, useBadges,
                useLevelThresholds, useDashboard, useTrash, useTrashActions,
                useImportUsers, useUsersExport);
@@ -144,6 +149,10 @@ src/
                lesson-engine RPCs; see schema.md), roadmap.ts (pure model:
                merges course content with fn_course_lesson_states — no I/O),
                studentSession.ts (the student route guard, no role check),
+               coursePage.ts (pure model of the parent-facing course page, shared by the student page and
+               the admin preview; no I/O; `normalizePageConfig` reads page_layout/page_options/testimonials), coursePageLimits.ts (every page limit, no dependencies), coursePageSchema.ts (zod, admin only: the
+               one schema and limit set for those columns, mirrors the DB CHECKs) and coursePageForm.ts (the admin form's values,
+               validation, row mapping),
                slug.ts, video.ts, utils.ts,
                trash.ts (soft delete/restore), permanentDelete.ts (Trash page only)
   index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,

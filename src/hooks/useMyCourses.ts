@@ -117,6 +117,8 @@ export function useCoursePicker() {
 
 export interface ExploreCourse {
   id: string
+  /** The course link ends with this (`/courses/<slug>`). */
+  slug: string
   title: string
   description: string | null
   thumbnailUrl: string | null
@@ -146,7 +148,7 @@ function useExploreCandidates() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, title, description, thumbnail_url, is_free, price_amount, currency')
+        .select('id, slug, title, description, thumbnail_url, is_free, price_amount, currency')
         .eq('status', 'published')
         .is('deleted_at', null)
         .order('published_at', { ascending: false, nullsFirst: false })
@@ -155,6 +157,7 @@ function useExploreCandidates() {
       if (error) throw new Error(error.message)
       return (data ?? []).map((c) => ({
         id: c.id,
+        slug: c.slug,
         title: c.title,
         description: c.description,
         thumbnailUrl: c.thumbnail_url,

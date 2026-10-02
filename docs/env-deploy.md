@@ -87,6 +87,15 @@ already in `.env`):
   `SUPABASE_ACCESS_TOKEN`; leaves no file that needs gitignoring, `supabase/.temp/`
   already is).
 
+### Demo seed for the course page (review data)
+
+`supabase/seed-demo/demo_course_page_v3.sql` fills the migration-037 columns on four "Demo:" courses (Phonics
+Starter, Little Scientists, Creative Drawing, Long Content Stress Test; Bare Minimum is left minimal on purpose).
+Idempotent plain UPDATEs matched by slug AND `title like 'Demo:%'`; never touches other courses; every review is
+"Sample parent". `demo_course_page_v3_cleanup.sql` resets those three columns on the Demo courses. Run either with
+the Supabase MCP `execute_sql` or the CLI `--db-url` fallback (one statement per call there). Applied to the live
+project on 2026-10-01.
+
 ## Where things run
 
 - **Frontend:** Vercel (`gamified-lms-five.vercel.app`), built with

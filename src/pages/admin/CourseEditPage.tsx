@@ -8,10 +8,12 @@ import { CourseBuilder, type CourseTab } from '@/components/admin/courses/Course
 import { CourseForm } from '@/components/admin/courses/CourseForm'
 import { CourseStatusPill } from '@/components/admin/courses/CourseStatusPill'
 import { CurriculumTab } from '@/components/admin/courses/CurriculumTab'
+import { CoursePageTab } from '@/components/admin/courses/page/CoursePageTab'
 import {
   ENROLL_URL_INVALID,
   lifecycleActionsFor,
   LIFECYCLE_LABEL,
+  SLUG_INVALID,
   SLUG_TAKEN,
   useCourse,
   useCourseLifecycle,
@@ -93,6 +95,10 @@ export function CourseEditPage() {
           navigate({ to: '/admin/courses' })
         },
         onError: (error: Error) => {
+          if (error.message === SLUG_INVALID) {
+            setSlugError('Use lowercase letters, numbers and single hyphens, up to 80 characters.')
+            return
+          }
           if (error.message === SLUG_TAKEN) {
             setSlugError('This slug is already in use.')
             return
@@ -123,7 +129,7 @@ export function CourseEditPage() {
         <Button variant="outline" size="sm" className="shrink-0" asChild>
           <Link
             to="/courses/$courseId"
-            params={{ courseId }}
+            params={{ courseId: course.slug }}
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`View course: ${course.title} (opens in a new tab)`}
@@ -197,6 +203,7 @@ export function CourseEditPage() {
           />
         }
         curriculum={<CurriculumTab courseId={courseId} />}
+        page={<CoursePageTab course={course} />}
       />
     </div>
   )

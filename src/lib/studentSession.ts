@@ -17,7 +17,19 @@ export async function requireStudentSession(href: string) {
   } = await supabase.auth.getSession()
 
   if (!session) {
+    // A signed-out visitor on a bare course link (`/courses/<id>`, e.g. a shared link) gets the
+    // public course page instead of a login wall; "Log in" there returns them to this address.
+    const course = /^\/courses\/([^/?#]+)\/?(?:[?#].*)?$/.exec(href)
+    if (course) throw redirect({ to: '/course/$courseRef', params: { courseRef: decodeURIComponent(course[1]) } })
     throw redirect({ to: '/login', search: { redirect: href } })
   }
   return session
+}
+
+/** True when someone is signed in (no redirect). Used by the public course route. */
+export async function hasSession(): Promise<boolean> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  return !!session
 }

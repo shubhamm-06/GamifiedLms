@@ -203,7 +203,7 @@ function buildColumns(
                 <DropdownMenuItem asChild>
                   <Link
                     to="/courses/$courseId"
-                    params={{ courseId: course.id }}
+                    params={{ courseId: course.slug }}
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label={`View course: ${course.title} (opens in a new tab)`}

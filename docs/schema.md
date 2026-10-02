@@ -94,7 +94,7 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
 | id | uuid | PK | |
-| slug | text | not null | Unique among **live** rows only — partial unique index `uq_courses_slug_live` (migration 013) |
+| slug | text | not null, CHECK `courses_slug_format_check` (migration 036: `^[a-z0-9]+(-[a-z0-9]+)*$`, <= 80 chars, never UUID-shaped) | **Part of the public course URL** (`/course/<slug>`, `/courses/<slug>`). Unique among **live** rows only — partial unique index `uq_courses_slug_live` (migration 013) |
 | title | text | not null | |
 | subtitle | text | nullable | |
 | description | text | nullable | Markdown or HTML |
@@ -108,6 +108,22 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | access_duration_days | int | nullable | Required (and `> 0`) when `access_type = 'fixed'` (check constraint) |
 | enrollment_status | text | default `'open'` | `'open'`, `'paused'`, `'closed'` — deliberately separate from `status`: a published course can pause enrollment while staying usable for existing learners |
 | enroll_url | text | nullable, CHECK `courses_enroll_url_format_check` (migration 033) | Where the student-facing "Enroll now" button (not-enrolled students, `CourseInfoPage.tsx`) sends them — a payment page, a form, a WhatsApp link, whatever an admin pastes. `^https://[^[:space:]]+$`, <= 2048 chars; `NULL` hides the button. Readable by any student under the **existing** `courses_select_published_or_admin` policy, which has no enrollment check at all — a non-enrolled student already reads every other column of a published course (title, description, price...), so this is not a new exposure, just one more column under the same rule. Writable only by `courses_admin_update`/`courses_admin_insert` (`fn_is_admin()`), also unchanged. Opening it never creates or changes an `enrollments` row — enrollment is still whatever it was before this column existed |
+| tagline | text | nullable, CHECK `courses_tagline_len_check` (<= 160) | Lead paragraph under the course name on the parent-facing page (migration 034). Plain text, never HTML. Blank/NULL = no lead |
+| age_min / age_max | smallint | nullable, CHECKs `courses_age_min_range_check`, `courses_age_max_range_check` (1 to 18), `courses_age_order_check` (min <= max when both set) | Age range shown in the page's quick facts ("Age 6", "5 to 7", "5 and up", "Up to 7"); both NULL hides the fact |
+| language | text | nullable, CHECK `courses_language_len_check` (<= 40) | Quick-fact language |
+| learning_outcomes | text[] | NOT NULL default `'{}'`, CHECK `courses_learning_outcomes_check` via `course_text_list_is_valid(.., 8, 120)` | "What your child will learn" ticks: max 8 items, each non-blank and <= 120 chars. Empty = section hidden |
+| requirements | text[] | NOT NULL default `'{}'`, CHECK `courses_requirements_check` via `course_text_list_is_valid(.., 6, 120)` | "What you'll need" bullets: max 6, each non-blank and <= 120 |
+| faqs | jsonb | NOT NULL default `'[]'`, CHECK `courses_faqs_check` via `course_faqs_are_valid` | Array of `{question, answer}` objects, no other keys, max 8; question 1 to 140 chars, answer 1 to 600 (after trimming, and untrimmed length capped too) |
+| instructor_name / _role / _bio | text | nullable, CHECKs `courses_instructor_name_len_check` (80), `courses_instructor_role_len_check` (80), `courses_instructor_bio_len_check` (300) | "Made by" block; nothing renders without a name |
+| instructor_photo_url | text | nullable, CHECK `courses_instructor_photo_url_check` (`^https://[^[:space:]]+$`, <= 2048) | Optional photo; https only. Rendered as an `<img>` with an initials fallback on load error |
+| page_theme | text | NOT NULL default `'teal'`, CHECK `courses_page_theme_check` (`teal`/`plum`/`coral`/`ink`) | Accent colour preset of the parent-facing page. The Enroll button's gold never changes |
+| page_font | text | NOT NULL default `'inter'`, CHECK `courses_page_font_check` (`inter`/`classic`/`friendly`) | Font preset of the parent-facing page |
+| page_hidden_sections | text[] | NOT NULL default `'{}'`, CHECK `courses_page_hidden_sections_check` via `course_hidden_sections_are_valid` | Subset of `about, learn, inside, how, know, need, made_by, faq` an admin switched off; hiding wins over content. **Legacy since migration 037**: read only while `page_layout` is empty (legacy `know` and `how` both hide the merged "How it works"); the v3 editor writes `page_layout` and saves this as `'{}'`, so `page_layout` is the one source of truth |
+| page_layout | jsonb | NOT NULL default `'[]'`, CHECK `courses_page_layout_check` via `course_page_layout_is_valid` (migration 037, fixed by 038) | Ordered page sections, max 20. Built-in `{key, visible, title? <= 80, intro? <= 200}` for `about, learn, inside, how, need, reviews, made_by, faq`, each at most once. Custom `{key:"custom", id ([a-z0-9-]{8,36}, unique), type, visible, title (1-80)}` plus `text: body? <= 1200`, `list: items (1-10, each 1-140), list_style check/bullet/number`, `image: image_url (https, <= 2048), alt (1-140), caption? <= 140`; max 6 custom. Unknown keys rejected; optional strings must be ABSENT, not JSON null |
+| page_options | jsonb | NOT NULL default `'{}'`, CHECK `courses_page_options_check` via `course_page_options_are_valid` | Allowed keys only: `cover {show bool, focus top/center/bottom}`, `cta_label <= 24`, `price_note <= 80`, `included` (<= 6 non-blank, each <= 80), `hidden_facts` (distinct subset of ages, lessons, time, access, language), `custom_facts` (<= 3 of `{label 1-24, value 1-32}`), `how_items` (<= 8, each 1-140), `how_intro <= 200`, `outline {open first/all/none, detail lessons/sections, show_minutes bool}` |
+| testimonials | jsonb | NOT NULL default `'[]'`, CHECK `courses_testimonials_check` via `course_testimonials_are_valid` (migrations 037, replaced by 039) | Max 6 of `{quote (10-280 after trim), name (1-60), relation? <= 80, photo_url? https, source? (google, facebook, instagram, whatsapp, youtube, x, linkedin, website), post_url? (https, no whitespace, <= 2048, only together with a source)}`. **No ratings** (the `rating` key was removed in 039 and is now rejected). No other keys (so no child-name field). `source` shows as an icon on the card; `post_url` makes that icon a link to the real public post. Rules for what may go here: `rules.md` |
+
+All fourteen are plain text (no HTML anywhere, ever), additive (nullable or defaulted), and readable by any student under the **existing** `courses_select_published_or_admin` policy (no new exposure); writable only through `courses_admin_update`. Written only by the admin "Course page" tab (`useUpdateCoursePage`), which sends exactly these 14 columns.
 | default_lesson_xp | int | default 10 | Fallback when a lesson has no `xp_reward` |
 | gamification_enabled | boolean | default true | Off means everything off for the course (migration 030): no XP (`fn_award_lesson_xp`, `fn_complete_game`), so no level, streak or `last_activity_date` movement; no `user_stats.lessons_completed` bump and no badge evaluation (`fn_update_lessons_completed`); the course never counts toward `course_complete` (`fn_evaluate_badges`). Progress and unlocking are unaffected. **Not retroactive**: existing XP, badges and counters are never recomputed or revoked. Manual admin awards are not gated |
 | total_students | int | default 0 | Trigger-maintained, see Triggers below |
@@ -771,6 +787,84 @@ remainder in the heartbeat**; the live schema is through 019 until it is approve
 
 ---
 
+## Course page content and outline (migration 034)
+
+Backs the parent-facing course page (`ui.md` "Parent-facing course page v2"). Three immutable validation
+functions (`search_path = ''`, same approach as `avatar_config_is_valid`, migration 032), used by CHECK
+constraints rather than triggers so a bad row can never be written by any path, not just the admin form:
+`course_text_list_is_valid(text[], max_items, max_len)` (one-dimensional, <= max items, no NULL/blank item, each
+<= max_len), `course_faqs_are_valid(jsonb)` and `course_hidden_sections_are_valid(text[])`. A NULL argument is
+invalid (`coalesce(.., false)`), which is fine because the columns are NOT NULL.
+
+**`fn_course_outline(p_course_id uuid) returns jsonb`** (LANGUAGE sql, STABLE, SECURITY DEFINER,
+`search_path = public`). The one new read path, needed because a non-enrolled student cannot read
+`modules`/`lessons` (their RLS requires enrollment or `is_preview`). Full body: the migration file
+`supabase/migrations/20261002000000_034_course_page_content.sql`. Shape:
+`[{id, title, position, lessons:[{id, title, type, position, minutes, is_preview}]}]`, modules ordered by
+`position`, lessons by `(position, id)`; lessons with no module come back as one module with a null `id` and a
+blank title, sorted last.
+
+- **Visibility**: the course must be `deleted_at is null` and either `status = 'published'` or the caller must be
+  `fn_is_admin()` (so admins can preview a draft in the editor). Anything else, including a random uuid, returns
+  `[]` (not an error), so the function cannot be used to probe for hidden courses.
+- **Only published lessons** (`status = 'published'`, `deleted_at is null`, and the lesson's module not trashed).
+  `minutes` is `ceil(min_time_seconds / 60)` or NULL when the lesson has no minimum time.
+- **Never returned**: content blocks, `content_text`, `content_url`, game/bundle URLs, quiz questions or
+  `correct_option`, XP, or any column not listed in the shape above. It selects named columns into a fixed
+  `jsonb_build_object`, so a future column on `lessons` can never leak through it by accident.
+- **SECURITY DEFINER notes**: the visibility rule is re-implemented inside the function (the definer bypasses RLS,
+  so nothing is inherited), `search_path` is pinned to `public`, `public.` is used on every table, and execute is
+  `revoke all ... from public, anon; grant ... to authenticated`, then migration 035 added `grant ... to anon` for the public
+  course page (see below). `fn_is_admin()` is false without a session, so anon only ever sees the published, live case.
+- **Public exposure (migration 035)**: anon can execute it, so a signed-out parent can see the module and lesson
+  titles, types and minutes of any published course (that is the point of the public page). Nothing else is exposed
+  by this change: anon could already `SELECT` the published course row (`courses_select_published_or_admin` has role
+  PUBLIC and anon has table `SELECT`; this includes columns the page does not use, such as `external_product_id`,
+  a pre-existing exposure, noted in `state.md`). Anon cannot write (RLS, 0 rows).
+- **Not used for**: lesson counts shown as `courses.total_lessons` (it counts drafts too); the page derives
+  "Lessons" from this outline only.
+
+## Course page configuration (migrations 037 and 038)
+
+Three jsonb columns on `courses` (above) hold the parent-facing page's section order, options and
+testimonials. Each is validated by an IMMUTABLE plpgsql function (`search_path = ''`) used in a CHECK:
+`course_page_layout_is_valid`, `course_page_options_are_valid`, `course_testimonials_are_valid`, built on three
+helpers, `course_https_url_is_valid(jsonb)`, `course_json_text_is_valid(jsonb, lo, hi)` (a JSON string whose
+trimmed length >= lo and raw length <= hi) and `course_json_text_list_is_valid(jsonb, min, max, len)`. Full bodies:
+`supabase/migrations/20261005000000_037_course_page_config.sql`.
+
+- **038 fix**: in 037 a MISSING `visible`, `key` or custom `id` made `jsonb_typeof()` return SQL NULL and
+  `NULL <> 'boolean'` is NULL, so the guard did not fire. 038 replaces `course_page_layout_is_valid` with
+  `IS DISTINCT FROM` comparisons. Found by the role-switched verification minutes after 037 was applied; no real
+  row was written in between.
+- **The same rules in TypeScript**: every limit lives in `src/lib/coursePageLimits.ts` (no dependencies, so the
+  student bundle never ships zod); `src/lib/coursePageSchema.ts` (zod, admin only) builds its schemas on it and the
+  admin editor validates against those; the page normalizer uses zod-free validators that the check script proves
+  accept and reject exactly what the zod schema does. A limit change needs that file and a migration.
+- **Testimonials v2 (migration 039)**: the validator now allows exactly `quote`, `name`, `relation`, `photo_url`, `source`
+  and `post_url`; unknown keys (including the old `rating`) are rejected; a `post_url` without a `source` is rejected;
+  all comparisons are null-safe (`IS DISTINCT FROM`). The migration first rewrote every stored array to remove `rating`
+  (idempotent; 9 entries across 4 demo courses had one, order and other fields untouched), then replaced the function.
+  The page normalizer is deliberately more lenient than the CHECK: legacy or unknown keys are ignored, and a bad
+  source or link is dropped on its own, so a quote never vanishes because of its link. Verified role-switched
+  (36 checks): a student reads but cannot write; an admin writes the valid shapes (no source, source without link, source
+  with link, all 8 sources, a full entry, 6 entries, 280-char quote, 60-char name, a 2048-char link); the CHECK rejects a
+  `rating` key, an unknown key, source `tiktok` / `Google` / a non-string / null, a link over `http`, with whitespace,
+  of 2049 characters, `javascript:`, null, or without a source, 7 entries, a bad photo URL and more.
+- **Normalizer** (`normalizePageConfig`, `src/lib/coursePage.ts`; pure, never throws): empty `page_layout` (or
+  nothing valid in it) means the default order `about, learn, inside, how, need, reviews, made_by, faq` with legacy
+  `page_hidden_sections` applied; otherwise the stored order, invalid or duplicate entries dropped (first wins),
+  unknown keys ignored, built-ins missing from the layout appended in default order (so adding a section later
+  needs no migration). Each `page_options` key is validated on its own (one bad key does not wipe the others);
+  invalid testimonials are dropped and the list capped at 6.
+- **No RLS change**: read under `courses_select_published_or_admin`, written only through `courses_admin_update`.
+- **Verified live** with real JWTs against the REST API (not `execute_sql`): a student reads the three columns of a
+  published course, cannot read a draft row, and a student PATCH changes 0 rows; an admin writes fully filled valid
+  values and the defaults; 41 invalid values are each rejected with a CHECK violation (unknown keys, 21 layout
+  entries, 7 custom sections, duplicate built-in key, duplicate custom id, missing `visible`/`key`/`id`, http image,
+  empty alt, 7 testimonials, rating 6 / 4.5 / "5", 281- and 9-character quotes, 4 custom facts, bad outline option,
+  `javascript:` photo, a child-name key, and more); the row was unchanged after the rejections.
+
 ## Admin progress reset (migration 021)
 
 Two `SECURITY DEFINER`, `search_path = ''` functions behind
@@ -1195,6 +1289,12 @@ table.
 | 030 | `20260928200000_030_gamification_off_means_off.sql` | 2026-09-28 (applied via the CLI `--db-url` fallback, one statement per call; stamped by hand) | `courses.gamification_enabled = false` now means no XP, levels, streak, `lessons_completed` or badges. `fn_update_lessons_completed` skips silently for a gamification-off course (no raise, same return, unresolvable course = gamified); `fn_evaluate_badges` counts only gamified courses toward `course_complete` (only that join changed); `fn_admin_reset_course_progress` decrements `lessons_completed` only when the flag is currently on (approximate for a course flipped mid-way). Untouched: `fn_process_xp_transaction` (it also serves manual awards), `fn_award_lesson_xp`, `fn_complete_game` (they already checked the flag), the engine, every signature and grant. Not retroactive |
 | 031 | `20260929000000_031_push_notifications.sql` | 2026-09-29 (applied via the CLI `--db-url` fallback, one statement per call; stamped by hand) | `device_push_tokens` (self-scoped RLS on all 4 ops, no admin SELECT at all) and `notifications_sent` (admin SELECT only, no client write policy — a `service_role`-only audit log, same shape as `deletion_requests`) for manual admin-sent Android push. RLS verified by role-switched SQL, fixtures removed after (`schema.md` section 8, `changelog.md`). The two Edge Functions it backs (`send-push-notification`, `register-push-token`) were deployed the same day, once `SUPABASE_ACCESS_TOKEN` and the FCM service account key became available, and a real send to the primary admin's device succeeded |
 | 033 | `20261001000000_033_course_enroll_url.sql` | 2026-10-01 (live version `20261001000000`, name `course_enroll_url`, via the Supabase MCP `apply_migration`) | Adds `courses.enroll_url` and `courses_enroll_url_format_check` (above). No RLS change — verified live with role-switched queries against the real REST API (not `execute_sql`, which bypasses RLS): a student reads a published, non-enrolled course's `enroll_url`; a student gets an empty result (not an error) for a draft or archived course id; a student's own PATCH attempt affects 0 rows; an admin's PATCH succeeds; the CHECK rejects `javascript:...`, `http://...`, a URL containing a space, and a 2049-character URL, and accepts `NULL` and a normal `https://` URL. Fixtures removed after, row counts confirmed back to the starting values |
+| 034 | `20261002000000_034_course_page_content.sql` | 2026-10-01 (live version `20261001101905`, name `course_page_content`; the filename timestamp differs from the live version, as with earlier migrations) | Adds the 14 parent-facing page columns and their CHECKs on `courses`, the three validation functions and `fn_course_outline` (above). No RLS change. Verified live with role-switched calls against the real REST API (real JWTs, not `execute_sql`): a student gets the outline of a published course with only the listed keys and no draft/trashed lesson, `[]` for a draft, archived or random course, anon is refused; an admin gets the outline of a draft; every CHECK rejects its bad values and accepts good ones; a student's own PATCH changes nothing. Fixtures removed after, baseline counts (3 courses / 17 lessons / 7 modules / 3 profiles) confirmed |
+| 035 | `20261003000000_035_course_outline_public.sql` | 2026-10-01 (live version stamped by the Supabase MCP `apply_migration`, name `course_outline_public`) | `grant execute on fn_course_outline(uuid) to anon` for the signed-out course page, plus its comment. No policy change. Verified live as anon with the publishable key and no login: the outline of a published course comes back with only the documented keys and no draft lesson; a draft, archived and random id each return `[]`; the course table returns only the published row; an anon PATCH changes nothing; `app_settings` (site name) is readable. Fixtures removed after |
+| 036 | `20261004000000_036_course_slug_format.sql` | 2026-10-01 (live version stamped by the Supabase MCP `apply_migration`, name `course_slug_format`) | `courses_slug_format_check`: slugs are URL-safe (lowercase letters and digits in single-hyphen groups), <= 80 chars and never UUID-shaped, because course URLs now carry the slug and the app tells a slug from a course id by shape. Every existing row already complied (checked first). Verified live: the REST API rejects uppercase, double and trailing hyphen, space, slash, UUID-shaped, 81 characters and empty, and accepts a normal slug and exactly 80 characters. Uniqueness unchanged |
+| 037 | `20261005000000_037_course_page_config.sql` | 2026-10-01 (live version `20261001183102`, name `course_page_config`, via the Supabase MCP `apply_migration`) | `courses.page_layout`, `page_options`, `testimonials` (all NOT NULL, defaulted), their CHECKs and validator functions (above). Additive, no RLS change. Verified role-switched (above) |
+| 038 | `20261005000100_038_course_page_layout_validator_fix.sql` | 2026-10-01 (via the Supabase MCP `apply_migration`, name `course_page_layout_validator_fix`) | Replaces `course_page_layout_is_valid` so a missing `visible`/`key`/custom `id` is rejected (`IS DISTINCT FROM` instead of `<>`). Re-verified: all 47 role-switched checks pass |
+| 039 | `20261006000000_039_testimonials_source.sql` | 2026-10-02 (live version `20261002053003`, name `testimonials_source`, via the Supabase MCP `apply_migration`) | Testimonials v2: strips the `rating` key from every stored testimonial (idempotent data fix, first), then replaces `course_testimonials_are_valid` with the new key set (`source`, `post_url`; no `rating`) and null-safe comparisons; column comment updated. No RLS change. Verified role-switched (above); all 14 live rows still pass |
 | 032 | `20260930000000_032_avatar_config_v2.sql` | 2026-09-30 (live version `20260930161331`, name `avatar_config_v2`, via the Supabase MCP `apply_migration`; the filename timestamp differs from the live version, as with earlier migrations) | New immutable `public.avatar_config_is_valid(jsonb)` (`search_path = ''`) and `profiles_avatar_config_shape_check` now calls it. Accepts NULL, the legacy 026 shape unchanged, and the v2 shape (all keys required except `tints`; no other keys; each value from its fixed set; tints only for the four slots with a known swatch; <= 1 KB). The old CHECK rejected any extra key, so the richer config could not be saved: a migration was unavoidable. Checked with 12 direct calls (null, legacy ok, legacy missing key rejected, v2 ok with and without tints, bad value, extra key, bad tint value, bad tint key, v2 missing keys, array) and the one stored row still validates. No table, column, policy or RLS change; `database.types.ts` gained the function |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations

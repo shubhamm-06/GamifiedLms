@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { CourseBuilder } from '@/components/admin/courses/CourseBuilder'
 import { CourseForm } from '@/components/admin/courses/CourseForm'
-import { ENROLL_URL_INVALID, SLUG_TAKEN, useCreateCourse, type CourseFormValues } from '@/hooks/admin/useCourses'
+import { ENROLL_URL_INVALID, SLUG_INVALID, SLUG_TAKEN, useCreateCourse, type CourseFormValues } from '@/hooks/admin/useCourses'
 
 export function CourseCreatePage() {
   const navigate = useNavigate()
@@ -26,6 +26,10 @@ export function CourseCreatePage() {
         })
       },
       onError: (error: Error) => {
+        if (error.message === SLUG_INVALID) {
+          setSlugError('Use lowercase letters, numbers and single hyphens, up to 80 characters.')
+          return
+        }
         if (error.message === SLUG_TAKEN) {
           setSlugError('This slug is already in use.')
           return
@@ -68,6 +72,7 @@ export function CourseCreatePage() {
           />
         }
         curriculum={null}
+        page={null}
       />
     </div>
   )

@@ -12,6 +12,7 @@ export const coursesQueryKey = ['admin', 'courses'] as const
 const UNIQUE_VIOLATION = '23505'
 const CHECK_VIOLATION = '23514'
 export const SLUG_TAKEN = 'SLUG_TAKEN'
+export const SLUG_INVALID = 'SLUG_INVALID'
 export const ENROLL_URL_INVALID = 'ENROLL_URL_INVALID'
 
 function mapWriteError(error: { code?: string; message: string }): Error {
@@ -21,6 +22,10 @@ function mapWriteError(error: { code?: string; message: string }): Error {
   // Backstop for `courses_enroll_url_format_check` (migration 033): the form
   // validates this before submit, so this only fires if that check is ever
   // bypassed (a direct API call, a future form regression).
+  // Backstop for `courses_slug_format_check` (migration 036), same idea.
+  if (error.code === CHECK_VIOLATION && error.message.includes('slug')) {
+    return new Error(SLUG_INVALID)
+  }
   if (error.code === CHECK_VIOLATION && error.message.includes('enroll_url')) {
     return new Error(ENROLL_URL_INVALID)
   }

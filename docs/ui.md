@@ -2161,6 +2161,11 @@ what that flag turns off, migration 030). Below 1024px both are byte-identical t
 
 ### Course info page for not-yet-enrolled students (2026-10-01)
 
+> **Amended 2026-10-01 (later the same day): the page's content and layout described in "Content" and "Desktop"
+> below were replaced by "Parent-facing course page v2" (next section).** What stays current from this section:
+> the three-outcome gate, expired access, the Enroll link safety rules, discovery and the gold audit.
+
+
 `/courses/$courseId` now has three outcomes instead of two, decided in `CoursePage.tsx`/`CourseRoadmapView`:
 actively enrolled → the existing roadmap, byte-for-byte unchanged; not enrolled but the course is published →
 the new `CourseInfoPage` (`components/kid/courses/CourseInfoPage.tsx`); not enrolled and the course is a draft,
@@ -2170,11 +2175,8 @@ checks enrollment before it checks the course row), so `CourseGate` makes the ca
 course row directly — exactly as readable to a non-enrolled student as its title always was
 (`courses_select_published_or_admin`, no enrollment check; `schema.md`).
 
-- **Content**: cover (thumbnail or a book icon, matching the Courses list), title, price (`formatAmount`,
-  whole rupees, `rules.md`) if `price_amount` is set, "Free" if `is_free`, the full description with line
-  breaks preserved (`white-space: pre-line`). No lesson count: `courses.total_lessons` counts draft lessons
-  too (`schema.md`), so it is never shown as a published-lesson count, and no other safe source exists — left
-  as a follow-up below, not built.
+- **Content**: superseded, see "Parent-facing course page v2" (the page now has a lesson outline, quick facts
+  and admin-authored sections; the lesson count comes from `fn_course_outline`, never `total_lessons`).
 - **Expired access**: a previously-enrolled student whose `enrollments` row is now `status = 'expired'` (not
   `'active'`, so `fn_is_enrolled` already treats them as not enrolled) sees "Your access ended on `<date>`"
   and the button says "Enroll again" instead of "Enroll now" — read from the same self-scoped `enrollments`
@@ -2190,14 +2192,8 @@ course row directly — exactly as readable to a non-enrolled student as its tit
   browser via an Android intent, same as those two links do today. `aria-label` says "Enroll now, opens
   another page". No `enroll_url` at all: a calm muted note ("Enrollment isn't open for this course yet."),
   no button, no gold.
-- **Desktop (>= 1024px)**: this route is not part of the sidebar shell (it never carries `data-shell='side'`
-  — same as the enrolled roadmap, untouched), so `CourseInfoPage` switches its own layout via the same
-  `useMediaQuery(LG_UP)` every desktop view uses, mounting one view only. A centred card (cover ~40% on the
-  left, details and the button on the right), a quiet "Back to courses" link above it (the shared top bar's
-  own Back still works too; this one has a fixed destination for a page that might be opened with no
-  history). Small text uses the Nunito stack via a literal `var(--font-ui-desktop, 'Nunito Variable', ...)`
-  fallback rather than the token itself, since that token is only defined under `[data-shell='side']` and
-  this route deliberately never sets it.
+- **Desktop (>= 1024px)**: superseded. One component for every width, laid out by container queries (see v2).
+  The route is still not part of the sidebar shell (never `data-shell='side'`).
 - **Discovery**: the Courses screen (`KidCoursesPage.tsx`/`DesktopCourses.tsx`) gained an "Explore courses"
   section below the enrolled list — every published course the student is NOT actively enrolled in
   (`useExploreList`, capped at 12, no search/filter/sort), reusing the same visibility rule and the existing
@@ -2223,10 +2219,394 @@ course row directly — exactly as readable to a non-enrolled student as its tit
   h1, Nunito on the small desktop text. Not exercised: Android (no device or emulator attached) — based on
   the code path (a plain external-origin `target="_blank"` anchor, no plugin), it is expected to open the
   system browser the same way the Privacy/Terms links already do, but this was not confirmed on a device.
-- **Follow-ups, not built**: a parental/"ask a grown-up" confirmation step before the external link opens; a
-  safe published-lesson count and a syllabus/module preview (would need a dedicated student-safe read, since
-  `modules`/`lessons` RLS requires enrollment or `is_preview` today); how a student who used the link
-  actually becomes enrolled is still entirely external to the app, exactly as before.
+- **Follow-ups, not built**: a parental/"ask a grown-up" confirmation step before the external link opens (the
+  syllabus preview this list used to ask for is built in v2); how a student who used the link actually becomes
+  enrolled is still entirely external to the app, exactly as before.
+
+### Parent-facing course page v2 (2026-10-01)
+
+> **Superseded in part by v3 (next section)**: the type scale, spacing, the "How your child learns" icon grid and
+> "Good to know" (merged into "How it works"), the buy card, the total-time wording and the admin editor below are
+> replaced. Still current from this section: the gate, the model-shared-with-preview idea, container queries and
+> `embedded`, theme and font presets, lazy fonts, the shell overrides and the public page.
+
+Replaces the UI of `CourseInfoPage` (the gate in `CoursePage.tsx` is unchanged: enrolled students get the roadmap,
+a not-enrolled student sees this page for a published course, anything else gets the same `UnavailableScreen`).
+Built for the person deciding whether to enrol their child, so it is flat, white and text-led, not the kid
+candy look. **A documented exception to "Baloo 2 is the kid-app font"** (`rules.md`): everything is scoped under
+`.cp`, sets its own type, and never relies on `.kid-app`.
+
+- **Files.** `lib/coursePage.ts` (pure model), `components/kid/coursePage/` (`CoursePageView.tsx`,
+  `coursePage.css`, `fonts.ts`, `icons.ts`; the two font CSS files were folded into `coursePage.css` on 2026-10-02), `components/kid/courses/CourseInfoPage.tsx`
+  (data gate: loads course row + `fn_course_outline`, builds the model, renders the view; skeleton while loading,
+  "Back to courses" link), `hooks/useCourseInfo.ts` (`useCourseInfo`, `useCourseOutline`,
+  `useMyEnrollmentHistory`). The old `.cip*`/`.cipd*` block in `kid.css` is deleted.
+- **One model, two consumers.** `buildCoursePageModel({course, outline, viewer, supportEmail})` returns everything
+  the view needs (facts, per-section content, `sectionStatus`, price, enroll state); the student page and the
+  admin live preview both call it, so they cannot disagree. 49 cases in `scripts/check-course-page.mjs`
+  (`node --experimental-strip-types scripts/check-course-page.mjs`). Rules worth knowing: ages "Age 6" /
+  "5 to 7" / "5 and up" / "Up to 7" (invalid combinations hidden); Lessons = outline count only; Total time
+  needs >= 80% of lessons to have minutes ("45 min", else "About 3 hours", nearest half hour); Access "No
+  expiry" or whole days/months/years only on exact multiples; the "earns points" line under Good to know only
+  when `gamification_enabled === true`; price "Free" / whole rupees (`en-IN`) / nothing; no enroll link shows
+  "Enrollment isn't open for this course yet." and no button; expired shows "Enroll again" and "Your access
+  ended on 21 Sep 2026." (hand-built month names, since `en-IN` renders "Sept"). A section with no content, or
+  switched off in `page_hidden_sections`, is not rendered at all (no empty heading).
+- **Tokens and type.** White page, soft `#F8F6F2`, ink `#3A2A1A`, secondary `#6A5742` (6.9:1), hairline `#E9E4DA`,
+  3px ink focus ring. h1 32/40px (narrow/wide), h2 22px, body 16/1.65, lead 18px. Max width 1080. No
+  all-caps, em dashes or arrows in copy; flat (no shadows or gradients); motion limited to the accordion chevron
+  and the Enroll hover.
+- **Gold audit.** Exactly one gold element, the Enroll button (hover `hsl(40 88% 52%)`), present only with a link;
+  zero gold without one. Measured in every state in the test matrix.
+- **Layout by container queries**, not viewport queries: `.cp` is `container-type: inline-size`
+  (narrow < 640, medium >= 640, wide >= 1024), and `.cp-main` is a nested container for the "How your child
+  learns" columns. This is what lets the admin preview lay out a real 390px or 1080px page inside a wide admin
+  screen. A container-type element becomes the containing block for `position: fixed`, so the narrow buy bar is
+  `position: sticky; bottom: 0`, not fixed. One `<aside class="cp-buy">` is the bottom bar when narrow and the
+  sticky 340px card (top 24px) when wide, so there is a single Enroll link in the DOM. Verified at
+  360/390/768/1023/1024/1280/1366/1920: no horizontal overflow, bar at the bottom edge under 1024, card sticky
+  from 1024, "What's included" in the main column only when narrow and inside the card when wide, resizing
+  1100 to 1000 and back switches cleanly in one session.
+- **Shell.** Under the route's existing `KidLayout`, `:has(.cp:not([data-embedded]))` (>= 640px only) hides the shell's
+  top-bar row and sets `--kid-topbar-h: 0px`, because the page has its own "Back to courses" link (two back
+  controls at once otherwise). Under 640px the shell's arrow is the only back control.
+- **Sections, in order**: hero (cover, title, lead, facts, and the buy card on wide), About, What your child will
+  learn, What's inside (accordion, first module open, lesson type + minutes, no "Free preview" chip: no preview
+  flow exists, see follow-ups), How your child learns, Good to know, What you'll need, Made by, Questions parents
+  ask (+ support line from `app_settings.support_email` when set), What's included (narrow only).
+- **`embedded` prop.** Normal document flow (no sticky bar), the Enroll link inert (`preventDefault`, so it never
+  navigates inside the editor), `data-embedded` set. Nothing else differs.
+- **Themes and fonts are presets, not free input.** Theme (`data-theme` on `.cp`): teal, plum, coral, ink. Only
+  the two accent variables change: `--cp-accent` (icons, ticks, chip, cover alt; needs >= 3:1) and
+  `--cp-accent-text` (text and the generated cover's background; needs >= 4.5:1). Measured contrast, accent-text
+  on white / accent icon on white: teal 6.6 / 3.1, plum 8.5 / 5.2, coral 6.0 / 3.8 (coral's brand fill is only
+  2.9:1, so two deeper derived variants are used), ink 13.8 / 13.8. Gold, hairlines, text colours and layout never
+  change with theme. Font (`data-font`): `inter` (default), `classic` (Source Serif 4 headings + Inter body),
+  `friendly` (Nunito, reusing the face already in `styles.css`). Fonts are self-hosted woff2 only (works offline
+  in Capacitor) and loaded lazily by `loadCoursePageFont` the first time a page uses the preset: Inter 400/500/600/700
+  about 97 KB plus 1.2 KB CSS, Source Serif 4 600/700 about 43 KB plus 0.6 KB CSS, nothing for `friendly`;
+  `font-display: swap`; none of it is requested on any other route. Baloo 2 never reaches the admin (admin
+  stays Geist, checked after visiting the editor).
+- **How to add a theme or font preset.** Add the key to `PAGE_THEMES`/`PAGE_FONTS` in `lib/coursePage.ts`, to the
+  CHECK (`courses_page_theme_check`/`courses_page_font_check`) in a new migration, add its variables to
+  `coursePage.css` (`.cp[data-theme=..]`/`[data-font=..]`), and for a font add its `@font-face` CSS plus a branch in
+  `loadCoursePageFont` and an entry in `FONT_PRESETS`. The admin cards render from those lists, so nothing else changes.
+- **Admin "Course page" tab** (`components/admin/courses/page/`: `CoursePageTab.tsx`, `PageEditors.tsx`,
+  `CoursePagePreview.tsx`; form logic in `lib/coursePageForm.ts`; save in `hooks/admin/useCoursePage.ts`). A third
+  tab on the course edit screen (`?tab=page`, locked with "Save the course first" on the create screen). Groups:
+  Headline, Quick facts (with a read-only line for lessons, time, access and price and where each is edited), What
+  your child will learn, What you'll need, Made by, Questions parents ask, Look and feel (colour swatch cards, font
+  cards that render their own sample text), Sections on the page (a switch per section and a chip: Showing / Hidden
+  by you / No content yet, hidden automatically, taken from the model's `sectionStatus`). Own Save and Discard
+  buttons: **Save writes only the 14 page columns** (`toPageRow`), never the Basics form's fields, and the Basics
+  Save never writes them; dirty state via `samePage` (ignores blank rows and whitespace); blank list rows and
+  half-filled FAQ rows are dropped on save (the latter flagged first); inputs enforce `maxLength` and show
+  counters; validation mirrors the CHECKs (`validatePageValues`) and `describePageWriteError` maps a database
+  CHECK name to a readable message as the backstop; navigating away with unsaved changes asks first
+  (`useBlocker`, plus `beforeunload`); success toast; baseline resets to what was saved. Reordering is by up/down
+  buttons (no drag and drop), so it works by keyboard.
+- **Live preview.** The real `CoursePageView` (embedded) fed the UNSAVED values via `previewCourse(basics, values)`,
+  laid out at a true 390px (Mobile) or 1080px (Desktop) and scaled to fit its pane (`ResizeObserver`). Right-hand
+  sticky pane at >= 1280px, a "Preview" button opening a Sheet below that. Works for draft courses
+  (`fn_course_outline` allows admins). "Open page as student sees it" (new tab) only appears for a published course.
+- **Public (signed-out) page, `/course/$courseRef`** (the ref is the course slug, e.g. `/course/demo-fun-with-numbers`; an id is rewritten to it; migration 036 keeps slugs URL-safe, the admin Slug field validates the same rule inline and shows what changing it does) (`pages/PublicCoursePage.tsx`; migration 035). The same `CoursePageView`
+  and model, outside the app shell: a white page (`.cp-public`) with a brand row (site name from `app_settings.site_name`
+  and a Log in link that returns to `/courses/<id>`) shown at every width (`top` prop, `.cp-top[data-always]`). No Back to
+  courses link, no nav. Draft, archived, trashed and unknown ids all show one "This course isn't available" message
+  (never a title). Signed-out `/courses/<id>` redirects here; a signed-in visitor on `/course/<id>` is redirected to
+  `/courses/<slug>`. Every link the app builds to a course page (Explore rows and cards, admin View course, the Course page tab) uses the slug. The admin Course page tab shows the public URL (built on `app_settings.site_url` when set, else the
+  current origin) with a "Copy public link" button for published courses. Verified signed out at 390 and 1366: no
+  overflow, no shell, exactly one gold element, bar at the bottom edge on narrow and the sticky card on wide, no errors.
+- **Plain text only.** Nothing the admin types is ever interpreted as HTML or Markdown; paragraphs are split on blank
+  lines and rendered as text nodes (`rules.md`).
+- **Verified** (Chromium, live project, throwaway fixtures removed after, baseline counts 3/17/7/3 confirmed):
+  student page across a fixture matrix (full, bare, min-age-only, no lessons, draft modules, very long title/FAQ/name
+  with broken images, free, no link, paid with no price, draft, archived, random id, expired) at the widths above;
+  all 12 theme x font combinations for the right computed fonts, accent colours and lazy font requests; keyboard
+  (Back, accordion summaries with Enter/Space, Enroll; each shows the 3px ink ring); admin editing each group, Save
+  changing only page columns (row compared before/after via REST), limits and errors, blank rows dropped, the
+  unsaved-changes prompt (dismiss stays, accept leaves), chips for full and bare courses, preview parity with the
+  student page, Mobile/Desktop toggle without horizontal scroll, Sheet under 1280px, preview of a draft, no Geist
+  leakage. Not exercised: Android (no device; the font files ship in the bundle and the Enroll link is the same plain
+  external anchor as before), a real screen reader, Firefox/Safari.
+- **Deviations from the task brief**: no zod/react-hook-form (the repo has neither; hand-rolled like `CourseForm`);
+  "Back to courses" behaviour as above; derived coral variants for contrast; "No expiry" shown on a bare course
+  (default `lifetime`); support email comes from `app_settings.support_email`; `thumbnail_url` still has no https
+  CHECK (not part of this task); `font-display: swap`.
+- **Follow-ups, not built**: section reordering,
+  testimonials, a preview-lesson flow (would need `is_preview` lessons openable without enrollment, then the "Free
+  preview" chip and "Try a free lesson"), a parental "ask a grown-up" gate before the external link.
+
+### Parent-facing course page v3 (2026-10-01)
+
+> **Phones: superseded by "Course page: mobile first" (next section)**, which is the source of truth for every
+> width below 640px, the top bar, the bottom bar, icons and performance. Desktop values below still hold except
+> where that section lists a change.
+
+A clean-up of v2 plus admin-ordered sections and testimonials. Two focal points only: the title (with its cover)
+and the Enroll button. Everything else is quiet.
+
+- **One section wrapper.** `Section` in `CoursePageView.tsx` renders every section: 1px hairline on top (none on the
+  first section after the hero), padding 40px top and bottom (32px when the `.cp` container is under 640px), h2,
+  then 20px, then content; with an intro line, the intro sits 8px under the h2 and the content 24px under the intro.
+  The view maps over `model.sections` (the admin's order), so there is no hardcoded order and no spacing drift.
+  Measured identical on three demo pages at 390 and 1280.
+- **Spacing scale.** `--cp-s4/8/12/16/24/32/40/56` on `.cp`; the few values the spec names outside it are
+  `--cp-x20` (h2-to-content, facts and card padding), `--cp-x14` (lesson rows), `--cp-x64` (column gap).
+- **Type.** h1 40/1.15 700 -0.02em (32 narrow); lead 18/1.6 secondary, 62ch; h2 24/1.25 700 (22 narrow); item
+  titles 16/1.4 600; body 16/1.65; secondary 14/1.5; micro labels 13. Bold only for h1, h2, item titles, price and
+  the button.
+- **Frame.** Max width 1120, 24px sides; wide = main column + 360px sticky card, 64px gap; narrow = single column
+  with the sticky bottom bar.
+- **Hero.** Cover 16:6, 12px radius, `object-position` from `page_options.cover.focus`; `cover.show = false`
+  removes it (no empty space). Facts strip: label 13/500 over value 18/600, values never wrap from 640px; items
+  wrap whole to a new row (16px row gap). Every item carries a left hairline and 24px padding and the list is
+  pulled left inside a clipping wrapper, so the first item of EVERY row starts flush. Narrow: 2 plain columns
+  (values may wrap there, see deviations). At most 6 facts.
+- **Total time.** Under an hour "45 min"; else rounded to 5 minutes, "1 hr", "1 hr 30 min", "2 hr 30 min". No
+  "About".
+- **Lists.** Check icons only for "What your child will learn" (2 columns when the main column is >= 560px) and the
+  included lists. "How it works" and "What you'll need" use 6px accent dots; custom lists can be ticks, dots or
+  numbers. Icons and dots sit on the first line; wrapped lines align with the text.
+- **How it works** replaces "How your child learns" (icon grid removed) and "Good to know": an intro built from the
+  lesson types present ("Lessons mix short videos, reading, games and quizzes.") plus 4 rules (5 with gamification
+  on). The admin can replace the intro (`how_intro`) and the rules (`how_items`).
+- **Outline.** Bordered 12px box; summary rows soft, 16x20 padding, 64px min height, meta "Section 1, 3 lessons,
+  19 min"; lesson rows white, 14x20, neutral icon, title 16/500, type 13, minutes right-aligned tabular.
+  `outline.detail = sections` shows plain rows (title, "3 lessons, 19 min") with no chevrons; `outline.open`
+  first/all/none sets the initial state (the `<details>` are keyed by it so a change in the editor re-applies);
+  `show_minutes = false` hides minutes in rows and meta (the Total time fact follows the facts rules).
+- **Reviews.** Superseded by "Testimonials v2" below (one card, no stars, no featured layout).
+- **Made by.** 56px avatar beside name 18/600, role 14, bio 16 secondary; no box.
+- **FAQ.** Rows >= 60px, 16px vertical padding, question 16/600, answer 16/1.65 secondary, 66ch, 20px bottom.
+- **Custom sections.** Text (paragraphs on blank lines), List, Image (figure with alt and optional caption, 12px
+  radius, never wider than the column; a load failure removes the whole section, heading included).
+- **Buy card / bar.** Card: 24px padding, hairline, 12px radius; price 36/700, price note 14, access line 14
+  (shown ONCE, only here: the included list no longer repeats it), 20px, the 50px gold button (label =
+  `cta_label` or "Enroll now"; expired viewers always "Enroll again"), fine print 13, hairline, included list.
+  Included default: "17 lessons (videos, reading, games and quizzes)", "Progress saved automatically", "Works on
+  phone, tablet and computer"; `included` replaces it. No link: one soft block (12px radius, 16px padding, 14px,
+  info icon) instead of the button. On narrow the price note is the intro of the "What's included" section.
+- **Hover, focus, active.** Inside `@media (hover: hover)`, 120ms, none under reduced motion: outline summaries go
+  a darker soft; lesson rows get a ~6% accent tint and keep `cursor: default`; FAQ rows get the soft background
+  with an 8px radius; the Enroll button darkens and moves 1px on press; text links underline; review cards have no
+  hover. Every interactive element keeps the 3px ink ring. No free-preview row exists (previews cannot be opened
+  by a non-enrolled student).
+- **Palette.** Accent only on ticks, dots, link text and the hover tint. No shadows, gradients or coloured
+  backgrounds (measured: zero of each inside `.cp` on every demo page). The generated fallback cover is the one
+  accent-coloured block, kept because the spec keeps the fallback when the cover is shown.
+- **Contrast (AA, measured)**: accent text on white teal 6.6, plum 8.5, coral 6.0, ink 13.8; ticks and dots >= 3.06
+  (teal, the lowest); body ink 13.8; secondary ink 6.9 on white and 6.4 on the soft background.
+
+**Admin editor** (`components/admin/courses/page/`: `CoursePageTab.tsx`, `SectionsEditor.tsx`, `PageEditors.tsx`,
+`CoursePagePreview.tsx`; logic in `lib/coursePageForm.ts`, limits in `lib/coursePageLimits.ts`, zod schema in `lib/coursePageSchema.ts`). Five plain white
+cards: **Top of page** (tagline, cover image link = the course thumbnail, Show cover, Keep in view top/center/bottom,
+button label, price note, What's included override), **Quick facts** (a switch per built-in fact with its current
+automatic value, ages, language, up to 3 custom facts), **Sections**, **Look and feel**, and a sticky save bar.
+The Sections card lists ALL sections in page order: drag handle (the shared `SimpleSortableList`, snap only, no
+animation, keyboard sensor too) plus Move up / Move down buttons, the name (custom rows show their type), a
+"Needs attention" icon when a field inside has an error, a status chip from the same model as the page (Showing /
+Hidden by you / No content yet, hidden automatically), a visibility switch, and an expand control. Rows start
+collapsed and only one is open at a time. An open row shows Title (placeholder = default), Intro, and that
+section's own editor (learn and need lists, outline options, How it works intro and rules, the reviews editor,
+Made by, FAQ, custom block fields). "Add section" offers Text, List and Image (max 6); custom rows delete after a
+confirmation. The reviews editor carries the rule text ("Only add real feedback ... Never add a child's name or
+photo."). Save writes ONLY the page columns plus `thumbnail_url` (the cover IS the thumbnail, one column shared
+with Basics) and always writes `page_hidden_sections = '{}'`. Blank rows and half-filled FAQ, fact and review
+rows are flagged and dropped; Save with an error shows a summary and writes nothing. Live preview unchanged from
+v2 (sticky pane >= 1280px, Sheet below, Mobile/Desktop toggle, unsaved values, same model and view).
+
+- **Verified** (Chromium, live project): 7 demo courses x 360/390/768/1023/1024/1280/1920 with no horizontal scroll,
+  no console errors, no Baloo inside `.cp`, gold exactly once with a link and never without, no empty section bodies,
+  no hairline on the first section, uniform padding and gaps, fact values on one line from 640px, access line never
+  repeated; hover states; keyboard (3px ring on every stop, FAQ opens with Enter); the admin flow end to end
+  (reorder by buttons, by drag-handle keyboard and by mouse drag, hide, rename, add and delete each custom type,
+  reviews add / reorder / limit, limits and inline errors, Save writes only page columns and clears
+  `page_hidden_sections`, student page order equals the preview order after save, unsaved-changes prompt, Sheet
+  under 1280, admin stays Geist); a legacy row (empty layout + `page_hidden_sections`) renders the default order and
+  honours the hidden keys. Not exercised: Android (no device), a screen reader, Firefox/Safari.
+- **Deviations**: no "Free preview" row or chip (no preview flow exists); fact values may wrap at narrow widths (two
+  columns at 360px cannot hold a 32-character custom value on one line without overflowing); `cv08` (Inter's serifed
+  capital I) is not applied because the `@fontsource/inter` build does not contain it (pixel-identical with and
+  without); the 20/14/64/36px values the spec names are kept as named tokens outside the 8-step scale; the editor
+  Save also writes `thumbnail_url` (see above); "How it works" intro is edited through `page_options.how_intro`, so
+  the layout entry for `how` carries no intro; zod added as a dependency (about 120 KB added to the main bundle
+  together with the editor).
+- **Follow-ups, not built**: slug history / redirects; preview lessons for non-enrolled students; image upload
+  (URL paste only); ratings of any kind (removed in Testimonials v2, deliberately not planned); a variable Inter build with `cv08`; per-section
+  colour or layout variants; scheduling or A/B variants of the page.
+
+### Testimonials v2 (2026-10-02)
+
+One simple card for every count. Removed: the star rating, the featured single-quote layout (large quote, left accent
+rule, Quote icon) and the initials / placeholder avatar. Section title ("What parents say"), spacing and the rule that
+hides the whole section unless at least one valid entry has a quote and a name are unchanged.
+
+- **Card**: white, 1px hairline, 12px radius, 24px padding, no shadow, no hover; content stacks with a 16px gap.
+  Quote 16/1.65 ink, plain text, escaped. The **person row** is last and pinned to the card bottom (the quote takes the
+  spare height) so rows line up across equal-height cards: optional photo, then name (16/600) and relation (14, secondary
+  ink, only if present), and the optional source icon at the right end of the same row, vertically centred. Name and
+  relation truncate with an ellipsis rather than pushing the icon out.
+- **Layout**: one column below 640px of the main column, two columns from 640px with 24px gaps (16px gap when
+  stacked); exactly one review is a single full-width card. Order as entered. No carousel, autoplay, ratings anywhere.
+- **Photo**: 40px circle, `object-fit: cover`, 1px hairline border, decorative (`alt=""`), adult photos only. It exists
+  ONLY when a photo URL is set: no URL renders nothing at all (no placeholder, initials or empty box; the name starts at
+  the card's padding edge). A failed load removes the element entirely (the text shifts to the left edge), never initials
+  or a broken-image icon. Loaded eagerly (at most 6 small images), so a broken one is gone at once instead of sitting as
+  an empty circle until scrolled near. The "Made by" avatar and its initials fallback are unchanged.
+- **Source icon**: icon only, no visible text, 20px, secondary ink (`--cp-ink2`, 6.9:1 on white in all four themes),
+  stroke 1.75, round caps and joins, never brand colours, never gold or accent. One local file
+  (`components/kid/coursePage/testimonialSources.tsx`, labels in `testimonialSourceLabels.ts`) with outline glyphs for
+  google (a circle with a bold "G"), facebook, instagram, whatsapp, youtube, x, linkedin and website (a globe). Without a
+  link it is a static `role="img"` with the label ("Google review", "Posted on Facebook", "Posted on Instagram", "Shared
+  on WhatsApp", "Posted on YouTube", "Posted on X", "Posted on LinkedIn", "Posted on a website"). With a link it is an
+  anchor, `target="_blank"`, `rel="noopener noreferrer"`, `aria-label="View original post on <Platform>, opens in a new
+  tab"`; the 44x44 hit area is 12px padding with an equal negative margin, so the layout does not move (measured: linked and
+  static rows are the same height); hover colour change only inside `@media (hover: hover)`; the usual 3px ink focus
+  ring. The icon is supporting metadata and never the only carrier of meaning.
+- **Normalizer** (`normalizePageConfig`): legacy and unknown keys (e.g. `rating`) are ignored and the quote kept; an
+  unknown source drops the source and the link; a link that is not https, or has no source, is dropped on its own; the
+  entry is dropped only when quote, name, relation or photo URL is invalid. The model carries `source` and `postUrl`; no
+  `rating`, no `initials`.
+- **Admin Reviews editor**: per review the quote (counter, 280), name (60), relation (80), photo link (helper "Leave
+  empty to show no photo."), a **Source** select (None plus the 8 platforms, each with its icon) and a **link to the real
+  post** (helper "Add the link to the original public post if there is one. Only link to posts you have permission to
+  share."). Pasting or blurring a valid https link while Source is None picks the platform from its hostname
+  (instagram.com; facebook.com, fb.com; youtube.com, youtu.be; x.com, twitter.com; linkedin.com; google.com, g.page,
+  maps.app.goo.gl; anything else website; subdomains match, look-alike hosts do not) and the admin can change it. Clearing a
+  Source that has a link asks first ("Remove the source and its link?"); a link cannot be saved without a source. The
+  rating control is gone. Move up/down, delete, limits, inline errors and the guidance text (real feedback, first name
+  and initial, never a child's name or photo) stay. The live preview renders the exact card from unsaved values
+  (verified equal to the real page at 390, box for box).
+- **Verified** (Chromium; viewport screenshots, touch emulation at 360x640, 375x667, 390x844, plus desktop 1280) on
+  Little Scientists (6), Phonics (3), Creative Drawing (1), Long Content Stress Test: no horizontal overflow, no stars,
+  initials or placeholders, photo-less cards flush left, the broken photo removed after load, person rows at the bottom
+  of equal-height cards, the icon centred and never shrinking, a 60-character name truncated with the icon intact; hover
+  changes only linked icons and cards have none; a linked icon opens a new tab with no opener; accessible names right.
+  Admin: auto-detect for 12 sample links, clear-with-confirmation (and cancel), every limit, Save writes only page columns.
+  Not tested: a real Android device.
+- **Follow-ups, not built**: showing the platform name as text for people who cannot recognise the icon; per-review dates;
+  verifying that a post URL's host matches the chosen source; importing reviews from a platform.
+
+### Course page: mobile first (2026-10-02)
+
+Phones are the first priority for the parent-facing page (most parents arrive on a phone or the Android app).
+`coursePage.css` is written MOBILE FIRST: every base rule is the phone layout and `@container cp (min-width: 640px)`
+/ `(min-width: 1024px)` enhance it, so the admin preview (Mobile 390) is the same layout as the real page (verified
+block for block). Text sizes are rem, so Android font scaling and browser zoom apply. Every change to this page is
+checked at 360, 375 and 390 with VIEWPORT screenshots before desktop (`rules.md`); full-page captures draw sticky and
+fixed bars in the wrong place and must not be used to judge layout.
+
+**Phone layout (container under 640px)**
+
+- **Frame**: 20px gutter (16px under a 360px container); no horizontal overflow down to 188px (200% zoom on a 375 phone).
+- **Top bar**: the page's own `.cp-top`, in normal flow (never sticky or overlapping), 48px tall, a 48x48 back link
+  (visible arrow, accessible name "Back to courses", the text is visually hidden below 640px), no hairline. Inside the
+  student shell the shell's bar row is hidden on this route at every width; the shell keeps only its `--sa-top`
+  status-bar padding (the app-wide safe-area convention, `styles.css`), so the only space above the bar is the inset.
+  The public page applies the same `--sa-top` itself (`.cp-public`). From 640px the bar keeps its desktop look
+  (text label, hairline) at 48px.
+- **Cover**: directly under the top bar, full bleed (ignores the gutter), no radius, `aspect-ratio: 16/9` with
+  `max-height: 220px`, focus setting as `object-position`; the box is reserved before the image loads and the
+  generated fallback fills the same box. Hidden by the admin: the title starts 8px under the top bar.
+- **Title block**: 24px under the cover; h1 `clamp(1.5rem, 1rem + 3.6cqi, 1.875rem)` (24 to 30, 28 at a 375 phone)
+  /1.2/700. Titles over 60 characters use 24px and clamp at 3 lines with an ellipsis (the full title stays in the
+  DOM for screen readers and in the tab title). Lead 17/1.55 secondary, 8px under the h1.
+- **Closed enrollment**: the soft note (Info icon) sits 16px under the lead, and there is no bottom bar (also on
+  tablets; the wide card keeps its own note).
+- **Facts**: 24px under the lead or note; hairlines above and below, 16px vertical padding, two columns, 16px gaps,
+  label 13 secondary over value 17/600, no separators, no icons (first-screen icon budget), an odd last item stays
+  left. From 640px: the v3 strip (separators, label icons).
+- **Sections**: the one `Section` wrapper; 32px padding, h2 22/1.25/700, 16px heading to content; with an intro, 8px
+  then 20px. From 640px: 40px, 24px h2, 20px, 24px.
+- **What's inside**: ONE outline section renders the bordered lesson list with no accordion header (the intro
+  already says "1 section, ..."). Two or more: accordion rows 60px min, the whole row is the tap target, open state
+  from the admin option (default first). Lesson rows 56px min, 14px vertical padding, 20px type icon, title 16/500
+  up to 2 lines, type 13 under it, minutes 14 right-aligned and never wrapping.
+- **Lists**: dots and icon lists 12px apart, 16px text; icons and dots sit on the first line at any text size
+  (`calc((1.5em - 20px) / 2)`).
+- **Reviews**: one column, cards 20px padding. **Made by**: 48px avatar; name only = avatar and name centred.
+  **FAQ**: rows 56px min, whole row tappable.
+- **What's included** is NOT shown on phones or tablets unless the admin wrote the list (`model.includedCustom`);
+  the automatic list repeated the facts and rules. The wide card still shows the automatic list.
+- **Bottom bar** (below 1024px): `position: sticky; bottom: 0` (not fixed: `.cp` is a size container, which makes it
+  the containing block for `position: fixed`; sticky pins it to the viewport while scrolling, keeps it in flow at the
+  end so nothing hides behind it, and paints with the page on the first frame). White, 1px hairline, no shadow; it
+  spans the gutters with side padding = gutter, so its content edges equal the page's (measured equal at every
+  width); 64px content + `--sa-bottom`. Left: price 20/700 and ONE 13px secondary line with an ellipsis (no price:
+  the access line alone, centred; free: "Free"). Right: the gold button, 48px, 148px min, 60% max, label 16/700 +
+  18px ExternalLink icon; labels over 16 characters drop to 15px and ellipsis. Below a `21.25rem` container (340px at
+  default text size; the rem unit makes this trip at large font sizes too, e.g. 130%) the bar becomes two rows:
+  price line, then a full-width button. Landscape phones (`max-height: 500px`): the bar is static at the end.
+- **Touch**: every interactive target >= 48px on phones (back, summaries, FAQ rows, button; measured); pressed state
+  ~8% accent tint on summaries and FAQ rows, 1px press offset on the button; hover only inside
+  `@media (hover: hover)`; `touch-action: manipulation` and a transparent tap highlight on `.cp`; reduced motion
+  respected. No viewport-height units except `100dvh` on the public wrapper.
+
+**Course page icons** (functional only, `rules.md`). One set (lucide-react, imported per icon), stroke 1.75, sizes 16
+(beside 13 to 14px text), 18 (card included list), 20 (list and lesson rows), 24 (the single-quote mark). Secondary
+ink by default (`--cp-ink2`, 6.9:1 on white in every theme, so >= 3:1 everywhere); accent only on check ticks and the
+quote mark; never on a coloured background, never gold, never the only carrier of meaning (`aria-hidden`, a text label
+beside every icon; icon-only controls have names). The model supplies icon KEYS (`fact.iconKey`, `how.icons`,
+`includedIcons`) and `components/kid/coursePage/icons.ts` maps them, so the view hardcodes no icon.
+
+| Icon | Where | Size | Colour | Notes |
+|---|---|---|---|---|
+| ArrowLeft | back link | 20 | ink | link named "Back to courses" |
+| Users, BookOpen, Clock, CalendarClock (Infinity for "No expiry"), Languages, Tag | facts labels (640px and up only) | 16 | ink2 | hidden on phones (first-screen budget) |
+| ListOrdered, Timer, RotateCcw, Save, Award | default How it works rules | 20 | ink2 | admin-written rules use plain accent dots |
+| BookOpen, Save, MonitorSmartphone | automatic included list (wide card) | 18 | ink2 | admin-written items use Check |
+| Check | learn list, check-style custom lists, admin-written included | 20 / 18 | accent | |
+| Video, FileText, Gamepad2, ListChecks | lesson rows | 20 | ink2 | |
+| Info / History | closed-enrollment note / expired note | 16 | ink2 | inside the soft block |
+| Source icon (8 outline glyphs, local map) | testimonial cards, icon only | 20 | ink2 | see "Testimonials v2"; no Quote icon, no stars |
+| Mail | support link | 16 | link colour | |
+| ChevronDown | accordions, FAQ | 20 | ink2 | state from native `<details>` |
+| ExternalLink | Enroll button | 18 | ink | |
+
+No icons on section headings, FAQ questions, Made by, About, the price, "What you'll need" or containers. Density:
+at most 6 icons on the first 375x667 screen; measured 1 or 2 on every demo course (the facts icons are the first
+thing dropped on phones). Admin Sections rows: FileText, ListChecks, ListTree, Workflow, Backpack,
+MessageSquareQuote, UserRound, CircleHelp, Type, List, Image (secondary ink, 20px), ChevronUp/ChevronDown move
+buttons, Eye/EyeOff beside the visibility switch, CircleDashed in the "No content yet" chip.
+
+**Mobile performance** (Phonics Starter, production build, Chromium mobile emulation, Lighthouse Slow 4G profile
+(562.5 ms RTT, 1.44 Mbps down) and 4x CPU, cold cache, median of 3):
+
+| | before | after |
+|---|---|---|
+| LCP | 10.4 s | 6.1 s |
+| FCP | 8.5 s | 5.5 s |
+| CLS | 0.001 | 0.000 |
+| TBT | 330 ms | 277 ms |
+| Transferred | 656 KB | 521 KB |
+| Main JS chunk | 1,674.7 kB (483.8 kB gzip) | 675.5 kB (210.1 kB gzip) |
+
+What changed: admin routes (and with them zod, dnd-kit and the editor) load lazily and never reach students; the
+page normalizer is zod-free (`coursePageLimits.ts` + hand validators checked for parity against the zod schema);
+the font `@font-face` rules live in `coursePage.css` (no extra CSS round trip; a face downloads only when used); the
+page's data gate starts its fonts with the data and waits for them at most 400ms (`useCoursePageFonts`) so the first
+paint is in the right face, with a metric-matched 'Inter Fallback' behind it; the cover starts downloading the moment
+the course row arrives (`useWarmCover`) and renders with `fetchpriority="high"`, other images lazy; a
+`preconnect` to Supabase in `index.html`. Tried and reverted: lazy-loading the student and auth routes (FCP went from
+5.6 s to 8.8 s: the extra round trip for the route chunk cost more than it saved). The LCP target (about 2.5 s) is not
+met: the remaining time is the 210 KB app bundle plus the Supabase client (84 KB) that must download and boot before
+the first data request; see follow-ups.
+
+- **Inter cv08**: none of the fontsource Inter builds (static, variable `wght`, `standard`, `opsz`) contain the
+  serifed capital I (rendering with and without `cv08` is pixel-identical), so it is not used.
+- **Verified**: 6 demo courses plus a one-section course at 320x568, 360x640, 375x667, 390x844, 412x915 and 667x375
+  with real mobile emulation (isMobile, hasTouch, DPR 2), viewport screenshots at top, one screen down, middle and
+  bottom; the geometry above measured, not eyeballed; 130% font size (bar goes to two rows, nothing clipped) and 200%
+  zoom; emulated safe areas (24px top, 34px bottom); keyboard order and names; admin preview parity; desktop
+  regression (only the listed changes). Not tested: a real Android WebView or the Capacitor shell, real iOS Safari, a
+  real screen reader.
+- **Intentional changes at 640px and up**: the top bar and back link are 48px (were 44px), so the page sits 4px
+  lower; facts labels and the wide card's automatic included list gained icons; on tablets (640 to 1023px) a closed
+  course shows its note under the lead instead of a block at the end.
+- **Follow-ups, not built**: a pre-rendered or server-rendered public course page (the only way to a ~2.5 s LCP on
+  Slow 4G); fetching the outline by slug in the same round trip as the course row (needs a DB function change); a
+  smaller Tailwind CSS for student routes (34 KB gzip includes admin styles); an Inter build with `cv08`.
 
 ### Game lessons (2026-09-26)
 

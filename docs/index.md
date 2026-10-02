@@ -13,7 +13,7 @@ tree, definition-of-done checklist, format rules per file).
 | [`routes-permissions.md`](./routes-permissions.md) | Every frontend route + who can reach it; Edge Function endpoints and the student-callable database functions (lesson engine) + their access rules | ...adding a route, checking who can see a page, or calling an Edge Function or lesson-engine RPC |
 | [`env-deploy.md`](./env-deploy.md) | Env var names (never values), where things run, how to deploy | ...setting up a new environment, deploying a migration/function, building the Android APK, or debugging a missing env var |
 | [`integrations.md`](./integrations.md) | Third-party APIs — purpose, endpoints, rate limits, webhooks | ...adding or debugging a third-party integration (payment gateway, etc.) |
-| [`rules.md`](./rules.md) | Hard invariants that must never be violated | ...before touching auth, `profiles.role`, quiz answers, lesson progress / XP writes, lesson-content frames or the lesson clock, views, or the primary admin |
+| [`rules.md`](./rules.md) | Hard invariants that must never be violated | ...before touching auth, `profiles.role`, quiz answers, lesson progress / XP writes, lesson-content frames or the lesson clock, views, the parent-facing course page's fonts / plain-text rule / `fn_course_outline` / testimonials / `page_layout`, or the primary admin |
 | [`changelog.md`](./changelog.md) | Terse, dated, append-only log of what changed and why | ...want the history without re-reading git log |
 | `analytics.md` | Does not exist yet — created only once analytics work starts | — |
 

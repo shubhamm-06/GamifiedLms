@@ -1,0 +1,1259 @@
+/*
+ * The parent-facing course page. MOBILE FIRST: every base rule below is the PHONE layout;
+ * `@container cp (min-width: 640px)` and `(min-width: 1024px)` enhance it for tablets and
+ * desktops. Container queries (never viewport media queries for layout), so the admin live
+ * preview, a 390px or 1080px .cp inside a wide admin page, lays out exactly like the real page.
+ *
+ * Scoped under .cp with its own typography: a documented exception to "Baloo 2 is the kid-app
+ * font" (rules.md). Calm and flat: two focal points (the title with its cover, the Enroll
+ * button); no shadows, gradients or coloured backgrounds. Accent = check ticks, list dots, the
+ * single quote mark, link text and the hover/pressed tint. Gold = the Enroll button only.
+ * Functional icons only, in secondary ink (ui.md "Course page icons").
+ *
+ * Text sizes are rem, so Android font scaling and browser zoom apply. Spacing comes from the
+ * --cp-s* scale; the few values the spec names outside it are the --cp-x* tokens.
+ *
+ * Inter's serifed capital I (cv08) is NOT applied: the bundled @fontsource/inter build does not
+ * contain it (rendering with and without the feature is pixel-identical). ui.md follow-ups.
+ */
+
+.cp {
+  --cp-s4: 4px;
+  --cp-s8: 8px;
+  --cp-s12: 12px;
+  --cp-s16: 16px;
+  --cp-s24: 24px;
+  --cp-s32: 32px;
+  --cp-s40: 40px;
+  --cp-s56: 56px;
+  --cp-x20: 20px;
+  --cp-x14: 14px;
+  --cp-x64: 64px;
+  --cp-radius: 12px;
+
+  --cp-bg: #ffffff;
+  --cp-soft: #f8f6f2;
+  --cp-soft-hover: #efebe3;
+  --cp-ink: var(--ink, #3a2a1a);
+  --cp-ink2: #6a5742;
+  --cp-line: #e9e4da;
+  --cp-gold: var(--gold, #f2b233);
+  --cp-gold-hover: hsl(40 88% 52%);
+  /* Accent: ticks, dots, the quote mark, the hover/pressed tint (graphics, >= 3:1 on white). */
+  --cp-accent: var(--teal, #2fa3a0);
+  /* Accent as TEXT (links) and the generated cover's background (>= 4.5:1 on white). */
+  --cp-accent-text: var(--teal-d, #1e6765);
+  --cp-tint: color-mix(in srgb, var(--cp-accent) 6%, #ffffff);
+  --cp-press: color-mix(in srgb, var(--cp-accent) 8%, #ffffff);
+  --cp-font: Inter, 'Inter Fallback', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --cp-font-head: var(--cp-font);
+
+  container-type: inline-size;
+  container-name: cp;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  background: var(--cp-bg);
+  color: var(--cp-ink);
+  font-family: var(--cp-font);
+  font-size: 1rem;
+  line-height: 1.65;
+  font-weight: 400;
+  text-align: left;
+  letter-spacing: normal;
+  text-transform: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* The preset fonts (latin, woff2, font-display: swap, only the weights the page uses). Declared up
+   front so the files can start downloading the moment the page asks for them (fonts.ts), with no
+   extra CSS round trip; an @font-face rule costs nothing until text actually uses the face. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url(../../../../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url(../../../../node_modules/@fontsource/inter/files/inter-latin-500-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(../../../../node_modules/@fontsource/inter/files/inter-latin-600-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(../../../../node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url(../../../../node_modules/@fontsource/source-serif-4/files/source-serif-4-latin-600-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url(../../../../node_modules/@fontsource/source-serif-4/files/source-serif-4-latin-700-normal.woff2) format('woff2');
+  unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+/* Metric-matched fallback for Inter (Arial resized to Inter's metrics), so the swap when Inter
+   arrives does not reflow the page. */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('ArialMT'), local('Helvetica');
+  size-adjust: 107.12%;
+  ascent-override: 90.44%;
+  descent-override: 22.52%;
+  line-gap-override: 0%;
+}
+
+.cp[data-theme='plum'] {
+  --cp-accent: #7a5fa8;
+  --cp-accent-text: #57427a;
+}
+/* Coral's brand fill (#F0705A) is only 2.9:1 on white, so the graphic accent is a deeper coral
+   (3.8:1) and the text/cover variant deeper again (6.0:1). */
+.cp[data-theme='coral'] {
+  --cp-accent: #e2543d;
+  --cp-accent-text: #b8321c;
+}
+.cp[data-theme='ink'] {
+  --cp-accent: #3a2a1a;
+  --cp-accent-text: #3a2a1a;
+}
+
+.cp[data-font='classic'] {
+  --cp-font-head: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+}
+.cp[data-font='friendly'] {
+  --cp-font: 'Nunito Variable', 'Nunito', ui-rounded, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --cp-font-head: var(--cp-font);
+}
+
+.cp *,
+.cp *::before,
+.cp *::after {
+  box-sizing: border-box;
+}
+
+:where(.cp h1, .cp h2, .cp h3, .cp p, .cp ul, .cp ol, .cp dl, .cp dd, .cp figure, .cp blockquote) {
+  margin: 0;
+  padding: 0;
+}
+
+:where(.cp summary, .cp button, .cp a) {
+  font: inherit;
+}
+
+:where(.cp a) {
+  color: inherit;
+}
+
+.cp :focus-visible {
+  outline: 3px solid var(--cp-ink);
+  outline-offset: 3px;
+}
+
+/* The page gutter: 20px on phones, 16px on very small containers, 24px from 640px. */
+.cp-top-in,
+.cp-layout {
+  --cp-gutter: 20px;
+}
+@container cp (max-width: 359px) {
+  .cp-top-in,
+  .cp-layout {
+    --cp-gutter: 16px;
+  }
+}
+@container cp (min-width: 640px) {
+  .cp-top-in,
+  .cp-layout {
+    --cp-gutter: 24px;
+  }
+}
+
+/* ---- the live route: the page owns the whole content area ------------------------------ */
+
+/* Inside the student shell the page draws its own top bar at every width, so the shell's bar row
+   goes; the shell keeps only its status-bar inset (--sa-top padding), the app-wide convention. */
+.kid-main:has(> .cp:not([data-embedded])) {
+  max-width: none;
+  padding: 0;
+}
+.kid-app:has(.cp:not([data-embedded])) {
+  --kid-topbar-h: 0px;
+  background: #ffffff;
+}
+.kid-app:has(.cp:not([data-embedded])) .kid-topbar {
+  border-bottom: 0;
+  background: #ffffff;
+}
+.kid-app:has(.cp:not([data-embedded])) .kid-topbar-row {
+  display: none;
+}
+
+/* ---- top bar: in normal flow, 48px, a 48x48 back button (text from 640px) ---------------- */
+
+.cp-top-in {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  max-width: 1120px;
+  margin: 0 auto;
+  /* The arrow's glyph lines up with the page content edge. */
+  padding: 0 var(--cp-gutter) 0 max(4px, calc(var(--cp-gutter) - 14px));
+}
+.cp-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cp-s8);
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  color: var(--cp-ink);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.cp-back:active {
+  background: var(--cp-press);
+}
+.cp-back-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* The signed-out public page: site name and Log in. */
+.cp-top[data-public] .cp-top-in {
+  justify-content: space-between;
+  gap: var(--cp-s16);
+  padding-left: var(--cp-gutter);
+}
+.cp-top[data-public] .cp-back {
+  width: auto;
+  min-width: 48px;
+}
+.cp-site {
+  overflow: hidden;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--cp-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container cp (min-width: 640px) {
+  .cp-top {
+    border-bottom: 1px solid var(--cp-line);
+  }
+  .cp-top-in {
+    padding: 0 var(--cp-gutter);
+  }
+  /* 48px on every width (touch tablets and landscape phones use this layout too). */
+  .cp-back {
+    width: auto;
+    border-radius: 0;
+  }
+  .cp-back:active {
+    background: none;
+  }
+  .cp-back-text {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+  }
+}
+
+/* The page outside the app shell (no KidLayout, no nav): fills the viewport on white. */
+.cp-public {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-top: var(--sa-top, 0px);
+  background: #ffffff;
+  --kid-topbar-h: 0px;
+}
+
+/* ---- frame ------------------------------------------------------------------------------ */
+
+.cp-layout {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 var(--cp-gutter);
+}
+.cp-main {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: var(--cp-s16);
+  container-type: inline-size;
+  container-name: cpmain;
+}
+@container cp (min-width: 640px) {
+  .cp-layout {
+    padding-top: var(--cp-s24);
+  }
+  .cp-main {
+    padding-bottom: var(--cp-s24);
+  }
+}
+@container cp (min-width: 1024px) {
+  .cp-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: var(--cp-x64);
+    align-items: start;
+    padding-bottom: var(--cp-s56);
+  }
+}
+
+/* ---- the ONE section wrapper ------------------------------------------------------------ */
+
+.cp-sec {
+  padding: var(--cp-s32) 0;
+  border-top: 1px solid var(--cp-line);
+}
+.cp-hero + .cp-sec {
+  border-top: 0;
+}
+.cp-h2 {
+  font-family: var(--cp-font-head);
+  font-size: 1.375rem;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.cp-intro {
+  max-width: 66ch;
+  margin-top: var(--cp-s8);
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--cp-ink2);
+  overflow-wrap: anywhere;
+}
+.cp-sec-body {
+  margin-top: var(--cp-s16);
+}
+.cp-intro + .cp-sec-body {
+  margin-top: var(--cp-x20);
+}
+@container cp (min-width: 640px) {
+  .cp-sec {
+    padding: var(--cp-s40) 0;
+  }
+  .cp-h2 {
+    font-size: 1.5rem;
+  }
+  .cp-sec-body {
+    margin-top: var(--cp-x20);
+  }
+  .cp-intro + .cp-sec-body {
+    margin-top: var(--cp-s24);
+  }
+}
+
+/* ---- hero ------------------------------------------------------------------------------- */
+
+/* Phone: full-bleed under the top bar, no radius, 16:9 up to 220px; the box is reserved up front. */
+.cp-cover {
+  display: block;
+  width: calc(100% + 2 * var(--cp-gutter));
+  max-height: 220px;
+  margin: 0 calc(-1 * var(--cp-gutter)) var(--cp-s24);
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: var(--cp-accent-text);
+}
+.cp-cover img,
+.cp-cover svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.cp-cover img {
+  object-fit: cover;
+}
+@container cp (min-width: 640px) {
+  .cp-cover {
+    width: 100%;
+    max-height: none;
+    margin: 0 0 var(--cp-s32);
+    border-radius: var(--cp-radius);
+    aspect-ratio: 16 / 6;
+  }
+}
+
+.cp-title {
+  font-family: var(--cp-font-head);
+  /* 28px at a 375px phone, 24 to 30 by width. */
+  font-size: clamp(1.5rem, calc(1rem + 3.6cqi), 1.875rem);
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+/* Very long titles on phones: the smallest step, at most 3 lines (the full title stays in the DOM
+   for screen readers and in the browser tab). */
+.cp-title[data-long] {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 1.5rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+/* No cover: the title starts 8px under the top bar. */
+.cp-hero > .cp-title:first-child {
+  margin-top: var(--cp-s8);
+}
+.cp-lead {
+  max-width: 62ch;
+  margin-top: var(--cp-s8);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  color: var(--cp-ink2);
+  overflow-wrap: anywhere;
+}
+@container cp (min-width: 640px) {
+  .cp-title,
+  .cp-title[data-long] {
+    display: block;
+    font-size: 2.5rem;
+    line-height: 1.15;
+    -webkit-line-clamp: unset;
+    line-clamp: none;
+  }
+  .cp-hero > .cp-title:first-child {
+    margin-top: 0;
+  }
+  .cp-lead {
+    margin-top: var(--cp-s12);
+    font-size: 1.125rem;
+    line-height: 1.6;
+  }
+}
+
+/* Closed enrollment: seen at once, under the lead (phones and tablets; the wide card has its own). */
+.cp-noenroll {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cp-s8);
+  padding: var(--cp-s16);
+  border-radius: var(--cp-radius);
+  background: var(--cp-soft);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.cp-noenroll svg,
+.cp-expired svg {
+  flex: none;
+  margin-top: calc((1.5em - 16px) / 2);
+  color: var(--cp-ink2);
+}
+.cp-hero-note {
+  margin-top: var(--cp-s16);
+}
+@container cp (min-width: 1024px) {
+  .cp-hero-note {
+    display: none;
+  }
+}
+
+/* Facts. Phone: two plain columns, no separators, no icons (the first screen keeps to 6 icons).
+   From 640px: a flex row with hairline separators that wraps whole items, label icons shown.
+   Every item carries a left hairline and padding; the dl is pulled left inside a clipping
+   wrapper, so the first item of EVERY row starts flush. */
+.cp-facts-wrap {
+  margin-top: var(--cp-s24);
+  padding: var(--cp-s16) 0;
+  overflow: hidden;
+  border-top: 1px solid var(--cp-line);
+  border-bottom: 1px solid var(--cp-line);
+}
+.cp-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cp-s16);
+}
+.cp-fact {
+  min-width: 0;
+}
+.cp-fact dt {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-s8);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-weight: 500;
+  color: var(--cp-ink2);
+}
+.cp-fact-icon {
+  display: none;
+  flex: none;
+}
+.cp-fact dd {
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+@container cp (min-width: 640px) {
+  .cp-facts-wrap {
+    margin-top: var(--cp-s32);
+    padding: var(--cp-x20) 0;
+  }
+  .cp-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cp-s16) 0;
+    margin-left: calc(-1 * (var(--cp-s24) + 1px));
+  }
+  .cp-fact {
+    flex: none;
+    padding: 0 var(--cp-s24);
+    border-left: 1px solid var(--cp-line);
+  }
+  .cp-fact-icon {
+    display: block;
+  }
+  .cp-fact dd {
+    font-size: 1.125rem;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+}
+
+.cp-expired {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cp-s8);
+  margin-top: var(--cp-s24);
+  padding: var(--cp-s12) var(--cp-s16);
+  border-radius: var(--cp-radius);
+  background: var(--cp-soft);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* ---- prose ------------------------------------------------------------------------------ */
+
+.cp-prose p {
+  max-width: 66ch;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.cp-prose p + p {
+  margin-top: var(--cp-s16);
+}
+
+/* ---- lists ------------------------------------------------------------------------------ */
+
+/* Icon lists: checks (learn, check-style custom lists, admin-written included) and the default
+   "How it works" rules. The icon sits on the FIRST line; wrapped lines align with the text. */
+.cp-checks {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cp-s16) var(--cp-s32);
+  list-style: none;
+}
+.cp-iconlist {
+  gap: var(--cp-s12);
+}
+@container cpmain (min-width: 560px) {
+  .cp-checks-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.cp-checks li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cp-s12);
+  min-width: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+/* (1.5em line box - 20px icon) / 2 keeps the icon centred on the first line at any text size. */
+.cp-checks li > svg {
+  flex: none;
+  margin-top: calc((1.5em - 20px) / 2);
+}
+.cp-tick {
+  color: var(--cp-accent);
+}
+.cp-ico {
+  color: var(--cp-ink2);
+}
+
+.cp-dots,
+.cp-numbered {
+  display: grid;
+  gap: var(--cp-s12);
+  list-style: none;
+}
+.cp-dots li,
+.cp-numbered li {
+  position: relative;
+  max-width: 66ch;
+  padding-left: var(--cp-s24);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+/* A 6px accent dot centred on the first line (1.65em line box). */
+.cp-dots li::before {
+  position: absolute;
+  top: calc((1.65em - 6px) / 2);
+  left: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cp-accent);
+  content: '';
+}
+.cp-numbered {
+  counter-reset: cp-n;
+}
+.cp-numbered li {
+  counter-increment: cp-n;
+  padding-left: var(--cp-s32);
+}
+.cp-numbered li::before {
+  position: absolute;
+  left: 0;
+  min-width: var(--cp-s24);
+  color: var(--cp-ink2);
+  font-variant-numeric: tabular-nums;
+  content: counter(cp-n) '.';
+}
+
+/* ---- what's inside (outline) ------------------------------------------------------------ */
+
+.cp-acc {
+  overflow: hidden;
+  border: 1px solid var(--cp-line);
+  border-radius: var(--cp-radius);
+  list-style: none;
+}
+.cp-acc details + details,
+.cp-acc-flat li + li {
+  border-top: 1px solid var(--cp-line);
+}
+.cp summary {
+  list-style: none;
+  cursor: pointer;
+}
+.cp summary::-webkit-details-marker {
+  display: none;
+}
+.cp-acc summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  align-items: center;
+  column-gap: var(--cp-s12);
+  min-height: 60px;
+  padding: var(--cp-s12) var(--cp-s16);
+  background: var(--cp-soft);
+  transition: background-color 120ms ease;
+}
+.cp-acc summary:active {
+  background: color-mix(in srgb, var(--cp-accent) 8%, var(--cp-soft));
+}
+.cp-mod-title {
+  grid-column: 1;
+  display: block;
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.cp-mod-meta {
+  grid-column: 1;
+  display: block;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--cp-ink2);
+}
+.cp-chev {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--cp-ink2);
+  transition: transform 120ms ease;
+}
+.cp-acc .cp-chev {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.cp details[open] > summary .cp-chev {
+  transform: rotate(180deg);
+}
+
+.cp-lessons {
+  list-style: none;
+  background: var(--cp-bg);
+}
+.cp-lesson {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-s12);
+  min-height: 56px;
+  padding: var(--cp-x14) var(--cp-s16);
+  border-top: 1px solid var(--cp-line);
+  cursor: default;
+  transition: background-color 120ms ease;
+}
+.cp-acc-single .cp-lesson:first-child {
+  border-top: 0;
+}
+.cp-lesson > svg {
+  flex: none;
+  color: var(--cp-ink2);
+}
+.cp-lesson-text {
+  flex: 1;
+  min-width: 0;
+}
+.cp-lesson-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.cp-lesson-type {
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--cp-ink2);
+}
+.cp-lesson-min {
+  flex: none;
+  font-size: 0.875rem;
+  color: var(--cp-ink2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sections-only outline: plain rows, no chevrons, no lesson list. */
+.cp-mod-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cp-s16);
+  min-height: 60px;
+  padding: var(--cp-s12) var(--cp-s16);
+}
+.cp-mod-sum {
+  flex: none;
+  font-size: 0.875rem;
+  color: var(--cp-ink2);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+@container cp (min-width: 640px) {
+  .cp-acc summary,
+  .cp-mod-row {
+    min-height: 64px;
+    padding: var(--cp-s16) var(--cp-x20);
+  }
+  .cp-lesson {
+    padding: var(--cp-x14) var(--cp-x20);
+  }
+}
+
+/* ---- reviews: ONE card design for every count -------------------------------------------
+   White, 1px hairline, 12px radius, 24px padding, no shadow, no hover. Quote, then the person
+   row pinned to the card bottom (so rows align across equal-height cards): optional photo, name
+   and relation, and an optional icon-only source at the right end. One column below 640px of
+   the main column, two from 640px; exactly one review is a single full-width card. */
+
+.cp-reviews {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cp-s16);
+  list-style: none;
+}
+@container cpmain (min-width: 640px) {
+  .cp-reviews:not([data-count='1']) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--cp-s24);
+  }
+}
+.cp-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cp-s16);
+  height: 100%;
+  padding: var(--cp-s24);
+  border: 1px solid var(--cp-line);
+  border-radius: var(--cp-radius);
+}
+.cp-review blockquote {
+  flex: 1;
+  font-size: 1rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.cp-person {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-s12);
+  min-width: 0;
+}
+.cp-person-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.cp-person-name {
+  overflow: hidden;
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-person-rel {
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--cp-ink2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Decorative adult photo: 40px circle. Rendered ONLY when a URL is set, and removed if it fails to load. */
+.cp-photo {
+  display: block;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--cp-line);
+  border-radius: 50%;
+  object-fit: cover;
+}
+/* The source icon: 20px, secondary ink, never shrinks. Linked: a 44x44 hit area from padding with an
+   equal negative margin, so the layout does not move. */
+.cp-src {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--cp-ink2);
+}
+a.cp-src {
+  box-sizing: content-box;
+  padding: 12px;
+  margin: -12px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: color 120ms ease;
+}
+@media (hover: hover) {
+  a.cp-src:hover {
+    color: var(--cp-ink);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  a.cp-src {
+    transition: none;
+  }
+}
+
+/* ---- made by ---------------------------------------------------------------------------- */
+
+.cp-made {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cp-s16);
+}
+/* Only a name: avatar and name centred on each other, no empty block. */
+.cp-made[data-solo] {
+  align-items: center;
+}
+.cp-avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--cp-soft);
+  color: var(--cp-ink2);
+  font-size: 1rem;
+  font-weight: 600;
+}
+@container cp (min-width: 640px) {
+  .cp-avatar {
+    width: 56px;
+    height: 56px;
+    font-size: 1.125rem;
+  }
+}
+.cp-avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cp-made-body {
+  min-width: 0;
+}
+.cp-made-name {
+  font-size: 1.125rem;
+  line-height: 1.4;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.cp-made-role {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--cp-ink2);
+  overflow-wrap: anywhere;
+}
+.cp-made-bio {
+  max-width: 62ch;
+  margin-top: var(--cp-s8);
+  color: var(--cp-ink2);
+  overflow-wrap: anywhere;
+}
+
+/* ---- FAQ -------------------------------------------------------------------------------- */
+
+.cp-faq details + details {
+  border-top: 1px solid var(--cp-line);
+}
+.cp-faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cp-s12);
+  min-height: 56px;
+  margin: 0 calc(-1 * var(--cp-s12));
+  padding: var(--cp-s12);
+  border-radius: var(--cp-s8);
+  transition: background-color 120ms ease;
+}
+.cp-faq summary:active {
+  background: var(--cp-press);
+}
+@container cp (min-width: 640px) {
+  .cp-faq summary {
+    min-height: 60px;
+    padding: var(--cp-s16) var(--cp-s12);
+  }
+}
+.cp-faq-q {
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.cp-faq-a {
+  max-width: 66ch;
+  padding-bottom: var(--cp-x20);
+  color: var(--cp-ink2);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+.cp-support {
+  margin-top: var(--cp-s24);
+  color: var(--cp-ink2);
+}
+.cp-sec-plain {
+  padding-top: var(--cp-s24);
+}
+.cp-support a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cp-s8);
+  min-height: 44px;
+  color: var(--cp-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- custom image ----------------------------------------------------------------------- */
+
+.cp-figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--cp-radius);
+}
+.cp-figure figcaption {
+  margin-top: var(--cp-s8);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--cp-ink2);
+}
+
+/* ---- what's included (admin-written only, phones and tablets; the wide card carries it) - */
+
+@container cp (min-width: 1024px) {
+  .cp-included {
+    display: none;
+  }
+}
+
+/* ---- the Enroll area: ONE element, a bottom bar below 1024px and a sticky card from 1024px --
+   The bar is position: sticky at the bottom, not fixed: .cp is a size container, which makes it
+   the containing block for position: fixed. Sticky pins it to the viewport bottom while the page
+   scrolls, keeps it in flow at the end (so nothing is ever hidden behind it), and paints on the
+   first frame with the page. */
+
+.cp-buy {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cp-s12);
+  min-height: calc(64px + var(--sa-bottom, 0px));
+  /* Side padding = the gutter, and the bar spans the gutters: its content edges line up with the page's. */
+  margin: 0 calc(-1 * var(--cp-gutter));
+  padding: var(--cp-s8) var(--cp-gutter) calc(var(--cp-s8) + var(--sa-bottom, 0px));
+  background: var(--cp-bg);
+  border-top: 1px solid var(--cp-line);
+}
+.cp-buy-price {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cp-price {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.cp-price-note {
+  display: none;
+}
+.cp-access {
+  overflow: hidden;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--cp-ink2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cp-buy-cta {
+  flex: 0 1 auto;
+  min-width: 148px;
+  max-width: 60%;
+}
+.cp-buy[data-noprice] .cp-buy-price {
+  text-align: center;
+}
+.cp-enroll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--cp-s8);
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--cp-s16);
+  border: 0;
+  border-radius: 10px;
+  background: var(--cp-gold);
+  color: var(--cp-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, transform 120ms ease;
+}
+.cp-enroll-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cp-buy[data-long] .cp-enroll {
+  font-size: 0.9375rem;
+}
+.cp-enroll:active {
+  transform: translateY(1px);
+}
+.cp-enroll svg {
+  flex: none;
+}
+.cp-fine,
+.cp-card-incl {
+  display: none;
+}
+/* Very small containers, or large text (rem: this tracks the user's font size): two rows. */
+@container cp (max-width: 21.25rem) {
+  .cp-buy {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--cp-s8);
+  }
+  .cp-buy-cta {
+    min-width: 0;
+    max-width: none;
+  }
+}
+/* Closed enrollment below 1024px: the note is already under the lead; no bar. */
+.cp-buy[data-enroll='closed'] {
+  display: none;
+}
+/* Landscape phones: the bar sits at the end of the content instead of covering a short screen. */
+@media (max-height: 500px) {
+  .cp-buy {
+    position: static;
+  }
+}
+
+@container cp (min-width: 1024px) {
+  .cp-buy,
+  .cp-buy[data-enroll='closed'] {
+    position: sticky;
+    top: calc(var(--sa-top, 0px) + var(--kid-topbar-h, 0px) + var(--cp-s24));
+    bottom: auto;
+    display: block;
+    min-height: 0;
+    margin: 0;
+    padding: var(--cp-s24);
+    border: 1px solid var(--cp-line);
+    border-radius: var(--cp-radius);
+  }
+  .cp-buy-price {
+    margin-bottom: var(--cp-x20);
+  }
+  .cp-buy[data-noprice] .cp-buy-price {
+    text-align: left;
+  }
+  .cp-price {
+    font-size: 2.25rem;
+    line-height: 1.15;
+  }
+  .cp-price-note {
+    display: block;
+    margin-top: var(--cp-s4);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--cp-ink2);
+  }
+  .cp-access {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: normal;
+  }
+  .cp-buy-cta {
+    min-width: 0;
+    max-width: none;
+  }
+  .cp-enroll {
+    height: 50px;
+    padding: 0;
+  }
+  .cp-fine {
+    display: block;
+    margin-top: var(--cp-s12);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: var(--cp-ink2);
+    text-align: center;
+  }
+  .cp-card-incl {
+    display: grid;
+    gap: var(--cp-s12);
+    margin-top: var(--cp-x20);
+    padding-top: var(--cp-x20);
+    border-top: 1px solid var(--cp-line);
+    list-style: none;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+  .cp-card-incl li {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--cp-s8);
+  }
+  .cp-card-incl svg {
+    flex: none;
+    margin-top: calc((1.5em - 18px) / 2);
+  }
+}
+
+/* The admin preview (and any embedded use) lays everything out in normal flow. */
+.cp[data-embedded] .cp-buy {
+  position: static;
+}
+
+/* ---- hover (pointer devices only), 120ms, nothing under reduced motion ------------------ */
+
+@media (hover: hover) {
+  .cp-back:hover,
+  .cp-support a:hover {
+    text-decoration: underline;
+  }
+  .cp-acc summary:hover {
+    background: var(--cp-soft-hover);
+  }
+  .cp-lesson:hover {
+    background: var(--cp-tint);
+  }
+  .cp-faq summary:hover {
+    background: var(--cp-soft);
+  }
+  .cp-enroll:hover {
+    background: var(--cp-gold-hover);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-chev,
+  .cp-enroll,
+  .cp-lesson,
+  .cp-acc summary,
+  .cp-faq summary {
+    transition: none;
+  }
+  .cp-enroll:active {
+    transform: none;
+  }
+}
