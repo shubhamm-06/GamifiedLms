@@ -1450,6 +1450,7 @@ export type Database = {
         Args: { p_module_id: string }
         Returns: number
       }
+      fn_enroll_free_course: { Args: { p_course_id: string }; Returns: string }
       fn_engine_complete: {
         Args: { p_course_id: string; p_lesson_id: string; p_user_id: string }
         Returns: {
