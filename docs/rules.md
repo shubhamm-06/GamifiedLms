@@ -630,3 +630,13 @@ belongs in `context.md` or `state.md`, not here.
   the real, public post, and only with the poster's permission (the database refuses a link without a source and any
   non-`https` link). The icon is a plain outline in secondary ink, never a brand-coloured badge, and a photo is shown only
   when one is set and loads (adults only, never a child; no placeholder or initials in its place).
+- **Students enroll themselves ONLY through `fn_enroll_free_course`, and only in FREE courses.** The `enrollments` INSERT
+  policy stays admin-only (never loosen it for students: a policy cannot check that the course is free, published and open,
+  or refuse a revoked learner). The function must keep reading the user from `auth.uid()` (never a parameter) and must keep
+  refusing non-free, unpublished, archived and not-open courses. Free = `courses.is_free`; a paid course is enrolled by an
+  admin or an external purchase flow, never by this function.
+- **A learner whose enrollment was revoked or expired is refused by `fn_enroll_free_course`; an admin decides whether to
+  restore them.** Self-service re-enrollment would let a student undo an admin's revocation (locked decision: "Restore
+  access" inserts a new row, the revoked one survives as the record). The refusal must not create any row.
+- **Free enrollment creates no `payments` row and no XP, badge or celebration**, and its `expires_at` is computed once at
+  insert time from the course's own access fields (the same invariant as the admin manual enroll), never read live later.

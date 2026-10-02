@@ -824,6 +824,39 @@ blank title, sorted last.
 - **Not used for**: lesson counts shown as `courses.total_lessons` (it counts drafts too); the page derives
   "Lessons" from this outline only.
 
+## Free-course self-enrollment (migration 040)
+
+`fn_enroll_free_course(p_course_id uuid) returns uuid` (`plpgsql`, `SECURITY DEFINER`, `search_path = ''`; `EXECUTE`
+revoked from `public` and `anon`, granted to `authenticated` only) is the **only** way a student enrolls themselves.
+The `enrollments` INSERT policy is deliberately NOT loosened (`enrollments_admin_insert` stays `fn_is_admin()`, the
+`service_role` policy is unchanged): a function can enforce what a policy cannot, and it reads the user from
+`auth.uid()`, never a parameter, so nobody can enroll somebody else (verified: the REST call has no user parameter and a
+direct student INSERT is refused by RLS for any user and course).
+
+- **"Free"** is the existing `courses.is_free` flag (the one that already shows "Free" on the page); no new column. The
+  `source = 'free'` value already existed in `enrollments_source_check`.
+- **Order of checks**: not signed in or trashed -> `not_authenticated`; no live course -> `course_not_found`; **an existing
+  ACTIVE enrollment is returned as is** (idempotent: no duplicate row, no extra `total_students`, even if the course has
+  since gone paid or been archived); then `course_archived`, `course_unavailable` (not published), `not_free`,
+  `enrollment_closed` (`courses.enrollment_status` not `open`: that column exists to pause enrollment while keeping
+  existing learners); then **`enrollment_revoked`** and **`enrollment_expired`** for a user whose latest-ever row for the
+  course is such (the locked decision: access an admin ended is the admin's to restore, "Restore access" inserts a new
+  row; never self-service). All raise a plain token as the message (`errcode P0001`, HTTP 400); the client maps them to
+  calm wording (`lib/freeEnrollment.ts`).
+- **Insert**: `source 'free'`, `status 'active'`, `payment_id` NULL (no payments row exists for free enrollment), and
+  `expires_at` computed ONCE at insert time from the course's own access fields exactly like the admin manual-enroll flow
+  (`useEnrollUser`): `fixed` with a duration -> `now() + duration days`, else NULL (lifetime). Never read live later. A
+  `unique_violation` from the partial unique index (a second tab racing) returns the winner's id.
+- **Side effects are the existing ones, nothing new**: `trg_enrollments_student_count` fires on the INSERT, so
+  `total_students` rolls up exactly as for an admin enrollment. No XP, badge or notification is created by enrolling.
+- **Verified role-switched** (real student and admin JWTs against the REST API, not `execute_sql`; 21 checks): free
+  enroll succeeds with `source 'free'`, no payment, `expires_at = enrolled_at + 30 days` (fixed 30) or NULL (lifetime),
+  `total_students` +1; a second call returns the same id with no new row or count; a second user enrolls independently;
+  refused: paid (`not_free`), draft (`course_unavailable`), archived (`course_archived`), paused (`enrollment_closed`),
+  unknown id (`course_not_found`), revoked and expired (and no active row is created for them); `anon` gets
+  `42501 permission denied`; the function takes no user parameter; a student's direct INSERT (any user, any course) and
+  UPDATE (0 rows) on `enrollments` are refused.
+
 ## Course page configuration (migrations 037 and 038)
 
 Three jsonb columns on `courses` (above) hold the parent-facing page's section order, options and
@@ -1295,6 +1328,7 @@ table.
 | 037 | `20261005000000_037_course_page_config.sql` | 2026-10-01 (live version `20261001183102`, name `course_page_config`, via the Supabase MCP `apply_migration`) | `courses.page_layout`, `page_options`, `testimonials` (all NOT NULL, defaulted), their CHECKs and validator functions (above). Additive, no RLS change. Verified role-switched (above) |
 | 038 | `20261005000100_038_course_page_layout_validator_fix.sql` | 2026-10-01 (via the Supabase MCP `apply_migration`, name `course_page_layout_validator_fix`) | Replaces `course_page_layout_is_valid` so a missing `visible`/`key`/custom `id` is rejected (`IS DISTINCT FROM` instead of `<>`). Re-verified: all 47 role-switched checks pass |
 | 039 | `20261006000000_039_testimonials_source.sql` | 2026-10-02 (live version `20261002053003`, name `testimonials_source`, via the Supabase MCP `apply_migration`) | Testimonials v2: strips the `rating` key from every stored testimonial (idempotent data fix, first), then replaces `course_testimonials_are_valid` with the new key set (`source`, `post_url`; no `rating`) and null-safe comparisons; column comment updated. No RLS change. Verified role-switched (above); all 14 live rows still pass |
+| 040 | `20261007000000_040_enroll_free_course.sql` | 2026-10-02 (via the Supabase MCP `apply_migration`, name `enroll_free_course`) | `fn_enroll_free_course(uuid)`: self-enrollment for free courses (above). No policy or table change. Verified role-switched (21 checks). The `course_not_found` error class was changed from `P0002` (HTTP 500) to `P0001` (HTTP 400) right after applying, by re-running the same `CREATE OR REPLACE`; the file holds the final text |
 | 032 | `20260930000000_032_avatar_config_v2.sql` | 2026-09-30 (live version `20260930161331`, name `avatar_config_v2`, via the Supabase MCP `apply_migration`; the filename timestamp differs from the live version, as with earlier migrations) | New immutable `public.avatar_config_is_valid(jsonb)` (`search_path = ''`) and `profiles_avatar_config_shape_check` now calls it. Accepts NULL, the legacy 026 shape unchanged, and the v2 shape (all keys required except `tints`; no other keys; each value from its fixed set; tints only for the four slots with a known swatch; <= 1 KB). The old CHECK rejected any extra key, so the richer config could not be saved: a migration was unavoidable. Checked with 12 direct calls (null, legacy ok, legacy missing key rejected, v2 ok with and without tints, bad value, extra key, bad tint value, bad tint key, v2 missing keys, array) and the one stored row still validates. No table, column, policy or RLS change; `database.types.ts` gained the function |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations

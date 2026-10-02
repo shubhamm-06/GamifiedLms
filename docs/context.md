@@ -133,7 +133,8 @@ src/
                quiz questions for the player),
                useCourseRoadmap (merges course content + engine states into the
                roadmap the course page renders), useCourseRef (course slug or id from the URL to the course id), useCourseInfo (course row +
-               fn_course_outline + own enrollment history, for the not-enrolled page), useMediaQuery; admin/ has
+               fn_course_outline + own enrollment history, for the not-enrolled page), useEnrollFreeCourse (the free-course
+               Enroll button: fn_enroll_free_course + cache refresh; pure wording/links in lib/freeEnrollment.ts), useMediaQuery; admin/ has
                one file per domain (useUsers, useUserMutations, useUserDetail,
                useCourses, useCoursePage (the Course page tab's save), useCurriculum, useGames, usePayments,
                useManualOrderProviders, useCurrencies, useBadges,

@@ -15,7 +15,7 @@ file-based — new routes are added there, not by creating files under a
 | `/courses/$courseId` | `CoursePage` | Signed-in (student route group, below) | The course roadmap — modules and lessons as a learning path with lock state, progress and an auto-opened next-step popover. The same roadmap Home shows, kept as a deep link (the locked-lesson redirect and the player's Back land here); it stamps `last_accessed_at` too. Takes an optional `?open=<lessonId>` search param (`validateSearch` keeps a non-empty string, else nothing): the page scrolls to that locked lesson and wiggles it once on arrival, then clears the param with a replace navigation so Back and refresh do not reopen it. The lesson player sends a locked lesson here this way |
 | `/courses/$courseId/lessons/$lessonId` | `LessonPlayerPage` | Signed-in (student route group) | The kid-facing lesson player: video, reading (`text`), game and quiz lessons, with a server-driven active-time ring, a server-graded quiz and a completion sheet. Access is decided by the engine, not by role (see "The lesson player route" below): not enrolled, expired or an unenrolled admin sees the not-enrolled screen; a locked lesson is sent to the roadmap with `?open=`; a missing, unpublished or wrong-course lesson sees an unavailable screen. A completed lesson opens in replay mode (no timer, no XP) |
 | `/login` | `LoginPage` | Public, but redirects signed-in admins | Accepts a `redirect` search param; see the login guard below |
-| `/signup` | `SignupPage` | Public | On success: session present → `/`; no session (email confirmation required) → "check your email" copy |
+| `/signup` | `SignupPage` | Public | Accepts a `redirect` search param (internal paths only, validated by `resolvePostLoginPath` like `/login`). On success: session present → the redirect, else `/`; no session (email confirmation required) → "check your email" copy with a "Back to log in" link that carries the redirect. The free-course page sends signed-out visitors here with a redirect back to the course |
 | `/course/$courseRef` | `PublicCoursePage` | **Public (no login)**; a signed-in visitor is redirected to `/courses/$courseId` | The parent-facing course page for someone who is not signed in. **`$courseRef` is the course slug** (`/course/demo-fun-with-numbers`); a course id also works and is rewritten in place to the slug. Upper-case slugs resolve (slugs are lowercase by constraint). (The shareable link; the admin Course page tab has "Copy public link"). No app shell: a brand row with the site name and a Log in link (which returns to `/courses/$courseId`), then the same `CoursePageView` as the in-app page. Reads the course row (anon can read a published, live course under `courses_select_published_or_admin`) and `fn_course_outline` (anon-executable since migration 035). A draft, archived, trashed or unknown id shows one identical "This course isn't available" message. Sets the tab title to `<course> \| <site name>` |
 | `/admin` | `DashboardPage` | Admin only | KPI cards, needs-attention list, recent-activity table |
 | `/admin/users` | `UsersPage` | Admin only | List/search/filter/paginate users; create dialog; **Export** menu (Selected rows / Current filtered results / All users, with an Include trashed toggle) and **Import** dialog (CSV → the Edge Function's `bulk_create`); row click navigates to the detail route below |
@@ -202,6 +202,20 @@ bounced off the guard a moment later.
 On sign-out the cached session is removed before navigating, otherwise
 `/login`'s own guard could read a stale admin session and bounce straight
 back to `/admin`.
+
+## Database function callable by students to enroll in a FREE course (migration 040)
+
+| Function | Who may call | Does |
+|---|---|---|
+| `fn_enroll_free_course(p_course_id)` | Signed-in (`authenticated` only; `anon` and `public` revoked) | Creates (or returns, idempotently) the caller's ACTIVE enrollment in a published, open, **free** (`courses.is_free`) course: `source 'free'`, no payment row, `expires_at` computed at insert time like the admin manual enroll. User from `auth.uid()` only. Refuses (calm client messages): not signed in, missing, archived or unpublished course, a non-free course, enrollment not open, and a user whose enrollment was revoked or expired (an admin restores those). Details: `schema.md` "Free-course self-enrollment" |
+
+**The course page for a free course** (`/courses/$courseId` for a signed-in non-enrolled user; `/course/$courseRef` for a
+signed-out visitor): the button reads "Enroll for free" and the admin-set custom link is ignored. Signed in: it calls the
+function and lands on the roadmap. Signed out: it is a link to `/signup?redirect=/courses/<slug>` (and the page offers
+Log in with the same redirect); after authenticating the visitor returns to the page with the button ready (chosen over
+auto-completing the enrollment across a sign-up: it survives email confirmation and a second device). Active enrollees
+never see the page (the route shows their roadmap). A revoked or expired learner sees a calm note and no button.
+Paid courses are unchanged (the admin-set link, opens in a new tab).
 
 ## Database functions callable by students for Home (migration 022)
 

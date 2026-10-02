@@ -189,6 +189,12 @@ The schema or docs anticipate each of these; no working code exists for any.
   builder is open keeps edit mode but loses its unsaved picks; a failed avatar Save still shows no message;
   Profile's stats are Level / XP / Day streak only (no badges summary exists on mobile either). All of this
   round (shell, Home, Profile, Badges, Courses, avatar v2) is still uncommitted.
+- **Direct enrollment for free courses (2026-10-02).** A free course (`is_free`) enrolls the signed-in user on our own site
+  through `fn_enroll_free_course` (migration 040, APPLIED; `schema.md`); signed-out visitors go to `/signup?redirect=...`
+  and return to the page with the button ready; revoked and expired learners are refused (admin restores). Paid courses
+  are unchanged. Known and left: no real sign-up exercised (Supabase rejects the fake test email domain); no Android
+  device; the leftover `zz-pub-*` / `zz-fe-*` test users and `ZZ` / `eeeeeeee-...` test courses (including published
+  ones) are still in the live database because cleanup deletes were declined.
 - **Testimonials v2 (2026-10-02, uncommitted).** One simple card for every count (no stars, no featured layout, no
   placeholder avatar), an optional photo that exists only when set and loaded, and an optional icon-only source with an
   optional link to the real post (`ui.md` "Testimonials v2"). Migration 039 APPLIED (removes `rating` from stored rows,

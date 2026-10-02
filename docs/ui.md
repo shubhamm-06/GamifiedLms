@@ -2436,6 +2436,40 @@ v2 (sticky pane >= 1280px, Sheet below, Mobile/Desktop toggle, unsaved values, s
   (URL paste only); ratings of any kind (removed in Testimonials v2, deliberately not planned); a variable Inter build with `cv08`; per-section
   colour or layout variants; scheduling or A/B variants of the page.
 
+### Free-course enrollment on the course page (2026-10-02)
+
+A FREE course (`courses.is_free`) enrolls directly on the page; the admin-set link is ignored (`schema.md` "Free-course
+self-enrollment", `routes-permissions.md`). The page keeps its look: Inter, white, mobile first, calm; the button is the
+same gold 48px control as the paid one (still the page's only gold element, in the bottom bar below 1024px and the card
+above). No XP, badge or celebration.
+
+- **States** (from the model's `enroll`): signed in, not enrolled -> a real `<button>` "Enroll for free" (the admin button label
+  overrides), disabled and "Enrolling…" while the call is in flight (double-submit protection; verified: a double click
+  makes ONE call), with "Free. No payment needed." in the wide card. Signed out -> a link "Enroll for free" to
+  `/signup?redirect=/courses/<slug>` (client-side navigation, real `href` for middle-click) with "Free. You'll create an
+  account first. Log in" in the card (the signed-out page's top bar always has Log in); both carry the redirect, and
+  `/signup` and `/login` link to each other with it. Already enrolled -> "Go to course" linking to the roadmap (active
+  enrollees are normally taken straight to the roadmap by the route, so this is the stale-cache case). Revoked or expired
+  -> the soft "Your access to this course was ended. Please contact support." / "Your access ended on <date>." block, no
+  button, no gold. The paid button, "Enroll again" and the closed-enrollment note are unchanged.
+- **Errors** are one calm soft-background line under the lead (`role="alert"`, Info icon, no gamified styling), never raw
+  error text: "Enrollment isn't open for this course right now.", "This course isn't free right now.", "This course isn't
+  available right now.", "Please log in to enroll.", or "We couldn't enroll you just now. Please try again." The button is
+  usable again afterwards.
+- **After success** the course becomes the user's current course (Home picks the most recent enrollment; the Home key is
+  set at once), the enrollment-derived queries are invalidated (Home, Courses, Explore, the lesson states, the course's
+  modules and lessons, the enrollment history) and the user lands on `/courses/<slug>`, now the roadmap. The modules and
+  lessons query is on the list on purpose: it was cached while not enrolled (RLS returned nothing) and would otherwise
+  render an empty path.
+- **Admin**: on a free course the Basics tab's "Enrollment link" input is disabled with the helper "Not used: free courses
+  enroll students directly on the site."; the Course page tab's live preview shows the free button, inert.
+- **Verified** (Chromium, live project, mobile 390 and desktop 1280): signed out -> sign-up link with the redirect; signed in
+  -> enroll (one call, one `free` row, no payment, `expires_at` 30 days, `total_students` +1, no XP or badge), the roadmap
+  with its lesson, Home and Courses showing the course, Explore no longer offering it; a refusal shows the calm message;
+  revoked and expired show their note; paid courses unchanged signed in and out; the log-in redirect returns to the page
+  with the button ready. Not exercised: a real new sign-up (Supabase rejects the fake test email domain; the sign-up redirect
+  uses the same code as log-in), a real Android device.
+
 ### Testimonials v2 (2026-10-02)
 
 One simple card for every count. Removed: the star rating, the featured single-quote layout (large quote, left accent
