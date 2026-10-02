@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ComponentType, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ComponentType, type MouseEvent, type ReactNode } from 'react'
 import { ArrowLeft, Check, ChevronDown, ExternalLink, History, Info, Mail, type LucideIcon } from 'lucide-react'
 import { isHttpsUrl } from '@/lib/externalLink'
 import type { CoursePageModel, PageIconKey, PageModuleOut, PageSection, PageTestimonial } from '@/lib/coursePage'
@@ -15,6 +15,21 @@ export interface CoursePageViewProps {
   backLink?: ComponentType<{ className: string; 'aria-label'?: string; children: ReactNode }>
   /** The signed-out public page: replaces the back control with this (site name, Log in). */
   top?: ReactNode
+  /** FREE courses only: what the Enroll button does. Absent (or `embedded`): the button is inert. */
+  free?: FreeEnrollActions
+}
+
+export interface FreeEnrollActions {
+  onEnroll: () => void
+  /** True while the enrollment call is in flight: the button is disabled (no double submit). */
+  pending: boolean
+  /** A calm, already-worded message (never raw error text), shown under the lead. */
+  error: string | null
+  signupHref: string
+  loginHref: string
+  goHref: string
+  /** Client-side navigation for the plain links (the href stays for middle-click and screen readers). */
+  onNavigate: (href: string) => void
 }
 
 /** Every page icon goes through this: supportive (the text beside it carries the meaning), so hidden from assistive tech. */
@@ -30,7 +45,7 @@ function PageIcon({ icon: Icon, size, className }: { icon: LucideIcon; size: 16 
  * `model.sections` through the ONE `Section` wrapper. Plain text only: every string is a React
  * text node, never HTML, and nothing is auto-linked.
  */
-export function CoursePageView({ model, embedded = false, backLink: BackLink, top }: CoursePageViewProps) {
+export function CoursePageView({ model, embedded = false, backLink: BackLink, top, free }: CoursePageViewProps) {
   const uid = useId()
   useEffect(() => {
     void loadCoursePageFont(model.font)
@@ -65,6 +80,12 @@ export function CoursePageView({ model, embedded = false, backLink: BackLink, to
               {model.title}
             </h1>
             {model.lead ? <p className="cp-lead">{model.lead}</p> : null}
+            {free?.error && model.enroll.state === 'free' ? (
+              <p className="cp-noenroll cp-hero-err" role="alert" data-testid="free-enroll-error">
+                <PageIcon icon={Info} size={16} />
+                <span>{free.error}</span>
+              </p>
+            ) : null}
             {model.enroll.state === 'closed' ? (
               // Narrow and medium: the note is seen at once, under the lead (the wide card carries its own).
               <p className="cp-noenroll cp-hero-note" role="status" data-testid="no-enroll-note-hero">
@@ -117,7 +138,7 @@ export function CoursePageView({ model, embedded = false, backLink: BackLink, to
           className="cp-buy"
           data-enroll={model.enroll.state}
           data-noprice={model.price.text ? undefined : ''}
-          data-long={model.enroll.state === 'open' && model.enroll.label.length > 16 ? '' : undefined}
+          data-long={'label' in model.enroll && model.enroll.label.length > 16 ? '' : undefined}
           aria-label="Enrollment"
           data-testid="enroll-area"
         >
@@ -140,6 +161,19 @@ export function CoursePageView({ model, embedded = false, backLink: BackLink, to
             <div className="cp-buy-cta">
               <EnrollLink url={model.enroll.url} label={model.enroll.label} embedded={embedded} />
               <p className="cp-fine">You&apos;ll finish enrolling on another page.</p>
+            </div>
+          ) : model.enroll.state === 'free' ? (
+            <div className="cp-buy-cta">
+              <FreeEnrollAction action={model.enroll.action} label={model.enroll.label} free={free} embedded={embedded} />
+              {model.enroll.action === 'enroll' ? <p className="cp-fine">Free. No payment needed.</p> : null}
+              {model.enroll.action === 'signup' ? (
+                <p className="cp-fine">
+                  Free. You&apos;ll create an account first.{' '}
+                  <a href={free?.loginHref ?? '/login'} onClick={(e) => navClick(e, free?.loginHref, free, embedded)}>
+                    Log in
+                  </a>
+                </p>
+              ) : null}
             </div>
           ) : (
             <p className="cp-noenroll cp-card-note" data-testid="no-enroll-note">
@@ -446,6 +480,39 @@ function SupportLine({ email }: { email: string }) {
         Email support
       </a>
     </p>
+  )
+}
+
+/** A plain left-click on an in-app link navigates client-side; modified clicks (new tab) keep the browser's behaviour. Inert in the admin preview. */
+function navClick(e: MouseEvent<HTMLAnchorElement>, href: string | undefined, free: FreeEnrollActions | undefined, embedded: boolean) {
+  if (embedded) {
+    e.preventDefault()
+    return
+  }
+  if (!href || !free || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+  e.preventDefault()
+  free.onNavigate(href)
+}
+
+/**
+ * The Enroll button of a FREE course. A signed-in visitor gets a real <button> (disabled while the call is
+ * in flight); a signed-out visitor gets a link to /signup; an enrolled one a link to the roadmap.
+ * Gold, 48px, exactly like the paid button: the page keeps its one gold element.
+ */
+function FreeEnrollAction({ action, label, free, embedded }: { action: 'enroll' | 'signup' | 'go'; label: string; free: FreeEnrollActions | undefined; embedded: boolean }) {
+  if (action === 'enroll') {
+    const pending = !embedded && !!free?.pending
+    return (
+      <button type="button" className="cp-enroll" data-testid="enroll-free" disabled={pending} aria-busy={pending} onClick={() => !embedded && free?.onEnroll()}>
+        <span className="cp-enroll-label">{pending ? 'Enrolling…' : label}</span>
+      </button>
+    )
+  }
+  const href = action === 'signup' ? (free?.signupHref ?? '/signup') : (free?.goHref ?? '/')
+  return (
+    <a className="cp-enroll" href={href} data-testid={action === 'signup' ? 'enroll-signup' : 'enroll-go'} onClick={(e) => navClick(e, href, free, embedded)}>
+      <span className="cp-enroll-label">{label}</span>
+    </a>
   )
 }
 

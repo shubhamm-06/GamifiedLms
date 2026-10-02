@@ -9,6 +9,7 @@ import '@/components/kid/coursePage/coursePage.css'
 import { useAppSettings } from '@/hooks/useAppSettings'
 import { useCourseInfo, useCourseOutline } from '@/hooks/useCourseInfo'
 import { buildCoursePageModel } from '@/lib/coursePage'
+import { courseAuthHref, courseRoadmapHref } from '@/lib/freeEnrollment'
 import { isUuid } from '@/lib/slug'
 
 /**
@@ -35,7 +36,7 @@ export function PublicCoursePage() {
   const supportEmail = settings.data?.support_email ?? null
 
   const model = useMemo(
-    () => (info.data ? buildCoursePageModel({ course: info.data, outline: outline.data ?? [], viewer: { kind: 'new' }, supportEmail }) : null),
+    () => (info.data ? buildCoursePageModel({ course: info.data, outline: outline.data ?? [], viewer: { kind: 'anon' }, supportEmail }) : null),
     [info.data, outline.data, supportEmail],
   )
 
@@ -105,7 +106,19 @@ export function PublicCoursePage() {
   }
   return (
     <div className="cp-public">
-      <CoursePageView model={model} top={top} />
+      <CoursePageView
+        model={model}
+        top={top}
+        free={{
+          onEnroll: () => undefined, // never reached: a signed-out visitor gets the sign-up link, not a button
+          pending: false,
+          error: null,
+          signupHref: courseAuthHref('signup', info.data?.slug ?? courseRef),
+          loginHref: courseAuthHref('login', info.data?.slug ?? courseRef),
+          goHref: courseRoadmapHref(info.data?.slug ?? courseRef),
+          onNavigate: (href) => void navigate({ href }),
+        }}
+      />
     </div>
   )
 }

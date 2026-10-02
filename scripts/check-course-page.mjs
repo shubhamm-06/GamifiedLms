@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { toPageFormValues, toPageRow, validatePageValues, samePage, previewCourse, describePageWriteError, newCustomEntry, blankTestimonial, detectSource, PAGE_COLUMNS } from '../src/lib/coursePageForm.ts'
 import { buildCoursePageModel, formatAges, formatDuration, formatAccessLength, parseOutline, normalizePageConfig, BUILTIN_KEYS } from '../src/lib/coursePage.ts'
+import { describeEnrollError, courseAuthHref, courseRoadmapHref } from '../src/lib/freeEnrollment.ts'
 import { pageConfigSchema } from '../src/lib/coursePageSchema.ts'
 
 let n = 0
@@ -516,5 +517,51 @@ ok('mobile: included list is automatic (with icons, not shown on narrow) unless 
   assert.equal(/from ['"]zod['"]|coursePageSchema/.test(src.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '')), false)
   n++; console.log('ok   mobile: coursePage.ts imports neither zod nor coursePageSchema')
 }
+
+// =========================================================== free-course enrollment (migration 040)
+
+ok('free: a free course enrolls on the site; the custom link is ignored', () => {
+  const e = build({ is_free: true, enroll_url: 'https://pay.test/ignored' }).enroll
+  assert.deepEqual(e, { state: 'free', action: 'enroll', label: 'Enroll for free' })
+  assert.deepEqual(build({ is_free: true }).enroll, { state: 'free', action: 'enroll', label: 'Enroll for free' }, 'works with no link at all')
+  assert.equal(JSON.stringify(build({ is_free: true, enroll_url: 'https://pay.test/ignored' }).enroll).includes('pay.test'), false)
+})
+ok('free: signed-out viewer is sent to sign up; enrolled viewer gets "Go to course"', () => {
+  assert.deepEqual(build({ is_free: true }, { viewer: { kind: 'anon' } }).enroll, { state: 'free', action: 'signup', label: 'Enroll for free' })
+  assert.deepEqual(build({ is_free: true }, { viewer: { kind: 'enrolled' } }).enroll, { state: 'free', action: 'go', label: 'Go to course' })
+})
+ok('free: a revoked or expired viewer gets a calm note and no button (an admin restores access)', () => {
+  const r = build({ is_free: true }, { viewer: { kind: 'revoked' } }).enroll
+  assert.deepEqual(r, { state: 'closed', note: 'Your access to this course was ended. Please contact support.' })
+  const x = build({ is_free: true }, { viewer: { kind: 'expired', endedAt: '2026-09-21T10:00:00Z' } }).enroll
+  assert.deepEqual(x, { state: 'closed', note: 'Your access ended on 21 Sep 2026.' })
+  assert.equal(build({ is_free: true }, { viewer: { kind: 'expired', endedAt: null } }).enroll.note, 'Your access has ended.')
+})
+ok('free: the admin button label applies to a free course too', () => {
+  assert.equal(build({ is_free: true, page_options: { cta_label: 'Start learning' } }).enroll.label, 'Start learning')
+  assert.equal(build({ is_free: true, page_options: { cta_label: 'Start learning' } }, { viewer: { kind: 'enrolled' } }).enroll.label, 'Go to course')
+})
+ok('free: a PAID course is unchanged for every viewer (link, "Enroll now", no free state)', () => {
+  const paid = { is_free: false, price_amount: 999, enroll_url: 'https://pay.test/x' }
+  for (const v of [undefined, { kind: 'new' }, { kind: 'anon' }, { kind: 'enrolled' }, { kind: 'revoked' }]) {
+    assert.deepEqual(build(paid, { viewer: v }).enroll, { state: 'open', url: 'https://pay.test/x', label: 'Enroll now', expiredNote: null }, JSON.stringify(v))
+  }
+  assert.equal(build(paid, { viewer: { kind: 'expired', endedAt: null } }).enroll.label, 'Enroll again')
+  for (const f of [false, null, undefined]) assert.notEqual(build({ is_free: f, enroll_url: 'https://pay.test/x' }).enroll.state, 'free')
+  assert.equal(build({ is_free: false }).enroll.state, 'closed')
+})
+ok('free: error wording is calm and never the raw error text', () => {
+  const d = describeEnrollError
+  assert.equal(d('enrollment_revoked'), 'Your access to this course was ended. Please contact support.'); assert.equal(d('enrollment_expired'), 'Your access to this course has ended.')
+  assert.equal(d('enrollment_closed'), "Enrollment isn't open for this course right now."); assert.equal(d('not_free'), "This course isn't free right now.")
+  for (const t of ['course_not_found', 'course_unavailable', 'course_archived']) assert.equal(d(t), "This course isn't available right now.")
+  assert.equal(d('not_authenticated'), 'Please log in to enroll.')
+  for (const raw of ['TypeError: Failed to fetch', 'JWT expired', 'duplicate key value violates unique constraint', '', null, undefined]) assert.equal(d(raw), "We couldn't enroll you just now. Please try again.")
+  assert.equal(/_|constraint|jwt/i.test(d('weird_internal_token')), false)
+})
+ok('free: sign-up and log-in links carry a redirect back to the in-app course page', () => {
+  assert.equal(courseAuthHref('signup', 'demo-fun-with-numbers'), '/signup?redirect=%2Fcourses%2Fdemo-fun-with-numbers')
+  assert.equal(courseAuthHref('login', 'a-b'), '/login?redirect=%2Fcourses%2Fa-b'); assert.equal(courseRoadmapHref('a-b'), '/courses/a-b')
+})
 
 console.log(`\n${n} checks passed`)

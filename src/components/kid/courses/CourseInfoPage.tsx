@@ -1,11 +1,13 @@
 import { useEffect, useMemo, type ReactNode } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouter } from '@tanstack/react-router'
 import { Skeleton } from '@/components/ui/skeleton'
-import { buildCoursePageModel, normalizePageConfig, PAGE_FONTS, type CoursePageCourse, type PageFont } from '@/lib/coursePage'
+import { buildCoursePageModel, normalizePageConfig, PAGE_FONTS, type CoursePageCourse, type PageFont, type Viewer } from '@/lib/coursePage'
 import { isHttpsUrl } from '@/lib/externalLink'
 import { useAppSettings } from '@/hooks/useAppSettings'
 import { useCourseInfo, useCourseOutline, useMyEnrollmentHistory, type CourseInfo, type MyEnrollmentHistory } from '@/hooks/useCourseInfo'
-import { CoursePageView } from '@/components/kid/coursePage/CoursePageView'
+import { CoursePageView, type FreeEnrollActions } from '@/components/kid/coursePage/CoursePageView'
+import { useEnrollFreeCourse } from '@/hooks/useEnrollFreeCourse'
+import { courseAuthHref, courseRoadmapHref, describeEnrollError } from '@/lib/freeEnrollment'
 import { useCoursePageFonts } from '@/components/kid/coursePage/fonts'
 import { RetryScreen, UnavailableScreen } from '@/components/kid/roadmap/StateScreens'
 
@@ -52,6 +54,14 @@ export function useWarmCover(course: (CoursePageCourse & { thumbnail_url?: strin
   }, [url])
 }
 
+/** The page's viewer from their own enrollment history: a revoked or expired row changes what a FREE course offers. */
+function viewerOf(history: MyEnrollmentHistory | null): Viewer {
+  if (history?.status === 'active') return { kind: 'enrolled' }
+  if (history?.status === 'expired') return { kind: 'expired', endedAt: history.expiresAt }
+  if (history?.status === 'revoked') return { kind: 'revoked' }
+  return { kind: 'new' }
+}
+
 /** The course row's font preset, or the default when it is missing or unknown. */
 // eslint-disable-next-line react-refresh/only-export-components -- tiny helper shared with PublicCoursePage
 export function presetOf(font: string | null | undefined): PageFont {
@@ -89,16 +99,28 @@ function BackToCourses({ className, children, 'aria-label': ariaLabel }: { class
 
 function CourseInfoPage({ course, outline, history }: { course: CourseInfo; outline: Parameters<typeof buildCoursePageModel>[0]['outline']; history: MyEnrollmentHistory | null }) {
   const settings = useAppSettings()
+  const router = useRouter()
+  const enrollFree = useEnrollFreeCourse(course)
   const supportEmail = settings.data?.support_email ?? null
   const model = useMemo(
     () =>
       buildCoursePageModel({
         course,
         outline,
-        viewer: history?.status === 'expired' ? { kind: 'expired', endedAt: history.expiresAt } : { kind: 'new' },
+        viewer: viewerOf(history),
         supportEmail,
       }),
     [course, outline, history, supportEmail],
   )
-  return <CoursePageView model={model} backLink={BackToCourses} />
+  // Free courses enroll right here (fn_enroll_free_course); paid ones keep the admin-set link (no `free` actions needed).
+  const free: FreeEnrollActions = {
+    onEnroll: enrollFree.enroll,
+    pending: enrollFree.isPending,
+    error: enrollFree.isError ? describeEnrollError(enrollFree.error.message) : null,
+    signupHref: courseAuthHref('signup', course.slug),
+    loginHref: courseAuthHref('login', course.slug),
+    goHref: courseRoadmapHref(course.slug),
+    onNavigate: (href) => router.history.push(href),
+  }
+  return <CoursePageView model={model} backLink={BackToCourses} free={free} />
 }

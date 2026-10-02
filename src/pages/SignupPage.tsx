@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from '@tanstack/react-router'
+import { Link, useRouter, useSearch } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { AuthField } from '@/components/auth/AuthField'
+import { resolvePostLoginPath } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -13,7 +15,9 @@ interface FieldErrors {
 }
 
 export function SignupPage() {
-  const navigate = useNavigate()
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const { redirect } = useSearch({ from: '/signup' })
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -50,7 +54,9 @@ export function SignupPage() {
     }
 
     if (data.session) {
-      navigate({ to: '/' })
+      // Back to where the visitor came from (e.g. a free course page, so the Enroll button is ready), else Home.
+      // `redirect` is validated (internal paths only) inside resolvePostLoginPath.
+      router.history.replace(await resolvePostLoginPath(queryClient, redirect))
     } else {
       setCheckEmail(true)
     }
@@ -64,7 +70,7 @@ export function SignupPage() {
           account, then log in.
         </p>
         <p className="auth-footer">
-          <Link to="/login" className="auth-link">
+          <Link to="/login" search={{ redirect }} className="auth-link">
             Back to log in
           </Link>
         </p>
@@ -109,7 +115,7 @@ export function SignupPage() {
       </form>
       <p className="auth-footer">
         Already have an account?{' '}
-        <Link to="/login" className="auth-link">
+        <Link to="/login" search={{ redirect }} className="auth-link">
           Log in
         </Link>
       </p>

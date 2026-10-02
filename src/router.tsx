@@ -55,6 +55,11 @@ const signupRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/signup',
   component: SignupPage,
+  // Where to go after signing up (e.g. back to the free course page the visitor came from). Validated
+  // where it is used (`resolvePostLoginPath` -> `safeInternalPath`), like /login's.
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    redirect: typeof search.redirect === 'string' ? search.redirect : undefined,
+  }),
 })
 
 /**

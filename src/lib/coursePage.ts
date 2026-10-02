@@ -108,7 +108,12 @@ export interface OutlineModule {
   lessons: OutlineLesson[]
 }
 
-export type Viewer = { kind: 'new' } | { kind: 'expired'; endedAt: string | null }
+/**
+ * Who is looking. `new`: signed in, never enrolled here. `anon`: signed out (the public page).
+ * `enrolled`: an active enrollment. `revoked` / `expired`: access that ended (only the FREE-course
+ * flow reads `revoked`: a paid course keeps its "Enroll now" for everyone who is not enrolled).
+ */
+export type Viewer = { kind: 'new' } | { kind: 'anon' } | { kind: 'enrolled' } | { kind: 'revoked' } | { kind: 'expired'; endedAt: string | null }
 
 export interface CoursePageInput {
   course: CoursePageCourse
@@ -448,7 +453,14 @@ export interface CoursePageModel {
   /** True when the admin wrote the included list. On narrow screens only an admin-written list is shown. */
   includedCustom: boolean
   price: { text: string | null; note: string | null; accessLine: string | null }
-  enroll: { state: 'open'; url: string; label: string; expiredNote: string | null } | { state: 'closed'; note: string }
+  enroll:
+    | { state: 'open'; url: string; label: string; expiredNote: string | null }
+    /**
+     * A FREE course enrolls directly on the site (fn_enroll_free_course), the custom link is ignored.
+     * enroll: a signed-in viewer enrolls; signup: a signed-out viewer goes to /signup; go: already enrolled.
+     */
+    | { state: 'free'; action: 'enroll' | 'signup' | 'go'; label: string }
+    | { state: 'closed'; note: string }
 }
 
 // ------------------------------------------------------------------ helpers
@@ -784,7 +796,15 @@ export function buildCoursePageModel(input: CoursePageInput): CoursePageModel {
   const enrollUrl = str(course.enroll_url)
   const note = expiredNote(viewer)
   const ctaLabel = str(opts.cta_label) || 'Enroll now'
-  const enroll: CoursePageModel['enroll'] = isHttpsUrl(enrollUrl)
+  const freeEnroll = (): CoursePageModel['enroll'] => {
+    if (viewer?.kind === 'enrolled') return { state: 'free', action: 'go', label: 'Go to course' }
+    if (viewer?.kind === 'revoked') return { state: 'closed', note: 'Your access to this course was ended. Please contact support.' }
+    if (viewer?.kind === 'expired') return { state: 'closed', note: note ?? 'Your access has ended.' }
+    return { state: 'free', action: viewer?.kind === 'anon' ? 'signup' : 'enroll', label: str(opts.cta_label) || 'Enroll for free' }
+  }
+  const enroll: CoursePageModel['enroll'] = course.is_free === true
+    ? freeEnroll()
+    : isHttpsUrl(enrollUrl)
     ? { state: 'open', url: enrollUrl, label: note ? 'Enroll again' : ctaLabel, expiredNote: note }
     : { state: 'closed', note: "Enrollment isn't open for this course yet." }
 

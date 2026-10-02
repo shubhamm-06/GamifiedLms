@@ -326,7 +326,11 @@ export function CourseForm({
         <Field
           id="enroll_url"
           label="Enrollment link"
-          hint="Where the Enroll now button sends students, for example a payment page, form or WhatsApp link. Must start with https://. Leave empty to hide the button."
+          hint={
+            values.is_free
+              ? 'Not used: free courses enroll students directly on the site.'
+              : 'Where the Enroll now button sends students, for example a payment page, form or WhatsApp link. Must start with https://. Leave empty to hide the button.'
+          }
           error={enrollUrlError}
         >
           <Input
@@ -334,6 +338,7 @@ export function CourseForm({
             type="url"
             placeholder="https://"
             value={values.enroll_url}
+            disabled={values.is_free}
             aria-invalid={!!enrollUrlError}
             onChange={(e) => set('enroll_url', e.target.value)}
           />

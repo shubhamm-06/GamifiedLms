@@ -482,7 +482,8 @@
   margin-top: calc((1.5em - 16px) / 2);
   color: var(--cp-ink2);
 }
-.cp-hero-note {
+.cp-hero-note,
+.cp-hero-err {
   margin-top: var(--cp-s16);
 }
 @container cp (min-width: 1024px) {
@@ -1106,6 +1107,16 @@ a.cp-src {
   cursor: pointer;
   transition: background-color 120ms ease, transform 120ms ease;
 }
+button.cp-enroll {
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+button.cp-enroll:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
 .cp-enroll-label {
   min-width: 0;
   overflow: hidden;
@@ -1189,6 +1200,11 @@ a.cp-src {
   .cp-enroll {
     height: 50px;
     padding: 0;
+  }
+  .cp-fine a {
+    color: var(--cp-accent-text);
+    text-decoration: underline;
+    text-underline-offset: 3px;
   }
   .cp-fine {
     display: block;

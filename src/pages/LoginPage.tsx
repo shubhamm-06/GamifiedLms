@@ -84,7 +84,7 @@ export function LoginPage() {
       </form>
       <p className="auth-footer">
         Don&rsquo;t have an account?{' '}
-        <Link to="/signup" className="auth-link">
+        <Link to="/signup" search={{ redirect }} className="auth-link">
           Sign up
         </Link>
       </p>
