@@ -1,5 +1,6 @@
-import { useEffect, useId, useState, type ComponentType, type MouseEvent, type ReactNode } from 'react'
-import { ArrowLeft, Check, ChevronDown, ExternalLink, History, Info, Mail, type LucideIcon } from 'lucide-react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentType, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, ExternalLink, History, Info, Mail, type LucideIcon } from 'lucide-react'
+import { prefersReducedMotion } from '@/hooks/useMediaQuery'
 import { isHttpsUrl } from '@/lib/externalLink'
 import type { CoursePageModel, PageIconKey, PageModuleOut, PageSection, PageTestimonial } from '@/lib/coursePage'
 import { loadCoursePageFont } from './fonts'
@@ -430,28 +431,123 @@ function Outline({ modules, detail, open }: { modules: PageModuleOut[]; detail: 
   )
 }
 
-/** Testimonials: ONE card design for every count (1 = a single full-width card; 2 to 6 = a grid). */
+/**
+ * Testimonials: ONE card design for every count, laid out as a native scroll-snap carousel (no
+ * library, no autoplay). The cards are unchanged; only the layout and the navigation are new.
+ */
 function Reviews({ items }: { items: PageTestimonial[] }) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  // `total` is read from the DOM (the slides actually in the track), so the counter can never disagree with what is on screen.
+  const [view, setView] = useState({ fits: true, canPrev: false, canNext: false, first: 1, last: 1, total: items.length, thumbLeft: 0, thumbWidth: 100 })
+
+  useLayoutEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    let frame = 0
+    const measure = () => {
+      frame = 0
+      const slides = Array.from(track.children) as HTMLElement[]
+      const left = track.scrollLeft
+      const width = track.clientWidth
+      const full = track.scrollWidth
+      const visible = slides.map((el, i) => ({ i, ok: el.offsetLeft >= left - 2 && el.offsetLeft + el.offsetWidth <= left + width + 2 })).filter((x) => x.ok)
+      const first = visible.length ? visible[0].i + 1 : 1
+      const last = visible.length ? visible[visible.length - 1].i + 1 : 1
+      const fits = full <= width + 1
+      setView({
+        fits,
+        canPrev: left > 2,
+        canNext: left + width < full - 2,
+        first,
+        last,
+        total: slides.length,
+        thumbLeft: fits ? 0 : (left / full) * 100,
+        thumbWidth: fits ? 100 : (width / full) * 100,
+      })
+    }
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(measure)
+    }
+    measure()
+    track.addEventListener('scroll', schedule, { passive: true })
+    const ro = new ResizeObserver(schedule)
+    ro.observe(track)
+    window.addEventListener('resize', schedule)
+    return () => {
+      track.removeEventListener('scroll', schedule)
+      ro.disconnect()
+      window.removeEventListener('resize', schedule)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [items])
+
+  /** One step = one card (+ its gap); a button press moves one VIEW (as many cards as are visible). Instant, not smooth, under reduced motion. */
+  function scrollByView(direction: 1 | -1, cards?: number) {
+    const track = trackRef.current
+    const first = track?.firstElementChild as HTMLElement | undefined
+    if (!track || !first) return
+    const gap = parseFloat(getComputedStyle(track).columnGap) || 0
+    const step = first.offsetWidth + gap
+    const perView = cards ?? Math.max(1, Math.floor((track.clientWidth + gap) / step + 0.01))
+    track.scrollBy({ left: direction * perView * step, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+  }
+
+  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.target !== e.currentTarget) return // keys typed inside a card (e.g. on its link) keep their meaning
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      scrollByView(1, 1)
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      scrollByView(-1, 1)
+    } else if (e.key === 'Home' || e.key === 'End') {
+      e.preventDefault()
+      trackRef.current?.scrollTo({ left: e.key === 'Home' ? 0 : trackRef.current.scrollWidth, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+    }
+  }
+
+  const counter = view.first === view.last ? `${view.first} of ${view.total}` : `${view.first} to ${view.last} of ${view.total}`
   return (
-    <ul className="cp-reviews" data-count={items.length} data-testid="review-grid">
-      {items.map((t, i) => (
-        <li key={i}>
-          <figure className="cp-review" data-testid="review-card">
-            <blockquote>
-              <p>{t.quote}</p>
-            </blockquote>
-            <figcaption className="cp-person">
-              {t.photoUrl ? <ReviewPhoto url={t.photoUrl} /> : null}
-              <span className="cp-person-text">
-                <span className="cp-person-name">{t.name}</span>
-                {t.relation ? <span className="cp-person-rel">{t.relation}</span> : null}
-              </span>
-              {t.source ? <SourceIcon source={t.source} postUrl={t.postUrl} /> : null}
-            </figcaption>
-          </figure>
-        </li>
-      ))}
-    </ul>
+    <div className="cp-carousel" role="region" aria-roledescription="carousel" aria-label="Parent testimonials" data-count={items.length} data-fits={view.fits ? '' : undefined} data-testid="review-carousel">
+      <div className="cp-track" ref={trackRef} tabIndex={0} role="group" aria-label="Testimonials. Use the left and right arrow keys to move between them." onKeyDown={onKeyDown} data-testid="review-track">
+        {items.map((t, i) => (
+          <div key={i} className="cp-slide" role="group" aria-roledescription="slide" aria-label={`${i + 1} of ${items.length}`}>
+            <figure className="cp-review" data-testid="review-card">
+              <blockquote>
+                <p>{t.quote}</p>
+              </blockquote>
+              <figcaption className="cp-person">
+                {t.photoUrl ? <ReviewPhoto url={t.photoUrl} /> : null}
+                <span className="cp-person-text">
+                  <span className="cp-person-name">{t.name}</span>
+                  {t.relation ? <span className="cp-person-rel">{t.relation}</span> : null}
+                </span>
+                {t.source ? <SourceIcon source={t.source} postUrl={t.postUrl} /> : null}
+              </figcaption>
+            </figure>
+          </div>
+        ))}
+      </div>
+      {view.fits ? null : (
+        <div className="cp-car-ctl" data-testid="review-controls">
+          {/* A thin bar whose thumb IS the visible window (works for any number of cards), plus a compact count. Decorative: the slides carry their own labels. */}
+          <div className="cp-car-bar" aria-hidden="true" data-testid="review-progress">
+            <span className="cp-car-thumb" style={{ left: `${view.thumbLeft}%`, width: `${view.thumbWidth}%` }} />
+          </div>
+          <span className="cp-car-count" aria-hidden="true" data-testid="review-count">
+            {counter}
+          </span>
+          <div className="cp-car-arrows">
+            <button type="button" className="cp-car-btn" aria-label="Previous testimonials" disabled={!view.canPrev} onClick={() => scrollByView(-1)}>
+              <ChevronLeft size={20} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+            </button>
+            <button type="button" className="cp-car-btn" aria-label="Next testimonials" disabled={!view.canNext} onClick={() => scrollByView(1)}>
+              <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" focusable="false" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 

@@ -798,24 +798,132 @@
   }
 }
 
-/* ---- reviews: ONE card design for every count -------------------------------------------
-   White, 1px hairline, 12px radius, 24px padding, no shadow, no hover. Quote, then the person
-   row pinned to the card bottom (so rows align across equal-height cards): optional photo, name
-   and relation, and an optional icon-only source at the right end. One column below 640px of
-   the main column, two from 640px; exactly one review is a single full-width card. */
+/* ---- reviews: ONE card design for every count, in a native scroll-snap carousel -----------
+   The cards are unchanged: white, 1px hairline, 12px radius, 24px padding, no shadow, no hover (the page
+   spec: review cards have none). Quote, then the person row pinned to the card bottom: optional photo,
+   name and relation, and an optional icon-only source at the right end.
 
-.cp-reviews {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--cp-s16);
-  list-style: none;
+   Layout follows the MAIN column's width (the carousel never leaves the content column): below 640px one
+   card per view at 85% width, so the next card peeks and the row visibly scrolls; from 640px two; from
+   960px three. The wide page layout keeps the main column near 550 to 650px, so there it is one peeking
+   card (below 640px) or two. A single review is one full-width card; when everything fits there are no
+   controls at all. No autoplay, nothing moves by itself. */
+
+.cp-carousel {
+  min-width: 0;
+}
+.cp-track {
+  --cp-car-gap: var(--cp-s16);
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: var(--cp-car-gap);
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Horizontal swipes snap; vertical page scrolling stays native (no hijacking), and an edge swipe does not trigger browser back/forward. */
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.cp-track::-webkit-scrollbar {
+  display: none;
+}
+.cp-slide {
+  display: flex;
+  flex: 0 0 85%;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+.cp-slide:last-child {
+  scroll-snap-align: end;
+}
+.cp-carousel[data-count='1'] .cp-slide {
+  flex-basis: 100%;
 }
 @container cpmain (min-width: 640px) {
-  .cp-reviews:not([data-count='1']) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--cp-s24);
+  .cp-track {
+    --cp-car-gap: var(--cp-s24);
+  }
+  .cp-carousel:not([data-count='1']) .cp-slide {
+    flex-basis: calc((100% - var(--cp-car-gap)) / 2);
   }
 }
+@container cpmain (min-width: 960px) {
+  .cp-carousel:not([data-count='1']) .cp-slide {
+    flex-basis: calc((100% - 2 * var(--cp-car-gap)) / 3);
+  }
+}
+/* Two cards that fit in one view need no scrolling: do not leave the last one "end"-snapped oddly. */
+.cp-carousel[data-fits] .cp-slide {
+  scroll-snap-align: start;
+}
+
+/* Controls: only when there is something to scroll. A thin bar (its thumb is the visible window) and a compact count;
+   arrows only where the main column is wide enough to be a tablet or desktop layout (phones swipe). */
+.cp-car-ctl {
+  display: flex;
+  align-items: center;
+  gap: var(--cp-s16);
+  margin-top: var(--cp-s16);
+}
+.cp-car-bar {
+  position: relative;
+  flex: 1;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--cp-line);
+}
+.cp-car-thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  background: var(--cp-ink2);
+}
+.cp-car-count {
+  flex: none;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--cp-ink2);
+  font-variant-numeric: tabular-nums;
+}
+.cp-car-arrows {
+  display: none;
+  flex: none;
+  gap: var(--cp-s8);
+}
+@container cpmain (min-width: 520px) {
+  .cp-car-arrows {
+    display: flex;
+  }
+}
+.cp-car-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--cp-line);
+  border-radius: 999px;
+  background: var(--cp-bg);
+  color: var(--cp-ink);
+  cursor: pointer;
+}
+.cp-car-btn:disabled {
+  color: var(--cp-ink2);
+  opacity: 0.45;
+  cursor: default;
+}
+@media (hover: hover) {
+  .cp-car-btn:not(:disabled):hover {
+    border-color: var(--cp-ink2);
+  }
+}
+
 .cp-review {
   display: flex;
   flex-direction: column;
