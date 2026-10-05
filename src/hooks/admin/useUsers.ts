@@ -24,7 +24,7 @@ export interface AdminUserRow {
 export const usersQueryKey = ['admin', 'users'] as const
 
 /** Which users a batched fetch returns. Trashed users live on /admin/trash. */
-export type UserScope = 'live' | 'trashed' | 'all'
+type UserScope = 'live' | 'trashed' | 'all'
 
 /** PostgREST caps a response at 1000 rows, so anything bigger has to be paged. */
 const BATCH_SIZE = 1000

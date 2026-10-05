@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { toEngineError, type LessonEngineError } from '@/lib/lessonEngine'
 import { toBlocks, type LessonBlock } from '@/lib/lessonBlocks'
 
-export const lessonBlocksKey = (lessonId: string) => ['lesson', 'blocks', lessonId] as const
+const lessonBlocksKey = (lessonId: string) => ['lesson', 'blocks', lessonId] as const
 
 /**
  * A doc lesson's content blocks in `position` order. RLS decides what the caller

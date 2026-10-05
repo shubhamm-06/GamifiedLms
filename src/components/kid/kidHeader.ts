@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect } from 'react'
 
-export interface KidHeaderValue {
+interface KidHeaderValue {
   title: string
   setTitle: (title: string) => void
   /** Where Back goes when there is no in-app history to return to (a deep link). */

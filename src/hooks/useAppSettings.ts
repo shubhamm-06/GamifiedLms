@@ -5,7 +5,7 @@ import type { Tables } from '@/lib/database.types'
 
 export type AppSettings = Tables<'app_settings'>
 
-export const appSettingsQueryKey = ['appSettings'] as const
+const appSettingsQueryKey = ['appSettings'] as const
 
 /**
  * `app_settings` (migration 010) is a deliberate singleton — one row, no
@@ -29,7 +29,7 @@ export function useAppSettings() {
   })
 }
 
-export interface UpdateAppSettingsInput {
+interface UpdateAppSettingsInput {
   id: string
   default_currency?: string
   quiz_pass_threshold_percent?: number

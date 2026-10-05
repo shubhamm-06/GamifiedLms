@@ -9,9 +9,9 @@ import {
   type QuizQuestionView,
 } from '@/lib/lessonPlayer'
 
-export const lessonContentKey = (lessonId: string) => ['lesson', 'content', lessonId] as const
-export const quizQuestionsKey = (lessonId: string) => ['lesson', 'questions', lessonId] as const
-export const enrollmentStatusKey = (courseId: string) => ['lesson', 'enrollmentStatus', courseId] as const
+const lessonContentKey = (lessonId: string) => ['lesson', 'content', lessonId] as const
+const quizQuestionsKey = (lessonId: string) => ['lesson', 'questions', lessonId] as const
+const enrollmentStatusKey = (courseId: string) => ['lesson', 'enrollmentStatus', courseId] as const
 
 export interface LoadedLesson {
   lesson: LessonContent

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
+import { UNIQUE_VIOLATION, CHECK_VIOLATION } from '@/lib/adminConstants'
 
 export type Course = Tables<'courses'>
 export type LifecycleAction = 'publish' | 'archive' | 'restore'
@@ -9,8 +10,6 @@ export type LifecycleAction = 'publish' | 'archive' | 'restore'
 export const coursesQueryKey = ['admin', 'courses'] as const
 
 /** Postgres unique-violation / check-violation — surfaced as inline field errors, not a toast. */
-const UNIQUE_VIOLATION = '23505'
-const CHECK_VIOLATION = '23514'
 export const SLUG_TAKEN = 'SLUG_TAKEN'
 export const SLUG_INVALID = 'SLUG_INVALID'
 export const ENROLL_URL_INVALID = 'ENROLL_URL_INVALID'

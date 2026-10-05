@@ -5,7 +5,7 @@ import type { Tables } from '@/lib/database.types'
 
 export type LevelThreshold = Tables<'level_thresholds'>
 
-export const levelThresholdsQueryKey = ['admin', 'levelThresholds'] as const
+const levelThresholdsQueryKey = ['admin', 'levelThresholds'] as const
 
 /** Level 1 is structurally special: it must always exist and stay at 0 XP. Protected in the UI, not special-cased in SQL (see rules.md). */
 export const BASE_LEVEL = 1

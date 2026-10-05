@@ -4,7 +4,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { supabase } from '@/lib/supabase'
 import { isUuid } from '@/lib/slug'
 
-export type CourseRef = { status: 'pending' } | { status: 'missing' } | { status: 'ready'; id: string }
+type CourseRef = { status: 'pending' } | { status: 'missing' } | { status: 'ready'; id: string }
 
 /**
  * Resolves the `$courseId` URL segment of `/courses/$courseId`, which is a course SLUG (the shareable

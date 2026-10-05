@@ -37,7 +37,7 @@ const httpsUrl = z.string().refine(isHttpsUrl)
 
 const L = PAGE_LIMITS
 
-export const builtinEntrySchema = z.strictObject({
+const builtinEntrySchema = z.strictObject({
   key: z.enum(BUILTIN_KEYS),
   visible: z.boolean(),
   title: text(0, L.layout.title).optional(),
@@ -50,14 +50,14 @@ const customBase = {
   visible: z.boolean(),
   title: text(1, L.layout.title),
 }
-export const customTextSchema = z.strictObject({ ...customBase, type: z.literal('text'), body: text(0, L.custom.body).optional() })
-export const customListSchema = z.strictObject({
+const customTextSchema = z.strictObject({ ...customBase, type: z.literal('text'), body: text(0, L.custom.body).optional() })
+const customListSchema = z.strictObject({
   ...customBase,
   type: z.literal('list'),
   items: textList(1, L.custom.listItems, L.custom.listItem),
   list_style: z.enum(LIST_STYLES),
 })
-export const customImageSchema = z.strictObject({
+const customImageSchema = z.strictObject({
   ...customBase,
   type: z.literal('image'),
   image_url: httpsUrl,
@@ -66,7 +66,7 @@ export const customImageSchema = z.strictObject({
 })
 export const layoutEntrySchema = z.union([builtinEntrySchema, customTextSchema, customListSchema, customImageSchema])
 
-export const pageLayoutSchema = z
+const pageLayoutSchema = z
   .array(layoutEntrySchema)
   .max(L.layout.entries)
   .superRefine((entries, ctx) => {
@@ -101,7 +101,7 @@ export const pageOptionSchemas = {
     show_minutes: z.boolean().optional(),
   }),
 } as const
-export const pageOptionsSchema = z.strictObject({
+const pageOptionsSchema = z.strictObject({
   cover: pageOptionSchemas.cover.optional(),
   cta_label: pageOptionSchemas.cta_label.optional(),
   price_note: pageOptionSchemas.price_note.optional(),
@@ -124,7 +124,7 @@ export const testimonialSchema = z
   })
   // A link to the original post only makes sense with a platform (the database enforces the same).
   .refine((t) => t.post_url === undefined || t.source !== undefined)
-export const testimonialsSchema = z.array(testimonialSchema).max(L.testimonials.items)
+const testimonialsSchema = z.array(testimonialSchema).max(L.testimonials.items)
 
 /** The three migration-037 columns together, exactly as the database accepts them. */
 export const pageConfigSchema = z.object({
@@ -133,10 +133,6 @@ export const pageConfigSchema = z.object({
   testimonials: testimonialsSchema,
 })
 
-export type BuiltinEntry = z.infer<typeof builtinEntrySchema>
-export type CustomTextEntry = z.infer<typeof customTextSchema>
-export type CustomListEntry = z.infer<typeof customListSchema>
-export type CustomImageEntry = z.infer<typeof customImageSchema>
 export type LayoutEntryRow = z.infer<typeof layoutEntrySchema>
 export type PageOptionsRow = z.infer<typeof pageOptionsSchema>
 export type TestimonialRow = z.infer<typeof testimonialSchema>

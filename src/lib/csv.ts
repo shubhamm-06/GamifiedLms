@@ -32,7 +32,7 @@ const FORMULA_LEAD = /^[=+\-@\t\r]/
  * so Excel/Sheets show it as text instead of evaluating it. Real numbers are
  * exempt (a negative number is not an attack, and prefixing would corrupt it).
  */
-export function escapeCsvCell(value: string | number | null | undefined): string {
+function escapeCsvCell(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return ''
   let text = typeof value === 'number' ? String(value) : value
   if (typeof value === 'string' && FORMULA_LEAD.test(text)) text = `'${text}`
@@ -80,7 +80,7 @@ export function localDateStamp(now = new Date()): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
 }
 
-export interface ParsedCsvTable {
+interface ParsedCsvTable {
   /** First non-empty row, raw (untrimmed, original case). */
   header: string[]
   /** Remaining non-empty rows; each may be shorter or longer than `header`. */

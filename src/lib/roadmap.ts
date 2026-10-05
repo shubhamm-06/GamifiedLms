@@ -17,13 +17,13 @@ export interface CourseInfo {
   gamificationEnabled: boolean
 }
 
-export interface ContentModule {
+interface ContentModule {
   id: string
   title: string
   position: number
 }
 
-export interface ContentLesson {
+interface ContentLesson {
   id: string
   moduleId: string | null
   title: string
@@ -83,7 +83,7 @@ export interface Roadmap {
   gamified: boolean
 }
 
-export const MODULE_COLOR_COUNT = 4
+const MODULE_COLOR_COUNT = 4
 
 function asLessonType(value: string): LessonType {
   return value === 'video' || value === 'game' || value === 'quiz' ? value : 'text'

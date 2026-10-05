@@ -12,7 +12,7 @@ export function slugify(value: string): string {
 }
 
 /** Longest course slug the database accepts (`courses_slug_format_check`, migration 036). */
-export const COURSE_SLUG_MAX = 80
+const COURSE_SLUG_MAX = 80
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 

@@ -5,6 +5,7 @@ import type { Json, Tables } from '@/lib/database.types'
 import { DEFAULT_PASS_PERCENTAGE, formatClock } from '@/lib/lessonSettings'
 import { mapLimit } from '@/lib/trash'
 import { describeFailures } from './useTrashActions'
+import { CHECK_VIOLATION, INSUFFICIENT_PRIVILEGE } from '@/lib/adminConstants'
 
 export type Module = Tables<'modules'>
 export type Lesson = Tables<'lessons'>
@@ -32,7 +33,7 @@ function optionsToJson(options: QuizOption[]): Json {
   return options as unknown as Json
 }
 
-export const curriculumKeys = {
+const curriculumKeys = {
   modules: (courseId: string) => ['admin', 'curriculum', 'modules', courseId] as const,
   lessons: (courseId: string) => ['admin', 'curriculum', 'lessons', courseId] as const,
   questions: (lessonId: string) => ['admin', 'curriculum', 'questions', lessonId] as const,
@@ -259,9 +260,6 @@ function lessonToRow(values: LessonFormValues) {
   }
 }
 
-const CHECK_VIOLATION = '23514'
-const INSUFFICIENT_PRIVILEGE = '42501'
-
 /**
  * A failed lesson insert/update as an Error. A CHECK violation means a setting
  * is out of range (client validation should have caught it); everything else
@@ -385,7 +383,7 @@ export function useLessonMutations(courseId: string) {
   return { create, update, reorder }
 }
 
-export interface MinTimeFailure {
+interface MinTimeFailure {
   lesson: Lesson
   reason: string
 }
@@ -570,7 +568,7 @@ export function useQuestionMutations(lessonId: string) {
 export type ContentBlock = Tables<'lesson_content_blocks'>
 export type BlockType = 'paragraph' | 'callout' | 'image'
 
-export const blockKeys = {
+const blockKeys = {
   blocks: (lessonId: string) => ['admin', 'curriculum', 'blocks', lessonId] as const,
 }
 

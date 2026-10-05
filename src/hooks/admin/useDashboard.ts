@@ -75,7 +75,7 @@ export function useActiveEnrollmentCount() {
   })
 }
 
-export interface AttentionItem {
+interface AttentionItem {
   id: 'unresolved-payments' | 'draft-courses' | 'gamification-disabled'
   count: number
   label: string

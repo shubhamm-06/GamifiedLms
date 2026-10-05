@@ -18,10 +18,10 @@
  */
 
 /** Bump only with a migration that still accepts every older shape. */
-export const AVATAR_VERSION = 2
+const AVATAR_VERSION = 2
 
 /** The body colours: the locked brand tokens, each with its `-d` shade for depth. */
-export const AVATAR_BASES = ['gold', 'teal', 'coral', 'plum'] as const
+const AVATAR_BASES = ['gold', 'teal', 'coral', 'plum'] as const
 export type AvatarBase = (typeof AVATAR_BASES)[number]
 
 /** Swatches for a tintable part: the four brand colours plus ink and cream as neutrals. */
@@ -33,9 +33,9 @@ export const AVATAR_SWATCHES = [
   { id: 'ink', label: 'Ink' },
   { id: 'cream', label: 'Cream' },
 ] as const
-export type AvatarSwatch = (typeof AVATAR_SWATCHES)[number]['id']
+type AvatarSwatch = (typeof AVATAR_SWATCHES)[number]['id']
 
-export interface PartMeta<Id extends string = string> {
+interface PartMeta<Id extends string = string> {
   id: Id
   /** Kid-friendly, self-contained ("Round glasses"): the tile's aria-label and the avatar's description. */
   label: string
@@ -124,7 +124,7 @@ export type AvatarExtra = (typeof EXTRA)[number]['id']
 export type AvatarBackdrop = (typeof BACKDROP)[number]['id']
 
 /** The slots that carry a stored colour. */
-export const AVATAR_TINT_SLOTS = ['glasses', 'head', 'extra', 'backdrop'] as const
+const AVATAR_TINT_SLOTS = ['glasses', 'head', 'extra', 'backdrop'] as const
 export type AvatarTintSlot = (typeof AVATAR_TINT_SLOTS)[number]
 
 export interface AvatarConfig {
@@ -142,7 +142,7 @@ export interface AvatarConfig {
 
 export const isTintSlot = (c: AvatarCategory): c is AvatarTintSlot => (AVATAR_TINT_SLOTS as readonly string[]).includes(c)
 
-export function partMeta(category: AvatarCategory, id: string): PartMeta | undefined {
+function partMeta(category: AvatarCategory, id: string): PartMeta | undefined {
   return (AVATAR_CATALOG[category] as readonly PartMeta[]).find((p) => p.id === id)
 }
 

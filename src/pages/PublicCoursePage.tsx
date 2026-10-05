@@ -11,6 +11,7 @@ import { useCourseInfo, useCourseOutline } from '@/hooks/useCourseInfo'
 import { buildCoursePageModel } from '@/lib/coursePage'
 import { courseAuthHref, courseRoadmapHref } from '@/lib/freeEnrollment'
 import { isUuid } from '@/lib/slug'
+import { APP_NAME } from '@/lib/brand'
 
 /**
  * `/course/$courseRef` (the ref is the course SLUG; a course id also works and is rewritten to the slug): the parent-facing course page for someone who is NOT signed in
@@ -32,7 +33,7 @@ export function PublicCoursePage() {
   useWarmCover(info.data)
   const fontsReady = useCoursePageFonts(info.data ? presetOf(info.data.page_font) : info.isPending ? null : 'inter')
   const settings = useAppSettings()
-  const siteName = settings.data?.site_name || 'Wisdom Hatch Kids'
+  const siteName = settings.data?.site_name || APP_NAME
   const supportEmail = settings.data?.support_email ?? null
 
   const model = useMemo(

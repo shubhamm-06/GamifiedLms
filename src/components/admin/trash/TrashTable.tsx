@@ -48,6 +48,7 @@ import {
 import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
 import type { TableSelection } from '@/components/admin/selection/useTableSelection'
 import type { TrashRow } from '@/hooks/admin/useTrash'
+import { dateTimeFormatter } from '@/lib/adminConstants'
 
 /**
  * One table for all six Trash tabs (the rows are normalised to `TrashRow`).
@@ -69,14 +70,6 @@ const trashFeatures = tableFeatures({
 })
 
 const PAGE_SIZES = [10, 25, 50, 100]
-
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
-})
 
 const columnHelper = createColumnHelper<typeof trashFeatures, TrashRow>()
 

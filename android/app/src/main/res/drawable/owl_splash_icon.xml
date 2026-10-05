@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Wisdom Hatch Kids owl mark, for the Android 12+ (and AndroidX compat) cold-start
+<!-- Legacy owl mark (pre-SkillXP rebrand), for the Android 12+ (and AndroidX compat) cold-start
      splash icon only. Coordinates are the brand SVG's own viewBox (390 120 420 420),
      translated to a 0,0-based 420x420 viewport; the shapes themselves are untouched.
      Colors are the owl's own brand palette, not the app's locked UI tokens

@@ -11,7 +11,7 @@ interface EdgeSuccess {
   user?: { id: string; email: string | null }
 }
 
-export type BulkRowStatus = 'created' | 'skipped_exists' | 'skipped_trashed' | 'failed'
+type BulkRowStatus = 'created' | 'skipped_exists' | 'skipped_trashed' | 'failed'
 
 /** One row's outcome from `bulk_create`. `index` is the row's position in the request. */
 export interface BulkRowResult {

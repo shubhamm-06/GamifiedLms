@@ -11,9 +11,9 @@
  * Documented for game authors in `docs/ui.md`.
  */
 
-export const GAME_COMPLETE = 'game:complete'
+const GAME_COMPLETE = 'game:complete'
 
-export interface GameComplete {
+interface GameComplete {
   score: number
 }
 

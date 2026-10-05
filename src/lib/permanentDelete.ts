@@ -1,6 +1,7 @@
 import { AdminActionError, deleteUser } from '@/lib/adminUserApi'
 import { supabase } from '@/lib/supabase'
 import { mapLimit, type ItemFailure, type TrashEntity, type TrashItem } from '@/lib/trash'
+import { FK_VIOLATION } from '@/lib/adminConstants'
 
 /**
  * Permanent deletion — the ONLY place in the admin UI that removes a row for
@@ -34,8 +35,6 @@ type Attempt =
   | { status: 'deleted'; lessonsMoved?: number }
   | { status: 'blocked'; reason: string }
   | { status: 'failed'; reason: string }
-
-const FK_VIOLATION = '23503'
 
 function plural(n: number, one: string, many: string) {
   return `${n} ${n === 1 ? one : many}`

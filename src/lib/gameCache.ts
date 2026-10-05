@@ -22,7 +22,7 @@ const DIR = Directory.Cache
 const MAX_BYTES = 2_000_000
 const FETCH_TIMEOUT_MS = 8_000
 
-export interface GameEntryKey {
+interface GameEntryKey {
   id: string
   bundleUrl: string
   bundleVersion: string

@@ -2,13 +2,13 @@ import { redirect } from '@tanstack/react-router'
 import type { QueryClient } from '@tanstack/react-query'
 import { supabase } from './supabase'
 
-export interface AdminSession {
+interface AdminSession {
   userId: string
   role: string
   displayName: string
 }
 
-export const adminSessionQueryKey = ['admin', 'session'] as const
+const adminSessionQueryKey = ['admin', 'session'] as const
 
 async function fetchAdminSession(): Promise<AdminSession | null> {
   const {

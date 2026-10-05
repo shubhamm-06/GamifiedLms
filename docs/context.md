@@ -1,5 +1,7 @@
 # Context
 
+The product was renamed from "Wisdom Hatch Kids" to "SkillXP" (2026-10-05) and is now positioned for B2B (corporates and startups). The name lives in one constant, `APP_NAME` in `src/lib/brand.ts`.
+
 ## AI-ZONE (machine-optimized, dense, no prose padding)
 
 **Project:** Gamified LMS. React+Capacitor frontend, Supabase backend. Current
@@ -95,7 +97,7 @@ src/
     ui/       shadcn-generated primitives (progress.tsx is hand-written;
                drawer.tsx added for the kid-facing sheet, moved into place by
                hand — see ui.md re: the shadcn CLI's Windows path bug)
-    auth/      AuthCard, AuthField (login/signup shared UI)
+    auth/      AuthCard (mark + card + form chrome; APP_NAME in lib/brand.ts), AuthField (label/input/password toggle/error); shared by /login, /signup and the kid Profile forms
     kid/       KidLayout (the student-route shell) + kidHeader.ts (its
                context/hook), KidNav + kidTabs.ts (the bottom nav and its four tabs), KidSidebar (the
                desktop nav, >= 1024px); home/ (DesktopHome, the >= 1024px list-style Home);
@@ -203,9 +205,9 @@ supabase/
   writes (`display_name`, `role`) go straight through supabase-js on the
   existing `profiles_admin_update` RLS policy — no function hop needed.
 - Admin section (`/admin/*`) has its own visual language: neutral shadcn
-  default (Geist, neutral greys), brand tokens as accents only. Kid-facing
-  auth pages (`/login`, `/signup`) and the student screens use the Baloo 2 / cream-candy system
-  (scoped by `.auth-page`, `.kid-app` and `.kid-font`, never on admin).
+  default (Geist, neutral greys), brand tokens as accents only. The auth pages
+  (`/login`, `/signup`) use Geist with a flat B2B look (`ui.md`); the student screens use the Baloo 2 / cream-candy
+  system (scoped by `.kid-app` and `.kid-font`, never on admin).
   Two different audiences, deliberately different feel.
 
 **Data flow — signup:** `auth.signUp()` → `auth.users` insert → trigger
@@ -318,6 +320,8 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
   through `Write`), and ESLint's `no-irregular-whitespace` then failed. After
   writing either, grep the file for the literal and swap it back to the
   escape.
+
+- Cleanup keep-list (looks unused, is not; do not remove): `supabase/migrations`, DB objects with no JS caller (validator/RLS/trigger functions such as `fn_is_admin`, `course_*_is_valid`), the generated `lib/database.types.ts`, shadcn `components/ui/*` exports, installed Capacitor plugins awaiting native polish, the locked design tokens, `scripts/check-*.mjs`, `console.error` logging in hooks and Edge Functions, and `docs/reference/*`
 
 ## HUMAN-ZONE (narrative, for a person skimming to get oriented)
 

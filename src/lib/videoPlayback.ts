@@ -52,7 +52,7 @@ export interface EngineProps {
   register: (controls: PlaybackControls | null) => void
 }
 
-export type EmbedRef = { provider: 'youtube' | 'vimeo'; id: string }
+type EmbedRef = { provider: 'youtube' | 'vimeo'; id: string }
 
 /** The provider and video id of a normalized embed URL (`lib/video.ts`), or null for anything else. */
 export function parseEmbed(url: string): EmbedRef | null {

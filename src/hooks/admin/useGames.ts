@@ -2,13 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
+import { UNIQUE_VIOLATION } from '@/lib/adminConstants'
 
 export type Game = Tables<'games'>
 
-export const gamesQueryKey = ['admin', 'games'] as const
+const gamesQueryKey = ['admin', 'games'] as const
 
 /** Postgres unique-violation — surfaced as an inline slug error, not a toast. */
-const UNIQUE_VIOLATION = '23505'
 export const SLUG_TAKEN = 'SLUG_TAKEN'
 
 function mapWriteError(error: { code?: string; message: string }): Error {

@@ -4,7 +4,7 @@
  * The module bar sticks to this edge, so scroll-spy and the popover measure
  * from it instead of hardcoding what sits above.
  */
-export function stickyTopEdge(): number {
+function stickyTopEdge(): number {
   const bottom = (selector: string) => document.querySelector(selector)?.getBoundingClientRect().bottom ?? 0
   return Math.max(bottom('.kid-topbar'), bottom('.kid-statbar'))
 }

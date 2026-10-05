@@ -66,7 +66,7 @@ async function fetchCourseContent(courseId: string): Promise<CourseContent> {
   }
 }
 
-export type RoadmapScreen =
+type RoadmapScreen =
   | { kind: 'loading' }
   | { kind: 'not_enrolled' }
   | { kind: 'unavailable' }

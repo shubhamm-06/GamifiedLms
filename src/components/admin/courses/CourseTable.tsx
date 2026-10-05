@@ -53,6 +53,7 @@ import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
 import type { TableSelection } from '@/components/admin/selection/useTableSelection'
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import { CourseStatusPill } from './CourseStatusPill'
+import { dateFormatter } from '@/lib/adminConstants'
 
 /**
  * TanStack Table v9 feature registration. Unlike v8 there is no
@@ -81,12 +82,6 @@ const coursesFeatures = tableFeatures({
     datetime: sortFn_datetime,
     text: sortFn_text,
   },
-})
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
 })
 
 const columnHelper = createColumnHelper<typeof coursesFeatures, Course>()

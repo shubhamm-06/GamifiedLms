@@ -501,7 +501,7 @@ stops new unlocks without touching anyone who already earned it.
 (text, not null, default `'INR'`, **FK → `currencies(code)` since migration
 011** — see section 4 above), `quiz_pass_threshold_percent` (int, not
 null, default `70`), `site_name` (text, not null, default `'Wisdom Hatch
-Kids'`), `site_url` (nullable), `support_email` (nullable), `terms_url`
+Kids'`; the live row still holds the old name until an admin saves "SkillXP" in Settings > Site identity), `site_url` (nullable), `support_email` (nullable), `terms_url`
 (nullable), `privacy_url` (nullable). Exactly one row exists, seeded by the
 migration itself — **no INSERT policy exists for any client role**, which is
 the actual mechanism that keeps it a singleton; a bare `.insert()` from an

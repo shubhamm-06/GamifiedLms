@@ -7,7 +7,7 @@ import type { TrashEntity } from '@/lib/trash'
  * invalidation in `useTrashActions` (which refreshes everything under
  * `['admin']`) also refreshes the sidebar badge and every tab.
  */
-export const trashKeys = {
+const trashKeys = {
   counts: ['admin', 'trash', 'counts'] as const,
   rows: (entity: TrashEntity) => ['admin', 'trash', 'rows', entity] as const,
   moduleLessons: (ids: string[]) => ['admin', 'trash', 'moduleLessons', [...ids].sort().join(',')] as const,
@@ -15,7 +15,7 @@ export const trashKeys = {
 
 export const TRASH_ENTITIES: TrashEntity[] = ['courses', 'modules', 'lessons', 'games', 'badges', 'users']
 
-export type TrashCounts = Record<TrashEntity, number> & { total: number }
+type TrashCounts = Record<TrashEntity, number> & { total: number }
 
 const TABLE_OF: Record<TrashEntity, 'courses' | 'modules' | 'lessons' | 'games' | 'badges' | 'profiles'> = {
   courses: 'courses',

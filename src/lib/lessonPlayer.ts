@@ -8,7 +8,7 @@ import { isEmbedUrl } from '@/lib/video'
  * is shown.
  */
 
-export type PlayerLessonType = 'video' | 'text' | 'quiz' | 'game'
+type PlayerLessonType = 'video' | 'text' | 'quiz' | 'game'
 
 export interface LessonContent {
   id: string
@@ -36,7 +36,7 @@ export interface GameInfo {
   orientation: 'portrait' | 'landscape' | 'any'
 }
 
-export interface QuizOptionView {
+interface QuizOptionView {
   id: string
   text: string
 }
@@ -88,7 +88,7 @@ export function safeMediaUrl(url: string | null | undefined, allowHttp = false):
   return null
 }
 
-export type VideoSource = { kind: 'embed'; url: string } | { kind: 'file'; url: string } | null
+type VideoSource = { kind: 'embed'; url: string } | { kind: 'file'; url: string } | null
 
 /** A normalized YouTube/Vimeo embed, else a direct file/stream URL, else nothing usable. */
 export function videoSource(url: string | null, allowHttp = false): VideoSource {

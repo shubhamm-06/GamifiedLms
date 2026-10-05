@@ -17,7 +17,7 @@ export type LessonBlock =
   | { id: string; kind: 'callout'; text: string; color: CalloutColor; icon: CalloutIcon }
   | { id: string; kind: 'image'; url: string; alt: string }
 
-export interface BlockRow {
+interface BlockRow {
   id: string
   position: number
   block_type: string

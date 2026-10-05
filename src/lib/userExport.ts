@@ -7,7 +7,7 @@ import { fetchUsers, matchesUserFilter, type AdminUserRow, type RoleFilter } fro
  * (not zeros — they are not "level 0"). Deliberately no password, hash, token
  * or avatar: nothing secret or bulky ever leaves through this file.
  */
-export const USER_EXPORT_COLUMNS: CsvColumn<AdminUserRow>[] = [
+const USER_EXPORT_COLUMNS: CsvColumn<AdminUserRow>[] = [
   { header: 'id', value: (u) => u.id },
   { header: 'display_name', value: (u) => u.display_name },
   { header: 'email', value: (u) => u.email },
@@ -30,9 +30,9 @@ export interface UserExportSource {
   roleFilter: RoleFilter
 }
 
-/** `wisdom-hatch-users-YYYY-MM-DD.csv`, dated in the admin's own timezone. */
-export function userExportFilename(now = new Date()): string {
-  return `wisdom-hatch-users-${localDateStamp(now)}.csv`
+/** `skillxp-users-YYYY-MM-DD.csv`, dated in the admin's own timezone. */
+function userExportFilename(now = new Date()): string {
+  return `skillxp-users-${localDateStamp(now)}.csv`
 }
 
 /**

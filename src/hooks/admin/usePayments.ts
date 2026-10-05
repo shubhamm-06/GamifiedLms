@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { DEFAULT_CURRENCY } from '@/lib/currency'
 import type { Tables } from '@/lib/database.types'
 import { coursesQueryKey } from './useCourses'
+import { FK_VIOLATION } from '@/lib/adminConstants'
 
 export type Payment = Tables<'payments'>
 
@@ -16,7 +17,7 @@ export interface PaymentRow extends Payment {
   courses: { id: string; title: string } | null
 }
 
-export const paymentsQueryKey = ['admin', 'payments'] as const
+const paymentsQueryKey = ['admin', 'payments'] as const
 
 /**
  * The exact same status/reconciliation-status matching `OrderTable.tsx`'s
@@ -130,7 +131,7 @@ export function useFailedPaymentsCount() {
   })
 }
 
-export interface ReconciliationUpdate {
+interface ReconciliationUpdate {
   id: string
   reconciliation_status: string
   reconciliation_note: string | null
@@ -172,7 +173,7 @@ export function useUpdatePaymentReconciliation() {
   })
 }
 
-export interface BulkReconciliationUpdate {
+interface BulkReconciliationUpdate {
   ids: string[]
   reconciliation_status: string
   /**
@@ -253,8 +254,7 @@ export function useSetPaymentsTrashed() {
 }
 
 /** Postgres FK violation — enrollments.payment_id is NO ACTION, so a payment still backing an enrollment can't be hard-deleted. */
-const FK_VIOLATION = '23503'
-export const PAYMENT_LINKED_TO_ENROLLMENT = 'PAYMENT_LINKED_TO_ENROLLMENT'
+const PAYMENT_LINKED_TO_ENROLLMENT = 'PAYMENT_LINKED_TO_ENROLLMENT'
 
 /**
  * Real DELETE, one batched `.delete().in('id', ids)` call. RLS
@@ -292,7 +292,7 @@ export function useDeletePaymentsPermanently() {
   })
 }
 
-export interface CreateManualOrderInput {
+interface CreateManualOrderInput {
   userId: string
   courseId: string
   provider: string
@@ -370,7 +370,7 @@ export interface ImportOrderRow {
   note: string
 }
 
-export interface ImportRowResult {
+interface ImportRowResult {
   /** 1-based, matching a spreadsheet's row numbers (header is row 1). */
   row: number
   email: string

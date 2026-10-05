@@ -12,7 +12,7 @@ import {
   type TrashItem,
 } from '@/lib/trash'
 
-export interface TrashGroup {
+interface TrashGroup {
   entity: TrashEntity
   items: TrashItem[]
 }

@@ -4,7 +4,7 @@ Two visual languages in this app, deliberately different — a kid-facing side
 (auth pages, and presumably the future student experience) and a neutral
 admin side. Don't cross-pollinate them without a reason recorded here.
 
-## Kid-facing design system (`/login`, `/signup`)
+## Kid-facing design system (tokens; auth screens are an exception, see below)
 
 **Visual reference:** [Wisdom Hatch](https://wisdomhatch.com) — the user's
 existing connected brand site, referenced as tone/visual inspiration for this
@@ -32,27 +32,37 @@ The four `-d` (dark/shadow) values weren't specified explicitly — derived at
 provisional, easy to hand-tune later.
 
 - **Typography:** Baloo 2 (`@fontsource-variable/baloo-2`, self-hosted),
-  scoped by wrapper classes: `.auth-page` here, and `.kid-app` / `.kid-font` on
+  scoped by wrapper classes `.kid-app` / `.kid-font` on
   the student screens (see "Kid-facing app" below). It never overrides the
   app's global sans (Geist) on admin routes. **Amended 2026-09-30: Baloo 2 is no longer the only
   kid-app face.** Nunito (`@fontsource-variable/nunito`, latin variable file only, self-declared
   `@font-face` in `styles.css`, bundled by Vite so it works offline in Capacitor) is allowed for small
   UI text at the desktop shell (`.kid-app[data-shell='side']`, >= 1024px), never on mobile or admin
   (see "Desktop Home polish" under "Desktop shell and Home").
-- **Card:** 26px border-radius, off-white surface (`#FFFEFB`, not pure
-  white — distinguishes it from the page background), warm soft drop shadow
-  (`rgba(58,42,26,…)`-based, not generic gray).
-- **Primary button:** full-width pill (`border-radius: 999px`), `--gold`
-  fill, "candy 3D" press effect — `box-shadow: 0 6px 0 var(--gold-d)` at
-  rest, collapsing to `0 0 0 var(--gold-d)` with `translateY(6px)` on
-  `:active`.
-- **Page background:** pure white (`#FFFFFF`) specifically for `/login` and
-  `/signup` — deliberate deviation from `--cream` as page backdrop (cream/
-  gold/teal still used for accents and the button, just not this backdrop).
-- **Links:** `--teal`, no underline by default, underline on `:hover`.
+**Auth screens are a deliberate exception (2026-10-05, B2B direction).** `/login` and `/signup` follow a standard
+SaaS auth pattern, not the kid-facing look: **Geist** (the admin face, no Baloo 2), a white card with a 1px
+`border-ink/15`, 12px radius and `shadow-sm` (no cream surface, no 26px radius, no warm shadow), pure white page,
+and a **flat** primary button: 40px, 8px radius, `--gold` with `--ink` text, `--gold-d` on hover, no candy press, no
+pill. The candy button (`.candy-btn`, 6px lip) and Baloo 2 remain for kid-facing surfaces only. `--gold` is reserved
+for the single primary action per screen; tokens only, no hex.
+- Product mark above the card: the SkillXP logo image (`public/logo.png`, transparent, cropped from the supplied artwork; also the student sidebar's brand; alt text `APP_NAME` from `src/lib/brand.ts` (the one place to
+  change for the rebrand; all code that renders the name imports it).
+- Copy: Login "Log in to your account" / "Enter your details to continue", button "Log in"; Register "Create your
+  account" / "Get started in a minute", button "Create account". Neutral, no streak/XP/kid language, no close X.
+- Shared components in `src/components/auth/`, nothing else: `AuthCard` (mark, card, `h1` + muted line, optional
+  `footer`; with `onSubmit` it renders a `noValidate` form, a form-level `role="alert"` error above the button and the
+  submit button with a left-pinned spinner, label kept, disabled + `aria-busy`, no layout shift) and `AuthField`
+  (shadcn `Label` + `Input`: 14px medium label above, 40px input, 16px text so iOS does not zoom, 8px radius, 1px
+  `border-ink/20`, 2px `--teal` ring, `--coral-d` inline error with `aria-describedby`; `type="password"` gets a
+  Show/Hide toggle; `autoFocus` only focuses on fine-pointer devices).
+- No "Forgot password?" link: no reset flow exists (only the signed-in change-password form). Add the link, right-
+  aligned on the Password label row, when a reset flow is built. No Terms/Privacy line: no real legal pages exist yet.
+- Errors never toast. Register asks only display name, email, password. Autocomplete `email` / `current-password` /
+  `new-password` / `name`; `inputMode="email"`.
+- `AuthField` is also used by the student Profile forms (hooks `.auth-field` / `.auth-field-error` kept for
+  `kid.css`), so those inputs are now 40px / 8px too. `styles.css` keeps only the native safe-area rule for `.auth-page`.
 
-**Implemented on:** `/login` (`LoginPage.tsx`), `/signup` (`SignupPage.tsx`),
-via shared `AuthCard`/`AuthField` in `src/components/auth/`, on pure white — see
+**Implemented on:** `/login` (`LoginPage.tsx`), `/signup` (`SignupPage.tsx`) on pure white — see
 "Kid-facing app" below for the cream/token-based system the actual student
 routes use. The two share the Baloo 2 face and the token set, but the student
 screens sit on `--cream`, not on pure white.
@@ -94,8 +104,7 @@ holds every kid-surface class:
   `--kid-shadow`). Reused for every state screen and the sheet/dialog.
 - `.candy-btn` / `.candy-btn-quiet` — the candy 3D button: full pill,
   `box-shadow: 0 6px 0 var(--c-d)` at rest, collapsing to `0 0 0` with
-  `translateY(6px)` on `:active` (identical recipe to `.auth-btn-primary`,
-  generalized to take any token pair via `--c`/`--c-d`). `-quiet` is the
+  `translateY(6px)` on `:active` (the original recipe, generalized to take any token pair via `--c`/`--c-d`). `-quiet` is the
   secondary/outline version (Review, Go back).
 - `.mod-0`..`.mod-3` — module color classes (gold, teal, coral, plum, cycling
   by the module's position on the page), each setting `--mod`/`--mod-d`/
@@ -326,7 +335,7 @@ code from design tokens, no art assets, one component everywhere.
   (already the app's own standard secondary-button treatment, used elsewhere for Cancel/lesson-bar
   actions — deliberately quieter, not unstyled).
 - **Name**: a plain field bound to `profiles.display_name`, saved directly, no confirmation —
-  reuses `AuthField`/`.auth-field-error` (`styles.css`, the login/signup pages' own error style) so
+  reuses `AuthField`/`.auth-field-error` (`components/auth`, the login/signup pages' own error style) so
   a validation message never needed a second look.
 - **Email**: `supabase.auth.updateUser({ email })`, which only asks Supabase Auth to send a
   confirmation link; the form then shows "Check `<new>` to confirm the change. Your email stays
@@ -649,8 +658,8 @@ feedback" sits directly under "Sound effects" in the renamed "Sound & haptics" s
 same switch style, default on, stored like sound (`localStorage` `kid.hapticsEnabled`,
 `useHapticsSetting`). Both rows also show on the web, where neither does anything yet.
 
-**Splash, entrance and launcher owl (2026-09-29).** The Wisdom Hatch Kids owl is the
-brand mark, on native only, in three places, from two separate pieces of artwork.
+**Splash, entrance and launcher owl (2026-09-29).** The legacy owl is the
+brand mark (a pre-SkillXP asset awaiting replacement), on native only, in three places, from two separate pieces of artwork.
 The splash and entrance below use one finalized, pre-cropped SVG. **Its four colors —
 teal `#18B6C9`, light teal `#6FE0EC`, ink `#231F20`, gold `#FFC83D` — are hardcoded at
 both use sites below and deliberately NOT locked design tokens** ("Colour roles" below):
@@ -1040,7 +1049,7 @@ Neutral shadcn default: Geist font (from shadcn's Nova preset), neutral
 greys. Rationale: dense data reads better utilitarian, and admins are a
 different audience than the kids using the product.
 
-**Baloo 2 must not leak in.** It's scoped to the `.auth-page`, `.kid-app` and
+**Baloo 2 must not leak in.** It's scoped to the `.kid-app` and
 `.kid-font` classes, none of which appear on admin routes, and `AdminLayout`'s
 root sets `font-sans` explicitly to make that intent obvious rather than merely
 inherited. Verified against the computed font of every element on three admin
@@ -1800,7 +1809,7 @@ not implemented.**
     email, role, xp, level, phone_number, created_at, status` (`active` or
     `trashed`); `xp` and `level` are blank for a user with no `user_stats` row.
     No password or hash is ever exported. The file is
-    `wisdom-hatch-users-YYYY-MM-DD.csv` (the admin's local date) and a toast
+    `skillxp-users-YYYY-MM-DD.csv` (the admin's local date) and a toast
     reports the count ("Exported N users"). "All users" and the trashed part of
     a filtered export come from `fetchUsers(scope)` in `useUsers.ts`, which
     pages in batches of 1000 and also backs the list itself.
@@ -1962,8 +1971,7 @@ redesigns come later).
   `data-shell="side"` from the same value, so the shell CSS has no media query of its own and the mounted
   nav and the CSS cannot disagree.
 - **Sidebar** (`KidSidebar`, `.kid-side`): fixed, 15rem (`--kid-side-w`), full height, `--surface` with a
-  hairline right border and a soft warm shadow. Top: the owl mark (`OwlMark`, exported from
-  `AppEntranceSplash.tsx`, `size` 40, decorative) plus the "Wisdom Hatch Kids" wordmark, a link Home. Then
+  hairline right border and a soft warm shadow. Top: the `APP_NAME` text wordmark (Geist semibold, `--ink`; the owl was dropped from the sidebar in the 2026-10-05 rebrand), a link Home. Then
   `<nav aria-label="Main">` with Home, Badges, Courses, Profile from `KID_TABS` (same icons; Profile shows
   the student's avatar), each full width and >= 48px tall. Active: the bottom nav's teal pill, bold label,
   `aria-current="page"`; hover a light teal tint (mouse only); focus-visible is the shared 3px ink ring.
@@ -2481,8 +2489,8 @@ hides the whole section unless at least one valid entry has a quote and a name a
   spare height) so rows line up across equal-height cards: optional photo, then name (16/600) and relation (14, secondary
   ink, only if present), and the optional source icon at the right end of the same row, vertically centred. Name and
   relation truncate with an ellipsis rather than pushing the icon out.
-- **Layout**: one column below 640px of the main column, two columns from 640px with 24px gaps (16px gap when
-  stacked); exactly one review is a single full-width card. Order as entered. No carousel, autoplay, ratings anywhere.
+- **Layout**: a native scroll-snap **carousel** (2026-10-04, below), not a grid; exactly one review is a single
+  full-width card with no controls. Order as entered. No autoplay, no ratings anywhere.
 - **Photo**: 40px circle, `object-fit: cover`, 1px hairline border, decorative (`alt=""`), adult photos only. It exists
   ONLY when a photo URL is set: no URL renders nothing at all (no placeholder, initials or empty box; the name starts at
   the card's padding edge). A failed load removes the element entirely (the text shifts to the left edge), never initials
@@ -2521,6 +2529,26 @@ hides the whole section unless at least one valid entry has a quote and a name a
   Not tested: a real Android device.
 - **Follow-ups, not built**: showing the platform name as text for people who cannot recognise the icon; per-review dates;
   verifying that a post URL's host matches the chosen source; importing reviews from a platform.
+
+
+### Testimonials carousel (2026-10-04)
+
+Frontend only (`Reviews` in `CoursePageView.tsx`, `.cp-carousel` block in `coursePage.css`); no library, no data-model
+change, cards unchanged. A `div.cp-track` is a flex row with `scroll-snap-type: x mandatory`, `overscroll-behavior-x:
+contain` (a horizontal swipe never chains to the page; vertical swipes still scroll the page) and a hidden scrollbar.
+- **Per view, from the main column's container width** (`cpmain`, not the viewport): below 640px one card at 85% so the
+  next one peeks (16px gap); from 640px two (24px gap); from 960px three. The aside layout keeps the main column
+  ~550-650px, so three per view only happens where the column really reaches 960px; at a ~1100px viewport it is one
+  peeking card with arrows. Slides are equal height (flex stretch), nothing is clamped or truncated.
+- **Controls** exist only when the cards do not all fit (`data-fits` hides them): a 3px progress bar (thumb = visible
+  share), a "1 to 2 of 12" counter (no en dash) and two 40px outline circular arrow buttons ("Previous / Next
+  testimonials", disabled at the ends). Arrows are hidden below 520px of container width (touch swipe is the mobile
+  gesture). Measured in a layout effect on scroll, `ResizeObserver` and resize, throttled with rAF.
+- **Keyboard / a11y**: the track is a focusable `role=group` inside a `role=region` `aria-roledescription=carousel`
+  labelled "Parent testimonials"; slides are `aria-roledescription=slide` "i of n". Left/Right move one card,
+  Home/End jump; smooth scrolling is replaced by instant when `prefers-reduced-motion` is set.
+- **Decisions**: cards have no hover effect (they never did; the brief's "keep existing hover" had nothing to keep).
+  The DB caps testimonials at 6, so the 12-card case was checked by cloning cards in the DOM, not stored data.
 
 ### Course page: mobile first (2026-10-02)
 

@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { useAppSettings } from '@/hooks/useAppSettings'
 import { useTrashCounts } from '@/hooks/admin/useTrash'
+import { APP_NAME } from '@/lib/brand'
 
 interface NavItem {
   label: string
@@ -144,7 +145,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
               hardcoded — falls back to the column's own DB default only
               for the instant before the first fetch resolves. */}
           <span className="text-sm font-semibold tracking-tight">
-            {appSettings?.site_name ?? 'Wisdom Hatch Kids'}
+            {appSettings?.site_name ?? APP_NAME}
           </span>
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto p-3">

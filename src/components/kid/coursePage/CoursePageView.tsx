@@ -8,7 +8,7 @@ import { LESSON_ICONS, PAGE_ICONS } from './icons'
 import { SourceIcon } from './testimonialSources'
 import './coursePage.css'
 
-export interface CoursePageViewProps {
+interface CoursePageViewProps {
   model: CoursePageModel
   /** Admin preview: everything in normal flow, and the Enroll link does nothing when clicked. */
   embedded?: boolean

@@ -26,14 +26,8 @@ import {
   type UserProfileDetail,
 } from '@/hooks/admin/useUserDetail'
 import type { AdminUserRow } from '@/hooks/admin/useUsers'
-import { PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
+import { dateFormatter, PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
 import { adminSessionQueryOptions } from '@/lib/adminSession'
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-})
 
 function initialsOf(displayName: string): string {
   const parts = displayName.trim().split(/\s+/).filter(Boolean)

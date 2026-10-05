@@ -5,8 +5,7 @@ import { AuthCard } from '@/components/auth/AuthCard'
 import { AuthField } from '@/components/auth/AuthField'
 import { resolvePostLoginPath } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { EMAIL_PATTERN } from '@/lib/utils'
 
 interface FieldErrors {
   displayName?: string
@@ -64,61 +63,69 @@ export function SignupPage() {
 
   if (checkEmail) {
     return (
-      <AuthCard heading="Check your email" subheading="Almost there">
-        <p className="auth-form-success">
-          We sent a confirmation link to {email}. Click it to activate your
-          account, then log in.
-        </p>
-        <p className="auth-footer">
-          <Link to="/login" search={{ redirect }} className="auth-link">
+      <AuthCard
+        heading="Check your email"
+        subheading={`We sent a confirmation link to ${email}`}
+        footer={
+          <Link to="/login" search={{ redirect }} className="font-medium text-teal hover:underline">
             Back to log in
           </Link>
-        </p>
+        }
+      >
+        <p className="text-center text-sm text-ink/60">Click it to activate your account, then log in.</p>
       </AuthCard>
     )
   }
 
   return (
-    <AuthCard heading="Create your account" subheading="Start earning XP today">
-      <form className="auth-form" onSubmit={handleSubmit} noValidate>
-        {formError ? <p className="auth-form-error">{formError}</p> : null}
-        <AuthField
-          id="displayName"
-          label="Display name"
-          type="text"
-          autoComplete="name"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          error={fieldErrors.displayName}
-        />
-        <AuthField
-          id="email"
-          label="Email"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          error={fieldErrors.email}
-        />
-        <AuthField
-          id="password"
-          label="Password"
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          error={fieldErrors.password}
-        />
-        <button type="submit" className="auth-btn-primary" disabled={submitting}>
-          {submitting ? 'Creating account…' : 'Sign up'}
-        </button>
-      </form>
-      <p className="auth-footer">
-        Already have an account?{' '}
-        <Link to="/login" search={{ redirect }} className="auth-link">
-          Log in
-        </Link>
-      </p>
+    <AuthCard
+      heading="Create your account"
+      subheading="Get started in a minute"
+      onSubmit={handleSubmit}
+      submitLabel="Create account"
+      submitting={submitting}
+      error={formError}
+      footer={
+        <>
+          Already have an account?{' '}
+          <Link to="/login" search={{ redirect }} className="font-medium text-teal hover:underline">
+            Log in
+          </Link>
+        </>
+      }
+    >
+      <AuthField
+        id="displayName"
+        label="Display name"
+        type="text"
+        autoComplete="name"
+        placeholder="Your name"
+        autoFocus
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        error={fieldErrors.displayName}
+      />
+      <AuthField
+        id="email"
+        label="Email"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        placeholder="you@company.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        error={fieldErrors.email}
+      />
+      <AuthField
+        id="password"
+        label="Password"
+        type="password"
+        autoComplete="new-password"
+        placeholder="At least 8 characters"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        error={fieldErrors.password}
+      />
     </AuthCard>
   )
 }

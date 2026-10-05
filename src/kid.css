@@ -2218,8 +2218,8 @@
     letter-spacing: 0.04em;
   }
 
-  /* Account forms: stacked fields, reusing .auth-field/.auth-field-error
-     (styles.css) for inputs and error text rather than a second error style. */
+  /* Account forms: stacked fields, reusing AuthField (components/auth; its
+     .auth-field/.auth-field-error hooks) rather than a second input/error style. */
   .kp-form {
     display: flex;
     flex-direction: column;
@@ -3223,11 +3223,10 @@
 
   .kid-side-brand svg { flex: none; }
 
-  /* Baloo 2, inherited. */
-  .kid-side-wordmark {
-    font-size: var(--kid-text-label);
-    line-height: 1.15;
-    font-weight: 700;
+  /* SkillXP logo image (public/logo.png); the link's aria-label carries the name. */
+  .kid-side-logo {
+    height: 2rem;
+    width: auto;
   }
 
   .kid-side-list {

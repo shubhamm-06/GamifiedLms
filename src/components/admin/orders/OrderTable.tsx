@@ -44,6 +44,7 @@ import { formatAmount } from '@/lib/currency'
 import type { PaymentRow } from '@/hooks/admin/usePayments'
 import { PaymentStatusPill } from './PaymentStatusPill'
 import { ReconciliationStatusPill } from './ReconciliationStatusPill'
+import { dateTimeFormatter } from '@/lib/adminConstants'
 
 /**
  * Same TanStack Table v9 feature registration as `CourseTable.tsx`/
@@ -79,14 +80,6 @@ const ordersFeatures = tableFeatures({
     datetime: sortFn_datetime,
     text: sortFn_text,
   },
-})
-
-const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: 'numeric',
-  minute: '2-digit',
 })
 
 const columnHelper = createColumnHelper<typeof ordersFeatures, PaymentRow>()

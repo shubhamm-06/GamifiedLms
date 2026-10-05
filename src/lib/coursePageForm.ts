@@ -115,13 +115,7 @@ export interface PageRow {
   testimonials: TestimonialRow[]
 }
 
-export const PAGE_COLUMNS: (keyof PageRow)[] = [
-  'tagline', 'thumbnail_url', 'age_min', 'age_max', 'language', 'learning_outcomes', 'requirements', 'faqs',
-  'instructor_name', 'instructor_role', 'instructor_bio', 'instructor_photo_url', 'page_theme', 'page_font',
-  'page_hidden_sections', 'page_layout', 'page_options', 'testimonials',
-]
-
-export type CourseRowLike = Omit<CoursePageCourse, 'title'>
+type CourseRowLike = Omit<CoursePageCourse, 'title'>
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
 
@@ -245,7 +239,7 @@ export function toPageRow(v: PageFormValues): PageRow {
   }
 }
 
-export interface PageValidation {
+interface PageValidation {
   /** Block the save. Keys: a field name, `list.index`, `faqs.i.question`, `layout.<id>.<field>`, `testimonials.i.<field>`, ... */
   errors: Record<string, string>
   /** Do not block: the row is simply dropped on save. */

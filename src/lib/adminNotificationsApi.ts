@@ -7,7 +7,7 @@ export type NotificationTarget =
   | { type: 'course'; courseId: string }
   | { type: 'user'; userId: string }
 
-export interface SendNotificationInput {
+interface SendNotificationInput {
   title: string
   body: string
   target: NotificationTarget

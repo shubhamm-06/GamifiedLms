@@ -45,7 +45,7 @@ export const PAGE_FONTS = ['inter', 'classic', 'friendly'] as const
 export type PageFont = (typeof PAGE_FONTS)[number]
 
 /** The default order of the built-in sections (also the order missing ones are appended in). */
-export const DEFAULT_ORDER: readonly BuiltinKey[] = BUILTIN_KEYS
+const DEFAULT_ORDER: readonly BuiltinKey[] = BUILTIN_KEYS
 
 export const SECTION_LABELS: Record<BuiltinKey, string> = {
   about: 'About this course',
@@ -92,7 +92,7 @@ export interface CoursePageCourse {
   testimonials?: unknown
 }
 
-export interface OutlineLesson {
+interface OutlineLesson {
   id: string
   title: string
   type: string
@@ -115,7 +115,7 @@ export interface OutlineModule {
  */
 export type Viewer = { kind: 'new' } | { kind: 'anon' } | { kind: 'enrolled' } | { kind: 'revoked' } | { kind: 'expired'; endedAt: string | null }
 
-export interface CoursePageInput {
+interface CoursePageInput {
   course: CoursePageCourse
   outline?: OutlineModule[] | null
   viewer?: Viewer
@@ -129,7 +129,7 @@ export interface CoursePageInput {
 // Blank optional strings are '' here (not absent), so the admin editor can use this
 // exact shape as its form state. coursePageForm.ts turns it back into database rows.
 
-export interface NormBuiltin {
+interface NormBuiltin {
   key: BuiltinKey
   visible: boolean
   title: string
@@ -153,7 +153,7 @@ export interface NormOptions {
   outline: { open: OutlineOpen; detail: OutlineDetail; show_minutes: boolean }
 }
 
-export interface NormTestimonial {
+interface NormTestimonial {
   quote: string
   name: string
   relation: string
@@ -164,7 +164,7 @@ export interface NormTestimonial {
   post_url: string
 }
 
-export interface PageConfig {
+interface PageConfig {
   layout: NormEntry[]
   options: NormOptions
   testimonials: NormTestimonial[]
@@ -199,7 +199,7 @@ const oneOf = <T extends string>(list: readonly T[], v: unknown): v is T => type
 const LIM = PAGE_LIMITS
 
 /** One `page_layout` entry, by the same rules as `layoutEntrySchema` (coursePageSchema.ts) and the DB CHECK. */
-export function isValidLayoutEntry(e: unknown): boolean {
+function isValidLayoutEntry(e: unknown): boolean {
   if (!isObj(e) || typeof e.visible !== 'boolean') return false
   if (oneOf(BUILTIN_KEYS, e.key)) return only(e, ['key', 'visible', 'title', 'intro']) && optText(e, 'title', LIM.layout.title) && optText(e, 'intro', LIM.layout.intro)
   if (e.key !== 'custom' || typeof e.id !== 'string' || !CUSTOM_ID_RE.test(e.id) || !isText(e.title, 1, LIM.layout.title)) return false
@@ -211,7 +211,7 @@ export function isValidLayoutEntry(e: unknown): boolean {
 }
 
 /** One `page_options` value, by key (same rules as `pageOptionSchemas`). */
-export function isValidPageOption(key: string, v: unknown): boolean {
+function isValidPageOption(key: string, v: unknown): boolean {
   switch (key) {
     case 'cover':
       return isObj(v) && only(v, ['show', 'focus']) && (!('show' in v) || typeof v.show === 'boolean') && (!('focus' in v) || oneOf(COVER_FOCUS, v.focus))
@@ -247,7 +247,7 @@ export function isValidPageOption(key: string, v: unknown): boolean {
 }
 
 /** One testimonial (same rules as `testimonialSchema`). */
-export function isValidTestimonial(t: unknown): boolean {
+function isValidTestimonial(t: unknown): boolean {
   const T = LIM.testimonials
   return (
     isObj(t) &&
@@ -372,14 +372,14 @@ export type PageIconKey =
   | 'rule-order' | 'rule-time' | 'rule-retry' | 'rule-save' | 'rule-points'
   | 'incl-lessons' | 'incl-save' | 'incl-devices'
 
-export interface PageFact {
+interface PageFact {
   key: FactKey | `custom-${number}`
   label: string
   value: string
   iconKey: PageIconKey
 }
 
-export interface PageLesson {
+interface PageLesson {
   id: string
   title: string
   type: LessonType
@@ -475,7 +475,7 @@ function textList(v: unknown): string[] {
 
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v)
 
-export function formatAges(min: unknown, max: unknown): string | null {
+function formatAges(min: unknown, max: unknown): string | null {
   const lo = min == null ? null : min
   const hi = max == null ? null : max
   if (lo !== null && !(isInt(lo) && lo >= PAGE_LIMITS.ageMin && lo <= PAGE_LIMITS.ageMax)) return null
@@ -490,7 +490,7 @@ export function formatAges(min: unknown, max: unknown): string | null {
 }
 
 /** Under an hour: "45 min". From an hour: rounded to 5 minutes, "1 hr", "1 hr 30 min", "2 hr 30 min". */
-export function formatDuration(totalMinutes: number): string {
+function formatDuration(totalMinutes: number): string {
   if (totalMinutes < 60) return `${totalMinutes} min`
   const rounded = Math.round(totalMinutes / 5) * 5
   const h = Math.floor(rounded / 60)
@@ -499,7 +499,7 @@ export function formatDuration(totalMinutes: number): string {
 }
 
 /** "30 days", "3 months", "12 months", "2 years" — month/year wording only on an exact multiple. */
-export function formatAccessLength(days: number): string {
+function formatAccessLength(days: number): string {
   if (days % 365 === 0) {
     const years = days / 365
     return years === 1 ? '12 months' : `${years} years`

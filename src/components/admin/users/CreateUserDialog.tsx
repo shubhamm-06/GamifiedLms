@@ -21,8 +21,7 @@ import {
 import { useCreateUser } from '@/hooks/admin/useUserMutations'
 import { MIN_PASSWORD_LENGTH } from '@/lib/adminConstants'
 import type { UserRole } from '@/lib/adminUserApi'
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { EMAIL_PATTERN } from '@/lib/utils'
 
 const GENERATED_PASSWORD_LENGTH = 12
 

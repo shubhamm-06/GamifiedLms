@@ -115,7 +115,7 @@ project on 2026-10-01.
 ## Android build
 
 Capacitor 8.5.0, Android only. `capacitor.config.json`: `appId` `com.wisdomhatch.kids`,
-`appName` "Wisdom Hatch Kids", `webDir` `dist`, `backgroundColor` the locked cream
+`appName` "SkillXP" (the `appId`, Firebase project and package keep the old wisdomhatch identifiers on purpose: changing them breaks FCM until `google-services.json` is re-registered), `webDir` `dist`, `backgroundColor` the locked cream
 token, `SystemBars.style = LIGHT` (dark icons on the cream bar), `CapacitorHttp`
 enabled. There is **no `server.url`**: the APK ships the bundled web assets only
 (a live-reload config must never be committed). The scaffold's untouched `cap init`

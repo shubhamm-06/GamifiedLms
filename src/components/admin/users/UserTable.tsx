@@ -53,7 +53,7 @@ import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
 import type { TableSelection } from '@/components/admin/selection/useTableSelection'
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import type { AdminUserRow, RoleFilter } from '@/hooks/admin/useUsers'
-import { PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
+import { dateFormatter, PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
 
 /**
  * TanStack Table v9 feature registration — see `context.md` for why this is
@@ -85,12 +85,6 @@ const usersFeatures = tableFeatures({
 })
 
 const PAGE_SIZES = [10, 25, 50, 100]
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-})
 
 function initialsOf(displayName: string): string {
   const parts = displayName.trim().split(/\s+/).filter(Boolean)

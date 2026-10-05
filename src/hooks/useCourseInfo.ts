@@ -4,7 +4,7 @@ import { isUuid } from '@/lib/slug'
 import { parseOutline, type CoursePageCourse, type OutlineModule } from '@/lib/coursePage'
 
 /** Every column the parent-facing page reads — all already readable by a student under `courses_select_published_or_admin`. */
-export const COURSE_PAGE_COLUMNS =
+const COURSE_PAGE_COLUMNS =
   'id, slug, title, tagline, description, thumbnail_url, enroll_url, is_free, price_amount, currency, access_type, access_duration_days, gamification_enabled, age_min, age_max, language, learning_outcomes, requirements, faqs, instructor_name, instructor_role, instructor_bio, instructor_photo_url, page_theme, page_font, page_hidden_sections, page_layout, page_options, testimonials'
 
 export type CourseInfo = CoursePageCourse & { id: string; slug: string }

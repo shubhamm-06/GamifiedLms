@@ -13,14 +13,14 @@ import type { PartProps } from './parts'
  * option list, migration 032). No unlock or ownership logic: Phase 1 is all free.
  * "none" is not an entry: it draws nothing.
  */
-export interface PartEntry {
+interface PartEntry {
   layer: AvatarLayer
   Render: (props: PartProps) => ReactNode
 }
 
 const at = (layer: AvatarLayer, Render: PartEntry['Render']): PartEntry => ({ layer, Render })
 
-export const PART_REGISTRY: {
+const PART_REGISTRY: {
   eyes: Record<AvatarEyes, PartEntry>
   mouth: Record<AvatarMouth, PartEntry>
   glasses: Record<Exclude<AvatarGlasses, 'none'>, PartEntry>

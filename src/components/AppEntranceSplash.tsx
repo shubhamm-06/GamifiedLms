@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { AnimatePresence, motion } from 'framer-motion'
 import { REDUCED_MOTION, useMediaQuery } from '@/hooks/useMediaQuery'
+import { APP_NAME } from '@/lib/brand'
 
 const ENTRANCE_MS = 950
 const FADE_OUT_MS = 150
@@ -75,12 +76,12 @@ export function AppEntranceSplash({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The Wisdom Hatch Kids owl mark: the exact finalized SVG, inline (not `<img>`)
+ * The legacy owl mark (pre-SkillXP rebrand): the exact finalized SVG, inline (not `<img>`)
  * so the pupil group can be targeted for the one-shot blink. Do not redesign
  * or recolor it. Also the logo in the desktop sidebar (`KidSidebar`), which
  * passes a small `size` and `decorative` (its wordmark beside it names the app).
  */
-export function OwlMark({
+function OwlMark({
   blink = false,
   size = 200,
   decorative = false,
@@ -95,7 +96,7 @@ export function OwlMark({
       width={size}
       height={size}
       xmlns="http://www.w3.org/2000/svg"
-      {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': 'Wisdom Hatch Kids' })}
+      {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': APP_NAME })}
     >
       <circle cx="600" cy="330" r="190" fill="#ffffff" />
       <ellipse cx="600" cy="345" rx="120" ry="124" fill="#18B6C9" />

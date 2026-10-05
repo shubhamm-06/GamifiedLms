@@ -28,7 +28,7 @@ const FATAL: ReadonlySet<LessonEngineErrorCode> = new Set<LessonEngineErrorCode>
   'lesson_unavailable',
 ])
 
-export interface LessonClock {
+interface LessonClock {
   /** Active seconds as the SERVER last reported them. The only value that ever counts. */
   serverSeconds: number
   /** serverSeconds plus a little local smoothing between beats; display only. */

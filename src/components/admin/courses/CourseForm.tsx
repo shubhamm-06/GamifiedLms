@@ -33,7 +33,7 @@ const EMPTY_COURSE_FORM: CourseFormValues = {
   enroll_url: '',
 }
 
-export const SLUG_FORMAT_MESSAGE =
+const SLUG_FORMAT_MESSAGE =
   'Use lowercase letters, numbers and single hyphens, up to 80 characters. It cannot look like an ID.'
 
 type FieldErrors = Partial<Record<keyof CourseFormValues, string>>

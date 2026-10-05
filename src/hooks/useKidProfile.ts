@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { DEFAULT_AVATAR, normalizeAvatarConfig, type AvatarConfig } from '@/lib/avatar'
 import { useLogOut } from './useLogOut'
 
-export const kidProfileKey = ['kid', 'profile'] as const
+const kidProfileKey = ['kid', 'profile'] as const
 
 async function currentSession() {
   const {
@@ -190,7 +190,7 @@ export { DEFAULT_AVATAR }
  * gamification off awards no XP and so does not light up a day here either,
  * same as it does not advance the streak.
  */
-export const deletionRequestKey = ['kid', 'deletionRequest'] as const
+const deletionRequestKey = ['kid', 'deletionRequest'] as const
 
 /**
  * The signed-in student's own most recent account-deletion request, if any

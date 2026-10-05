@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from 'react'
 import { stuckModuleBarBottom } from '@/lib/stickyTop'
 
-export interface SpyPosition {
+interface SpyPosition {
   /** The module (`data-module-key`) the row under the reading line belongs to. */
   key: string
   /** That row's 1-based place within its module (`data-unit`). */

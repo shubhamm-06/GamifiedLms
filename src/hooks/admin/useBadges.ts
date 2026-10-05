@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
+import { UNIQUE_VIOLATION } from '@/lib/adminConstants'
 
 export type Badge = Tables<'badges'>
 
-export const badgesQueryKey = ['admin', 'badges'] as const
+const badgesQueryKey = ['admin', 'badges'] as const
 
 /**
  * The four `badges.condition_type` values the DB check constraint allows —
@@ -68,7 +69,6 @@ export function describeCondition(type: string, value: number): string {
 }
 
 /** Postgres unique-violation — surfaced as an inline slug error, not a toast. */
-const UNIQUE_VIOLATION = '23505'
 export const SLUG_TAKEN = 'SLUG_TAKEN'
 
 /** Postgres FK violation — a badge some student already unlocked can't be deleted. */

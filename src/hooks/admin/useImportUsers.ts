@@ -15,9 +15,9 @@ import {
   type SentOutcome,
 } from '@/lib/userImport'
 
-export type ImportPhase = 'idle' | 'running' | 'done'
+type ImportPhase = 'idle' | 'running' | 'done'
 
-export interface ImportProgress {
+interface ImportProgress {
   /** 1-based number of the chunk being sent. */
   chunk: number
   chunkCount: number

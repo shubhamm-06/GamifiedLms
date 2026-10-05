@@ -4,11 +4,12 @@ import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 import { coursesQueryKey, type Course } from './useCourses'
 import { usersQueryKey } from './useUsers'
+import { UNIQUE_VIOLATION } from '@/lib/adminConstants'
 
 export type Enrollment = Tables<'enrollments'>
 export type Badge = Tables<'badges'>
 
-export interface UserStatsRow {
+interface UserStatsRow {
   total_xp: number
   level: number
   current_streak: number
@@ -37,7 +38,7 @@ export interface EnrollmentWithCourse extends Enrollment {
   courses: { id: string; title: string; access_type: string; access_duration_days: number | null } | null
 }
 
-export interface BadgeWithDetails {
+interface BadgeWithDetails {
   id: string
   unlocked_at: string
   badges: Badge
@@ -191,9 +192,6 @@ export function useUserBadges(userId: string) {
     },
   })
 }
-
-/** Postgres unique-violation — the (user_id, course_id) pair already has a row. */
-const UNIQUE_VIOLATION = '23505'
 
 /**
  * Which courses a given user can validly be enrolled in right now: published
@@ -409,7 +407,7 @@ export function useRestoreEnrollment(userId: string) {
 // Reset progress (migration 021)
 // ---------------------------------------------------------------------
 
-export interface CourseResetSummary {
+interface CourseResetSummary {
   lessonsCompleted: number
   progressRows: number
   quizAttempts: number

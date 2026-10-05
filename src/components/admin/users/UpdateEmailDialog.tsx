@@ -12,8 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUpdateEmail } from '@/hooks/admin/useUserMutations'
 import type { AdminUserRow } from '@/hooks/admin/useUsers'
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { EMAIL_PATTERN } from '@/lib/utils'
 
 interface FieldErrors {
   newEmail?: string

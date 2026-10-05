@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { OwlMark } from '@/components/AppEntranceSplash'
+import { APP_NAME } from '@/lib/brand'
 import { DEFAULT_AVATAR, useKidProfile } from '@/hooks/useKidProfile'
 import * as haptics from '@/lib/haptics'
 import { Avatar } from './Avatar'
@@ -22,13 +22,12 @@ export function KidSidebar({ activeTo }: { activeTo: string }) {
       <Link
         to="/"
         className="kid-side-brand kid-tap"
-        aria-label="Wisdom Hatch Kids, home"
+        aria-label={`${APP_NAME}, home`}
         onClick={(e) => {
           if (activeTo === '/') e.preventDefault()
         }}
       >
-        <OwlMark size={40} decorative />
-        <span className="kid-side-wordmark">Wisdom Hatch Kids</span>
+        <img src="/logo.png" alt="" width={720} height={155} className="kid-side-logo" />
       </Link>
       <nav aria-label="Main" data-testid="kid-nav">
         <ul className="kid-side-list">

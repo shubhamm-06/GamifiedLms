@@ -57,7 +57,7 @@ const KID_TABS = new Set(['/', '/badges', '/courses', '/profile'])
 /** Where Back offers "press again to exit" instead of navigating. */
 const EXIT_ROOTS = new Set(['/', '/login', '/signup', '/admin'])
 
-export function isAdminPath(pathname: string): boolean {
+function isAdminPath(pathname: string): boolean {
   return pathname === '/admin' || pathname.startsWith('/admin/')
 }
 
@@ -74,7 +74,7 @@ export function fallbackFor(pathname: string): string {
   return '/'
 }
 
-export type BackAction =
+type BackAction =
   | { kind: 'close-overlay' }
   | { kind: 'confirm-leave' }
   | { kind: 'home' }
@@ -83,7 +83,7 @@ export type BackAction =
   | { kind: 'back' }
   | { kind: 'navigate'; to: string }
 
-export interface BackInput {
+interface BackInput {
   pathname: string
   hasOverlay: boolean
   hasLeaveGuard: boolean

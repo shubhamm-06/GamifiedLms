@@ -1,5 +1,6 @@
 import { AdminActionError, restoreUser, trashUser } from '@/lib/adminUserApi'
 import { supabase } from '@/lib/supabase'
+import { UNIQUE_VIOLATION, FK_VIOLATION, INSUFFICIENT_PRIVILEGE } from '@/lib/adminConstants'
 
 /**
  * Trash / restore for the six trash-first entities (migration 013). Every
@@ -52,10 +53,6 @@ export const RESTORE_RANK: Record<TrashEntity, number> = {
 
 type ContentTable = Exclude<TrashEntity, 'users'>
 
-const UNIQUE_VIOLATION = '23505'
-const FK_VIOLATION = '23503'
-const INSUFFICIENT_PRIVILEGE = '42501'
-
 /** Runs `fn` over `items` with at most `limit` in flight; results keep input order. */
 export async function mapLimit<T, R>(
   items: T[],
@@ -75,7 +72,7 @@ export async function mapLimit<T, R>(
 }
 
 /** Never leaks a raw Postgres message: known codes get a sentence, the rest a generic one. */
-export function reasonFromError(
+function reasonFromError(
   error: { code?: string; message?: string },
   entity: TrashEntity,
   item: TrashItem,

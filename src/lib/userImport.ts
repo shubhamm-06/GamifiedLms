@@ -1,15 +1,15 @@
 import { MIN_PASSWORD_LENGTH } from '@/lib/adminConstants'
 import type { BulkRowResult } from '@/lib/adminUserApi'
 import { parseCsvTable, stripFormulaGuard, toCsv, type CsvColumn } from '@/lib/csv'
+import { EMAIL_PATTERN } from '@/lib/utils'
 
 /** Import limits. The Edge Function enforces its own copy of the per-request ones. */
-export const IMPORT_MAX_BYTES = 2 * 1024 * 1024
+const IMPORT_MAX_BYTES = 2 * 1024 * 1024
 export const IMPORT_MAX_ROWS = 1000
 export const IMPORT_CHUNK_SIZE = 25
-export const MAX_DISPLAY_NAME_LENGTH = 100
-export const MAX_EMAIL_LENGTH = 254
+const MAX_DISPLAY_NAME_LENGTH = 100
+const MAX_EMAIL_LENGTH = 254
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_PATTERN = /^\+?\d{7,15}$/
 
 export const IMPORT_COLUMNS = ['display_name', 'email', 'phone_number', 'password'] as const
@@ -39,7 +39,7 @@ export interface ImportRow {
   reasons: string[]
 }
 
-export type ParseOutcome =
+type ParseOutcome =
   | {
       ok: true
       rows: ImportRow[]
@@ -62,7 +62,7 @@ export function checkImportFile(file: { name: string; size: number }): string | 
 }
 
 /** Strips spaces, dots, dashes and brackets, then accepts digits with an optional leading +. */
-export function normalizePhone(raw: string): string | null {
+function normalizePhone(raw: string): string | null {
   const stripped = raw.replace(/[\s().-]/g, '')
   return PHONE_PATTERN.test(stripped) ? stripped : null
 }
@@ -172,7 +172,7 @@ export function parseUserImport(text: string): ParseOutcome {
   return { ok: true, rows, ignoredColumns: ignored, encodingIssue: text.includes('\uFFFD') }
 }
 
-export interface PreviewCounts {
+interface PreviewCounts {
   total: number
   valid: number
   exists: number
@@ -191,7 +191,7 @@ export function countPreview(rows: readonly ImportRow[]): PreviewCounts {
   }
 }
 
-export type AccountState = 'active' | 'trashed'
+type AccountState = 'active' | 'trashed'
 
 /**
  * Marks otherwise-valid rows whose email already belongs to an account. An
@@ -243,7 +243,7 @@ export function userImportTemplateCsv(): string {
 // Results
 // ---------------------------------------------------------------------------
 
-export type ResultStatus = 'created' | 'skipped_exists' | 'skipped_trashed' | 'failed' | 'not_attempted'
+type ResultStatus = 'created' | 'skipped_exists' | 'skipped_trashed' | 'failed' | 'not_attempted'
 
 /** What the server (or the runner) reported for one row that was sent. */
 export interface SentOutcome {
@@ -266,7 +266,7 @@ export interface ResultRow {
   warning: boolean
 }
 
-export const PHONE_WARNING = 'Account created, but the phone number could not be saved'
+const PHONE_WARNING = 'Account created, but the phone number could not be saved'
 const TRASHED_REASON = 'In trash — restore that user instead'
 const EXISTS_REASON = 'Already exists — skipped'
 const INTERRUPTED_REASON =

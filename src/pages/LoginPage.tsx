@@ -5,8 +5,7 @@ import { AuthCard } from '@/components/auth/AuthCard'
 import { AuthField } from '@/components/auth/AuthField'
 import { resolvePostLoginPath } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+import { EMAIL_PATTERN } from '@/lib/utils'
 
 interface FieldErrors {
   email?: string
@@ -57,37 +56,44 @@ export function LoginPage() {
   }
 
   return (
-    <AuthCard heading="Welcome back" subheading="Log in to keep your streak going">
-      <form className="auth-form" onSubmit={handleSubmit} noValidate>
-        {formError ? <p className="auth-form-error">{formError}</p> : null}
-        <AuthField
-          id="email"
-          label="Email"
-          type="email"
-          autoComplete="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          error={fieldErrors.email}
-        />
-        <AuthField
-          id="password"
-          label="Password"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          error={fieldErrors.password}
-        />
-        <button type="submit" className="auth-btn-primary" disabled={submitting}>
-          {submitting ? 'Logging in…' : 'Log in'}
-        </button>
-      </form>
-      <p className="auth-footer">
-        Don&rsquo;t have an account?{' '}
-        <Link to="/signup" search={{ redirect }} className="auth-link">
-          Sign up
-        </Link>
-      </p>
+    <AuthCard
+      heading="Log in to your account"
+      subheading="Enter your details to continue"
+      onSubmit={handleSubmit}
+      submitLabel="Log in"
+      submitting={submitting}
+      error={formError}
+      footer={
+        <>
+          Don&rsquo;t have an account?{' '}
+          <Link to="/signup" search={{ redirect }} className="font-medium text-teal hover:underline">
+            Sign up
+          </Link>
+        </>
+      }
+    >
+      <AuthField
+        id="email"
+        label="Email"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        placeholder="you@company.com"
+        autoFocus
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        error={fieldErrors.email}
+      />
+      <AuthField
+        id="password"
+        label="Password"
+        type="password"
+        autoComplete="current-password"
+        placeholder="Your password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        error={fieldErrors.password}
+      />
     </AuthCard>
   )
 }

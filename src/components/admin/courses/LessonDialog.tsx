@@ -43,7 +43,7 @@ import { QuizQuestionsEditor } from './QuizQuestionsEditor'
 type VideoMode = 'direct' | 'embed'
 
 /** The two course fields that decide what XP a lesson really awards. */
-export interface LessonCourseXp {
+interface LessonCourseXp {
   default_lesson_xp: number
   gamification_enabled: boolean
 }

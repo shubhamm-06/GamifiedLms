@@ -1,6 +1,6 @@
 import { Award, BookOpen, House, User, type LucideIcon } from 'lucide-react'
 
-export interface KidTab {
+interface KidTab {
   to: '/' | '/badges' | '/courses' | '/profile'
   label: string
   Icon: LucideIcon

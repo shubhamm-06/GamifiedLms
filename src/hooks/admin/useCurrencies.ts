@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
+import { UNIQUE_VIOLATION, FK_VIOLATION } from '@/lib/adminConstants'
 
 export type Currency = Tables<'currencies'>
 
-export const currenciesQueryKey = ['admin', 'currencies'] as const
+const currenciesQueryKey = ['admin', 'currencies'] as const
 
 /**
  * Every row, active and inactive both — the Settings list editor needs to
@@ -23,7 +24,6 @@ export function useCurrencies() {
   })
 }
 
-const UNIQUE_VIOLATION = '23505'
 export const CODE_TAKEN = 'CODE_TAKEN'
 
 function useCurrenciesInvalidator() {
@@ -73,7 +73,6 @@ export function useSetCurrencyActive() {
 }
 
 /** Postgres FK violation — app_settings.default_currency references currencies(code), NO ACTION. */
-const FK_VIOLATION = '23503'
 export const CURRENCY_IS_DEFAULT = 'CURRENCY_IS_DEFAULT'
 
 /**

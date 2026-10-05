@@ -46,7 +46,7 @@ function Notice({ children }: { children: ReactNode }) {
 }
 
 function downloadTemplate() {
-  download('wisdom-hatch-users-template.csv', userImportTemplateCsv())
+  download('skillxp-users-template.csv', userImportTemplateCsv())
 }
 
 interface ImportUsersDialogProps {
@@ -138,7 +138,7 @@ export function ImportUsersDialog({ open, onOpenChange }: ImportUsersDialogProps
   }
 
   function downloadResults() {
-    download(`wisdom-hatch-import-results-${localDateStamp()}.csv`, resultsToCsv(results))
+    download(`skillxp-import-results-${localDateStamp()}.csv`, resultsToCsv(results))
     setDownloaded(true)
     setConfirmClose(false)
   }

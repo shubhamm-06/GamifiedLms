@@ -2,10 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
+import { UNIQUE_VIOLATION } from '@/lib/adminConstants'
 
 export type ManualOrderProvider = Tables<'manual_order_providers'>
 
-export const manualOrderProvidersQueryKey = ['admin', 'manualOrderProviders'] as const
+const manualOrderProvidersQueryKey = ['admin', 'manualOrderProviders'] as const
 
 /**
  * Every row, active and inactive both — the Settings list editor needs to
@@ -26,7 +27,6 @@ export function useManualOrderProviders() {
   })
 }
 
-const UNIQUE_VIOLATION = '23505'
 export const LABEL_TAKEN = 'LABEL_TAKEN'
 
 function useProvidersInvalidator() {

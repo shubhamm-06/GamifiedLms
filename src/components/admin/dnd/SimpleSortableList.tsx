@@ -20,7 +20,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export interface Positioned {
+interface Positioned {
   id: string
   position: number
 }

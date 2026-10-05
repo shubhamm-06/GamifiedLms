@@ -41,6 +41,7 @@ import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
 import type { TableSelection } from '@/components/admin/selection/useTableSelection'
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import type { Game } from '@/hooks/admin/useGames'
+import { dateFormatter } from '@/lib/adminConstants'
 
 /**
  * Same TanStack Table v9 feature registration as `CourseTable.tsx` — see that
@@ -63,12 +64,6 @@ const gamesFeatures = tableFeatures({
     datetime: sortFn_datetime,
     text: sortFn_text,
   },
-})
-
-const dateFormatter = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
 })
 
 const columnHelper = createColumnHelper<typeof gamesFeatures, Game>()

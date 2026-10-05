@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link, type LinkComponentProps } from '@tanstack/react-router'
 
-export type PrimaryVariant = 'candy' | 'muted' | 'secondary'
+type PrimaryVariant = 'candy' | 'muted' | 'secondary'
 
 interface CommonProps {
   variant: PrimaryVariant

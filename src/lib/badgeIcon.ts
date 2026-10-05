@@ -47,7 +47,7 @@ const GLYPH_MARKUP: Record<BadgeGlyph, string> = {
   dots: `<circle cx="52" cy="80" r="11" fill="${CREAM}"/><circle cx="80" cy="80" r="11" fill="${CREAM}"/><circle cx="108" cy="80" r="11" fill="${CREAM}"/>`,
 }
 
-export function buildBadgeIconSvg(color: BadgeColor, glyph: BadgeGlyph): string {
+function buildBadgeIconSvg(color: BadgeColor, glyph: BadgeGlyph): string {
   const { base, dark } = TOKEN_HEX[color]
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160">` +
@@ -59,7 +59,7 @@ export function buildBadgeIconSvg(color: BadgeColor, glyph: BadgeGlyph): string 
 }
 
 /** The exact bytes saved to `icon_url` — the live preview renders this same string, so "what you see" and "what gets saved" can never drift apart. */
-export function buildBadgeIconDataUri(color: BadgeColor, glyph: BadgeGlyph): string {
+function buildBadgeIconDataUri(color: BadgeColor, glyph: BadgeGlyph): string {
   // The SVG is pure ASCII (hex colours, path commands, no user-supplied
   // text), so btoa's Latin1-only limitation is never in play here.
   return `data:image/svg+xml;base64,${btoa(buildBadgeIconSvg(color, glyph))}`
@@ -73,7 +73,7 @@ export function buildBadgeIconDataUri(color: BadgeColor, glyph: BadgeGlyph): str
  * directly) won't match anything here — there is no reliable way to guess a
  * colour+glyph back out of an arbitrary image.
  */
-export function detectBadgeIcon(iconUrl: string | null): { color: BadgeColor; glyph: BadgeGlyph } | null {
+function detectBadgeIcon(iconUrl: string | null): { color: BadgeColor; glyph: BadgeGlyph } | null {
   if (!iconUrl) return null
   for (const color of BADGE_COLORS) {
     for (const glyph of BADGE_GLYPHS) {
@@ -121,7 +121,7 @@ export function initialBadgeIconState(iconUrl: string | null): BadgeIconState {
 export const BADGE_ICON_UPLOAD_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'] as const
 
 /** Kept small deliberately: the file becomes a base64 `data:` URI stored inline in the `badges` row, not a Storage object. */
-export const BADGE_ICON_MAX_BYTES = 100 * 1024
+const BADGE_ICON_MAX_BYTES = 100 * 1024
 
 /**
  * Reads a chosen file into a `data:` URI for the icon field, or a readable

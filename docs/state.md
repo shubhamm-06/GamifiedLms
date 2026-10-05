@@ -12,8 +12,8 @@ live.
 
 **Admin app** (routes and access rules: `routes-permissions.md`; every sidebar
 nav entry is a real route):
-- Auth: `/login`, `/signup`, role-aware post-login routing, the `/admin` guard
-  (role re-read from the database on every run), open-redirect protection.
+- Auth: `/login`, `/signup` (redesigned 2026-10-04: simple card, shared `AuthCard`/`AuthField`, `ui.md` "Auth screens"),
+  role-aware post-login routing, the `/admin` guard (role re-read from the database on every run), open-redirect protection.
 
 **Student app** (routes and access rules: `routes-permissions.md`; visuals:
 `ui.md`):
@@ -195,6 +195,14 @@ The schema or docs anticipate each of these; no working code exists for any.
   are unchanged. Known and left: no real sign-up exercised (Supabase rejects the fake test email domain); no Android
   device; the leftover `zz-pub-*` / `zz-fe-*` test users and `ZZ` / `eeeeeeee-...` test courses (including published
   ones) are still in the live database because cleanup deletes were declined.
+- **Testimonials carousel (2026-10-04, in `d91ee79`).** The testimonials grid became a native scroll-snap carousel (`ui.md`
+  "Testimonials carousel"); frontend only. Real touch swipes, vertical-scroll non-hijacking and the layout were checked in
+  the browser during the build; the final full sweep (360/390/768/1100/1440 x 0/1/2/3/12 cards) did NOT complete, so it is unconfirmed.
+- **Rebrand to SkillXP (2026-10-05, uncommitted).** Code, Android name, meta tags and docs done; the live `app_settings.site_name` row still says "Wisdom Hatch Kids" (the admin header and public course page show the DB value once loaded), so an admin must save "SkillXP" in Settings > Site identity. appId/Firebase/domains/storage keys intentionally unchanged (`env-deploy.md`). Logo image `public/logo.png` is in (auth, student sidebar); favicon, app icon, splash and og image still carry the old art.
+- **Auth redesign (2026-10-05, uncommitted).** Login/Register restyled as a standard B2B SaaS screen (Geist, flat
+  button, bordered white card, `APP_NAME` mark; `ui.md`), no behaviour change; no password-reset flow exists yet; verified in the browser at 1280 and 375 (states, keyboard flow, login/logout, the Profile forms that
+  reuse `AuthField`). Real registration was not completed: Supabase rejects `example.test` addresses, so only the
+  request and the error path were exercised.
 - **Testimonials v2 (2026-10-02, uncommitted).** One simple card for every count (no stars, no featured layout, no
   placeholder avatar), an optional photo that exists only when set and loaded, and an optional icon-only source with an
   optional link to the real post (`ui.md` "Testimonials v2"). Migration 039 APPLIED (removes `rating` from stored rows,
@@ -369,7 +377,7 @@ authoring. Row counts on 2026-09-19 — `profiles` 3 (1 admin, 2 students),
 `lesson_progress`, `badges` and `user_badges`; nothing is trashed and no auth
 user is banned. Verification passes use
 SQL-created throwaway accounts and separately-titled test rows — never the real
-"Wisdom Hatch Kids" content — and remove them afterwards (account rule:
+production content — and remove them afterwards (account rule:
 `rules.md`). On 2026-09-20 the profile, content, enrollment, payment, XP,
 stats, game and badge counts were re-read after each Phase 4 fixture round and
 matched the figures above; the config-table counts were not re-read. The two

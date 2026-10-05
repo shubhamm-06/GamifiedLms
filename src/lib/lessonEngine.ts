@@ -157,7 +157,7 @@ export async function heartbeatLesson(lessonId: string): Promise<LessonHeartbeat
 
 // ----------------------------------------------------------------- complete
 
-export interface LessonCompletion {
+interface LessonCompletion {
   completed: true
   /** True when the lesson was already completed: success, but no XP this time. */
   alreadyCompleted: boolean
@@ -202,7 +202,7 @@ export async function completeGame(lessonId: string, score: number): Promise<Les
 /** `{ [question id]: chosen option id }` — one entry for EVERY question of the lesson. */
 export type QuizAnswers = Record<string, string>
 
-export interface QuizQuestionResult {
+interface QuizQuestionResult {
   questionId: string
   correct: boolean
   /**
