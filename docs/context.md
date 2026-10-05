@@ -321,6 +321,7 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
   writing either, grep the file for the literal and swap it back to the
   escape.
 
+- Gotcha: never pass `data ?? []` (a fresh array each render) to a table whose effect reports rows back into parent state (`UserTable.onRowsChange`); use a module-level empty constant. Table columns and `tableFeatures` stay at module scope / memoised; derive state instead of syncing it with effects
 - Cleanup keep-list (looks unused, is not; do not remove): `supabase/migrations`, DB objects with no JS caller (validator/RLS/trigger functions such as `fn_is_admin`, `course_*_is_valid`), the generated `lib/database.types.ts`, shadcn `components/ui/*` exports, installed Capacitor plugins awaiting native polish, the locked design tokens, `scripts/check-*.mjs`, `console.error` logging in hooks and Edge Functions, and `docs/reference/*`
 
 ## HUMAN-ZONE (narrative, for a person skimming to get oriented)

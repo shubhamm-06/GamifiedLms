@@ -26,6 +26,11 @@ import { adminSessionQueryOptions } from '@/lib/adminSession'
 
 type DialogKind = 'edit' | 'email' | 'password'
 
+// A module-level empty list, not `data ?? []`: while the query is pending a fresh array each render
+// makes the table's row list a new reference every time, which re-fires its onRowsChange effect and
+// loops through setTableRows ("Maximum update depth exceeded").
+const NO_USERS: AdminUserRow[] = []
+
 export function UsersPage() {
   const navigate = useNavigate()
   // Filtering is client-side over an already-fetched list, so the input is
@@ -41,7 +46,7 @@ export function UsersPage() {
   const [trashTargets, setTrashTargets] = useState<AdminUserRow[]>([])
 
   const { data, isPending, isError } = useUsers()
-  const users = data ?? []
+  const users = data ?? NO_USERS
   const { data: session } = useQuery(adminSessionQueryOptions)
 
   // A selection is only meaningful under the search/filter it was made in.
