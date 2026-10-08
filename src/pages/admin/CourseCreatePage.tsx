@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { CourseBuilder } from '@/components/admin/courses/CourseBuilder'
 import { CourseForm } from '@/components/admin/courses/CourseForm'
 import { ENROLL_URL_INVALID, SLUG_INVALID, SLUG_TAKEN, useCreateCourse, type CourseFormValues } from '@/hooks/admin/useCourses'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 export function CourseCreatePage() {
   const navigate = useNavigate()
@@ -46,7 +47,7 @@ export function CourseCreatePage() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-lg font-semibold tracking-tight">New course</h1>
+        <h1 className="text-lg font-semibold tracking-tight">{`New ${tw().lower('course')}`}</h1>
         <p className="text-muted-foreground text-sm">
           Saved as a draft — add curriculum next, then publish when ready.
         </p>

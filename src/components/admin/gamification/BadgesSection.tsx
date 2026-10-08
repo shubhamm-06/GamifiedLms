@@ -26,6 +26,7 @@ import {
   type BadgeFormValues,
 } from '@/hooks/admin/useBadges'
 import { useTrashActions } from '@/hooks/admin/useTrashActions'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * A flat record, so a Dialog rather than a route — same convention as
@@ -105,14 +106,14 @@ export function BadgesSection() {
     <section className="space-y-4">
       <header className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold tracking-tight">Badges</h2>
+          <h2 className="text-base font-semibold tracking-tight">{`${tw().terms('badge')}`}</h2>
           <p className="text-muted-foreground text-sm">
-            {data?.length ?? 0} {(data?.length ?? 0) === 1 ? 'badge' : 'badges'}
+            {data?.length ?? 0} {tw().lower('badge', (data?.length ?? 0) !== 1)}
           </p>
         </div>
         <Button onClick={openCreate}>
           <Plus />
-          New badge
+          {`New ${tw().lower('badge')}`}
         </Button>
       </header>
 
@@ -121,7 +122,7 @@ export function BadgesSection() {
         <Input
           className="pl-8"
           placeholder="Search by name…"
-          aria-label="Search badges"
+          aria-label={`Search ${tw().lower('badge', true)}`}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -154,7 +155,7 @@ export function BadgesSection() {
             <AlertDialogTitle>
               {archiveBatch?.length === 1
                 ? `Archive "${archiveBatch[0].name}"?`
-                : `Archive ${archiveBatch?.length ?? 0} badges?`}
+                : `Archive ${archiveBatch?.length ?? 0} ${tw().lower('badge', true)}?`}
             </AlertDialogTitle>
             <AlertDialogDescription>
               It stops appearing here and is never awarded again. Anyone who already earned it

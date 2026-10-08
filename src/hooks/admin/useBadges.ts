@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
 import { UNIQUE_VIOLATION } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 export type Badge = Tables<'badges'>
 
@@ -26,24 +27,24 @@ export const CONDITION_TYPES: Record<
   { label: string; valueLabel: string; hint: string }
 > = {
   total_xp: {
-    label: 'Total XP',
-    valueLabel: 'Total XP',
-    hint: "Unlocks once a student's lifetime XP reaches this.",
+    label: `Total ${tw().term('xp')}`,
+    valueLabel: `Total ${tw().term('xp')}`,
+    hint: `Unlocks once a student's lifetime ${tw().term('xp')} reaches this.`,
   },
   streak_days: {
-    label: 'Streak',
+    label: `${tw().term('streak')}`,
     valueLabel: 'Consecutive days',
-    hint: "Unlocks once a student's current streak reaches this many days.",
+    hint: `Unlocks once a student's current ${tw().lower('streak')} reaches this many days.`,
   },
   lessons_completed: {
-    label: 'Lessons completed',
-    valueLabel: 'Lessons completed',
-    hint: 'Unlocks once a student has completed this many lessons overall.',
+    label: `${tw().terms('lesson')} completed`,
+    valueLabel: `${tw().terms('lesson')} completed`,
+    hint: `Unlocks once a student has completed this many ${tw().lower('lesson', true)} overall.`,
   },
   course_complete: {
-    label: 'Course completion',
-    valueLabel: 'Courses completed',
-    hint: 'Unlocks once a student has finished every published lesson in this many of their courses.',
+    label: `${tw().term('course')} completion`,
+    valueLabel: `${tw().terms('course')} completed`,
+    hint: `Unlocks once a student has finished every published ${tw().lower('lesson')} in this many of their ${tw().lower('course', true)}.`,
   },
 }
 
@@ -58,13 +59,13 @@ export function describeCondition(type: string, value: number): string {
   if (!isConditionType(type)) return `${type}: ${value}`
   switch (type) {
     case 'lessons_completed':
-      return `${value} ${value === 1 ? 'lesson' : 'lessons'} completed`
+      return `${value} ${tw().lower('lesson', value !== 1)} completed`
     case 'streak_days':
-      return `${value}-day streak`
+      return `${value}-day ${tw().lower('streak')}`
     case 'total_xp':
-      return `${value} XP`
+      return `${value} ${tw().term('xp')}`
     case 'course_complete':
-      return 'Finish a course'
+      return `Finish ${tw().lower('course')}`
   }
 }
 
@@ -144,7 +145,7 @@ export function useCreateBadge() {
     },
     onSuccess: () => {
       invalidate()
-      toast.success('Badge added.')
+      toast.success(`${tw().term('badge')} added.`)
     },
   })
 }
@@ -158,7 +159,7 @@ export function useUpdateBadge() {
     },
     onSuccess: () => {
       invalidate()
-      toast.success('Badge saved.')
+      toast.success(`${tw().term('badge')} saved.`)
     },
   })
 }

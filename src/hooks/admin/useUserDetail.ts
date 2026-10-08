@@ -5,6 +5,7 @@ import type { Tables } from '@/lib/database.types'
 import { coursesQueryKey, type Course } from './useCourses'
 import { usersQueryKey } from './useUsers'
 import { UNIQUE_VIOLATION } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 export type Enrollment = Tables<'enrollments'>
 export type Badge = Tables<'badges'>
@@ -242,7 +243,7 @@ export function useEnrollUser(userId: string) {
       if (error) {
         if (error.code === UNIQUE_VIOLATION) {
           throw new Error(
-            'Already enrolled in this course. Revoke the existing enrollment first if you need to re-enroll them.',
+            `Already enrolled in this ${tw().lower('course')}. Revoke the existing enrollment first if you need to re-enroll them.`,
           )
         }
         throw new Error(error.message)
@@ -315,7 +316,7 @@ export function useAwardXp(userId: string) {
       queryClient.invalidateQueries({ queryKey: detailKey(userId) })
       queryClient.invalidateQueries({ queryKey: badgesKey(userId) })
       queryClient.invalidateQueries({ queryKey: usersQueryKey })
-      toast.success('XP awarded.')
+      toast.success(`${tw().term('xp')} awarded.`)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -481,9 +482,9 @@ export function useResetCourseProgress(userId: string) {
       queryClient.invalidateQueries({ queryKey: badgesKey(userId) })
       queryClient.invalidateQueries({ queryKey: usersQueryKey })
       toast.success(
-        `Progress reset. ${result.lessonsRemoved} lesson ${result.lessonsRemoved === 1 ? 'record' : 'records'}, ` +
+        `Progress reset. ${result.lessonsRemoved} ${tw().lower('lesson')} ${result.lessonsRemoved === 1 ? 'record' : 'records'}, ` +
           `${result.quizAttemptsRemoved} quiz ${result.quizAttemptsRemoved === 1 ? 'attempt' : 'attempts'} and ` +
-          `${result.xpClawedBack} XP removed.`,
+          `${result.xpClawedBack} ${tw().term('xp')} removed.`,
       )
     },
     onError: (error: Error) => toast.error(error.message),

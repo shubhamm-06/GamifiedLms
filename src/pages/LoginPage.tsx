@@ -3,6 +3,7 @@ import { Link, useRouter, useSearch } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { AuthField } from '@/components/auth/AuthField'
+import { useBranding } from '@/hooks/useSettings'
 import { resolvePostLoginPath } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
 import { EMAIL_PATTERN } from '@/lib/utils'
@@ -16,6 +17,7 @@ export function LoginPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { redirect } = useSearch({ from: '/login' })
+  const branding = useBranding()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({})
@@ -57,8 +59,8 @@ export function LoginPage() {
 
   return (
     <AuthCard
-      heading="Log in to your account"
-      subheading="Enter your details to continue"
+      heading={branding.loginHeading || 'Log in to your account'}
+      subheading={branding.loginSubline || 'Enter your details to continue'}
       onSubmit={handleSubmit}
       submitLabel="Log in"
       submitting={submitting}

@@ -31,6 +31,7 @@ import {
 import { badgeIconToUrl, initialBadgeIconState } from '@/lib/badgeIcon'
 import { slugify } from '@/lib/slug'
 import { cn } from '@/lib/utils'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const EMPTY_BADGE: BadgeFormValues = {
   name: '',
@@ -238,7 +239,7 @@ function BadgeForm({
         <div>
           <Label htmlFor="badge-active">Active</Label>
           <p className="text-muted-foreground text-xs">
-            Inactive badges are never awarded, but anyone who already earned one keeps it.
+            {`Inactive ${tw().lower('badge', true)} are never awarded, but anyone who already earned one keeps it.`}
           </p>
         </div>
         <Switch
@@ -253,7 +254,7 @@ function BadgeForm({
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving…' : badge ? 'Save badge' : 'Add badge'}
+          {isSubmitting ? 'Saving…' : badge ? `Save ${tw().lower('badge')}` : `Add ${tw().lower('badge')}`}
         </Button>
       </DialogFooter>
     </form>
@@ -272,7 +273,7 @@ export function BadgeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{badge ? 'Edit badge' : 'New badge'}</DialogTitle>
+          <DialogTitle>{badge ? `Edit ${tw().lower('badge')}` : `New ${tw().lower('badge')}`}</DialogTitle>
           <DialogDescription>
             {badge ? badge.name : 'A flat record — awarded automatically once its condition is met.'}
           </DialogDescription>

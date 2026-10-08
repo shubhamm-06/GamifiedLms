@@ -17,6 +17,7 @@
  * they accept and reject exactly the same values. Runs under `node --experimental-strip-types`.
  */
 import { isHttpsUrl } from './externalLink.ts'
+import { getTerms as t } from './settings/termsCore.ts'
 import {
   BUILTIN_KEYS,
   COVER_FOCUS,
@@ -48,7 +49,7 @@ export type PageFont = (typeof PAGE_FONTS)[number]
 const DEFAULT_ORDER: readonly BuiltinKey[] = BUILTIN_KEYS
 
 export const SECTION_LABELS: Record<BuiltinKey, string> = {
-  about: 'About this course',
+  get about() { return `About this ${t().lower('course')}` },
   learn: 'What your child will learn',
   inside: "What's inside",
   how: 'How it works',
@@ -58,7 +59,13 @@ export const SECTION_LABELS: Record<BuiltinKey, string> = {
   faq: 'Questions parents ask',
 }
 
-export const FACT_LABELS: Record<FactKey, string> = { ages: 'Ages', lessons: 'Lessons', time: 'Total time', access: 'Access', language: 'Language' }
+export const FACT_LABELS: Record<FactKey, string> = {
+  ages: 'Ages',
+  get lessons() { return t().terms('lesson') },
+  time: 'Total time',
+  access: 'Access',
+  language: 'Language',
+}
 
 // ------------------------------------------------------------------- input
 
@@ -199,7 +206,7 @@ const oneOf = <T extends string>(list: readonly T[], v: unknown): v is T => type
 const LIM = PAGE_LIMITS
 
 /** One `page_layout` entry, by the same rules as `layoutEntrySchema` (coursePageSchema.ts) and the DB CHECK. */
-function isValidLayoutEntry(e: unknown): boolean {
+export function isValidLayoutEntry(e: unknown): boolean {
   if (!isObj(e) || typeof e.visible !== 'boolean') return false
   if (oneOf(BUILTIN_KEYS, e.key)) return only(e, ['key', 'visible', 'title', 'intro']) && optText(e, 'title', LIM.layout.title) && optText(e, 'intro', LIM.layout.intro)
   if (e.key !== 'custom' || typeof e.id !== 'string' || !CUSTOM_ID_RE.test(e.id) || !isText(e.title, 1, LIM.layout.title)) return false
@@ -211,7 +218,7 @@ function isValidLayoutEntry(e: unknown): boolean {
 }
 
 /** One `page_options` value, by key (same rules as `pageOptionSchemas`). */
-function isValidPageOption(key: string, v: unknown): boolean {
+export function isValidPageOption(key: string, v: unknown): boolean {
   switch (key) {
     case 'cover':
       return isObj(v) && only(v, ['show', 'focus']) && (!('show' in v) || typeof v.show === 'boolean') && (!('focus' in v) || oneOf(COVER_FOCUS, v.focus))
@@ -247,7 +254,7 @@ function isValidPageOption(key: string, v: unknown): boolean {
 }
 
 /** One testimonial (same rules as `testimonialSchema`). */
-function isValidTestimonial(t: unknown): boolean {
+export function isValidTestimonial(t: unknown): boolean {
   const T = LIM.testimonials
   return (
     isObj(t) &&
@@ -475,7 +482,7 @@ function textList(v: unknown): string[] {
 
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v)
 
-function formatAges(min: unknown, max: unknown): string | null {
+export function formatAges(min: unknown, max: unknown): string | null {
   const lo = min == null ? null : min
   const hi = max == null ? null : max
   if (lo !== null && !(isInt(lo) && lo >= PAGE_LIMITS.ageMin && lo <= PAGE_LIMITS.ageMax)) return null
@@ -490,7 +497,7 @@ function formatAges(min: unknown, max: unknown): string | null {
 }
 
 /** Under an hour: "45 min". From an hour: rounded to 5 minutes, "1 hr", "1 hr 30 min", "2 hr 30 min". */
-function formatDuration(totalMinutes: number): string {
+export function formatDuration(totalMinutes: number): string {
   if (totalMinutes < 60) return `${totalMinutes} min`
   const rounded = Math.round(totalMinutes / 5) * 5
   const h = Math.floor(rounded / 60)
@@ -499,7 +506,7 @@ function formatDuration(totalMinutes: number): string {
 }
 
 /** "30 days", "3 months", "12 months", "2 years" — month/year wording only on an exact multiple. */
-function formatAccessLength(days: number): string {
+export function formatAccessLength(days: number): string {
   if (days % 365 === 0) {
     const years = days / 365
     return years === 1 ? '12 months' : `${years} years`
@@ -546,7 +553,13 @@ function lessonType(t: unknown): LessonType {
   return t === 'video' || t === 'text' || t === 'game' || t === 'quiz' ? t : 'other'
 }
 
-const TYPE_LABEL: Record<LessonType, string> = { video: 'Video', text: 'Reading', game: 'Game', quiz: 'Quiz', other: 'Lesson' }
+const TYPE_LABEL: Record<LessonType, string> = {
+  video: 'Video',
+  text: 'Reading',
+  game: 'Game',
+  quiz: 'Quiz',
+  get other() { return t().term('lesson') },
+}
 const TYPE_ORDER: Exclude<LessonType, 'other'>[] = ['video', 'text', 'game', 'quiz']
 /** Words for "Lessons mix ..." and for the included list. */
 const TYPE_PHRASE: Record<Exclude<LessonType, 'other'>, string> = { video: 'short videos', text: 'reading', game: 'games', quiz: 'quizzes' }
@@ -583,12 +596,12 @@ export function defaultHowItems(gamification: boolean): string[] {
 }
 function defaultHowRules(gamification: boolean): { text: string; icon: PageIconKey }[] {
   const rules: { text: string; icon: PageIconKey }[] = [
-    { text: 'Lessons open one at a time, in order.', icon: 'rule-order' },
-    { text: 'Each lesson has a minimum time before it counts as done.', icon: 'rule-time' },
+    { text: `${t().terms('lesson')} open one at a time, in order.`, icon: 'rule-order' },
+    { text: `Each ${t().lower('lesson')} has a minimum time before it counts as done.`, icon: 'rule-time' },
     { text: 'Quizzes can be retried.', icon: 'rule-retry' },
     { text: 'Progress saves automatically.', icon: 'rule-save' },
   ]
-  if (gamification) rules.push({ text: 'Your child earns points and badges as they learn.', icon: 'rule-points' })
+  if (gamification) rules.push({ text: `Your child earns ${t().lower('xp', true)} and ${t().lower('badge', true)} as they learn.`, icon: 'rule-points' })
   return rules
 }
 
@@ -675,7 +688,7 @@ export function buildCoursePageModel(input: CoursePageInput): CoursePageModel {
     const n = i + 1
     const known = m.lessons.filter((l) => l.minutes !== null && l.minutes > 0)
     const sum = known.reduce((s, l) => s + (l.minutes ?? 0), 0)
-    const count = plural(m.lessons.length, 'lesson', 'lessons')
+    const count = plural(m.lessons.length, t().lower('lesson'), t().lower('lesson', true))
     const time = showMinutes && sum > 0 ? formatDuration(sum) : null
     return {
       key: m.id ?? `ungrouped-${n}`,
@@ -690,14 +703,14 @@ export function buildCoursePageModel(input: CoursePageInput): CoursePageModel {
   })
   let insideIntro: string | null = null
   if (modules.length > 0) {
-    const parts = [plural(modules.length, 'section', 'sections'), plural(lessonCount, 'lesson', 'lessons')]
+    const parts = [plural(modules.length, 'section', 'sections'), plural(lessonCount, t().lower('lesson'), t().lower('lesson', true))]
     if (showMinutes && timeKnown) parts.push(formatDuration(totalMinutes))
     insideIntro = parts.join(', ')
   }
 
   let howIntro: string | null = null
-  if (typesPresent.length === 1) howIntro = `Lessons are ${TYPE_PHRASE[typesPresent[0]]}.`
-  else if (typesPresent.length > 1) howIntro = `Lessons mix ${joinList(typesPresent.map((t) => TYPE_PHRASE[t]))}.`
+  if (typesPresent.length === 1) howIntro = `${t().terms('lesson')} are ${TYPE_PHRASE[typesPresent[0]]}.`
+  else if (typesPresent.length > 1) howIntro = `${t().terms('lesson')} mix ${joinList(typesPresent.map((k) => TYPE_PHRASE[k]))}.`
   const customHow = textList(opts.how_items)
   const defaultRules = defaultHowRules(course.gamification_enabled === true)
   const howItems = customHow.length > 0 ? customHow : defaultRules.map((r) => r.text)
@@ -797,8 +810,8 @@ export function buildCoursePageModel(input: CoursePageInput): CoursePageModel {
   const note = expiredNote(viewer)
   const ctaLabel = str(opts.cta_label) || 'Enroll now'
   const freeEnroll = (): CoursePageModel['enroll'] => {
-    if (viewer?.kind === 'enrolled') return { state: 'free', action: 'go', label: 'Go to course' }
-    if (viewer?.kind === 'revoked') return { state: 'closed', note: 'Your access to this course was ended. Please contact support.' }
+    if (viewer?.kind === 'enrolled') return { state: 'free', action: 'go', label: `Go to ${t().lower('course')}` }
+    if (viewer?.kind === 'revoked') return { state: 'closed', note: `Your access to this ${t().lower('course')} was ended. Please contact support.` }
     if (viewer?.kind === 'expired') return { state: 'closed', note: note ?? 'Your access has ended.' }
     return { state: 'free', action: viewer?.kind === 'anon' ? 'signup' : 'enroll', label: str(opts.cta_label) || 'Enroll for free' }
   }
@@ -806,7 +819,7 @@ export function buildCoursePageModel(input: CoursePageInput): CoursePageModel {
     ? freeEnroll()
     : isHttpsUrl(enrollUrl)
     ? { state: 'open', url: enrollUrl, label: note ? 'Enroll again' : ctaLabel, expiredNote: note }
-    : { state: 'closed', note: "Enrollment isn't open for this course yet." }
+    : { state: 'closed', note: `Enrollment isn't open for this ${t().lower('course')} yet.` }
 
   let included = textList(opts.included)
   const includedCustom = included.length > 0
@@ -816,7 +829,8 @@ export function buildCoursePageModel(input: CoursePageInput): CoursePageModel {
     includedIcons = []
     if (lessonCount > 0) {
       const kinds = typesPresent.map((t) => TYPE_PLURAL[t])
-      included.push(kinds.length ? `${plural(lessonCount, 'lesson', 'lessons')} (${joinList(kinds)})` : plural(lessonCount, 'lesson', 'lessons'))
+      const count = plural(lessonCount, t().lower('lesson'), t().lower('lesson', true))
+      included.push(kinds.length ? `${count} (${joinList(kinds)})` : count)
       includedIcons.push('incl-lessons')
     }
     included.push('Progress saved automatically', 'Works on phone, tablet and computer')

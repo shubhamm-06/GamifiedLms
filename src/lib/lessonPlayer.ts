@@ -1,6 +1,5 @@
 import type { LessonStateRow } from '@/lib/lessonEngine'
 import { formatClock } from '@/lib/lessonSettings'
-import { isEmbedUrl } from '@/lib/video'
 
 /**
  * Pure helpers for the lesson player. No I/O and no decisions about completion,
@@ -9,6 +8,9 @@ import { isEmbedUrl } from '@/lib/video'
  */
 
 type PlayerLessonType = 'video' | 'text' | 'quiz' | 'game'
+
+/** play: earning; replay: opened already completed; done: completed this visit. */
+export type PlayerMode = 'play' | 'replay' | 'done'
 
 export interface LessonContent {
   id: string
@@ -88,16 +90,6 @@ export function safeMediaUrl(url: string | null | undefined, allowHttp = false):
   return null
 }
 
-type VideoSource = { kind: 'embed'; url: string } | { kind: 'file'; url: string } | null
-
-/** A normalized YouTube/Vimeo embed, else a direct file/stream URL, else nothing usable. */
-export function videoSource(url: string | null, allowHttp = false): VideoSource {
-  if (!url) return null
-  if (isEmbedUrl(url)) return { kind: 'embed', url }
-  const safe = safeMediaUrl(url, allowHttp)
-  return safe ? { kind: 'file', url: safe } : null
-}
-
 /** The lesson right after this one in course order, if it is open (not locked). */
 export function nextOpenLesson(states: LessonStateRow[], lessonId: string): LessonStateRow | null {
   const current = states.find((s) => s.lessonId === lessonId)
@@ -149,14 +141,4 @@ img,video,iframe,table{max-width:100%;height:auto}
 a{color:${theme.teal};font-weight:700}
 blockquote{border-left:4px solid ${theme.cream};padding-left:12px;margin-left:0}
 </style></head><body>${html}</body></html>`
-}
-
-/** True when a video lesson's URL is something the player will load (so the activity card knows whether to offer Play). */
-export function videoIsPlayable(url: string | null): boolean {
-  return videoSource(url, import.meta.env.DEV) !== null
-}
-
-/** True when a game lesson's bundle can be put in a frame at all. */
-export function gameIsPlayable(game: GameInfo | null): boolean {
-  return !!game && !!safeMediaUrl(game.bundleUrl, import.meta.env.DEV)
 }

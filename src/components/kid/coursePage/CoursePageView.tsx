@@ -7,6 +7,7 @@ import { loadCoursePageFont } from './fonts'
 import { LESSON_ICONS, PAGE_ICONS } from './icons'
 import { SourceIcon } from './testimonialSources'
 import './coursePage.css'
+import { getTerms as t } from '@/lib/settings/terms'
 
 interface CoursePageViewProps {
   model: CoursePageModel
@@ -60,14 +61,14 @@ export function CoursePageView({ model, embedded = false, backLink: BackLink, to
           {top ? (
             top
           ) : BackLink ? (
-            <BackLink className="cp-back" aria-label="Back to courses">
+            <BackLink className="cp-back" aria-label={`Back to ${t().lower('course', true)}`}>
               <PageIcon icon={ArrowLeft} size={20} />
-              <span className="cp-back-text">Back to courses</span>
+              <span className="cp-back-text">Back to {t().lower('course', true)}</span>
             </BackLink>
           ) : (
             <span className="cp-back">
               <PageIcon icon={ArrowLeft} size={20} />
-              <span className="cp-back-text">Back to courses</span>
+              <span className="cp-back-text">Back to {t().lower('course', true)}</span>
             </span>
           )}
         </div>

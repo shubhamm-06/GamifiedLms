@@ -5,6 +5,7 @@ import { weaveOffset } from '@/lib/roadmapWeave'
 import type { RoadmapLesson } from '@/lib/roadmap'
 import { LESSON_TYPE_META, STATE_WORD } from './lessonTypeMeta'
 import * as haptics from '@/lib/haptics'
+import { getTerms as t } from '@/lib/settings/terms'
 
 interface Props {
   lesson: RoadmapLesson
@@ -36,7 +37,7 @@ export function RoadmapNode({ lesson, index, unit, moduleKey, isCurrent, expande
   const { label: typeLabel, Icon: TypeIcon } = LESSON_TYPE_META[lesson.type]
   const locked = lesson.state === 'locked'
   const active = lesson.state === 'available' || lesson.state === 'in_progress'
-  const ariaLabel = `Lesson ${lesson.number}, ${lesson.title}, ${typeLabel.toLowerCase()}, ${STATE_WORD[lesson.state]}`
+  const ariaLabel = `${t().term('lesson')} ${lesson.number}, ${lesson.title}, ${typeLabel.toLowerCase()}, ${STATE_WORD[lesson.state]}`
   const showXp = !locked && lesson.xp !== null && lesson.xp > 0
   const showTime = !locked && lesson.minTimeSeconds > 0
 
@@ -124,7 +125,7 @@ export function RoadmapNode({ lesson, index, unit, moduleKey, isCurrent, expande
           <div className="rm-chips">
             {showXp ? (
               <span className="rm-chip">
-                <Sparkles className="size-3.5" aria-hidden />+{lesson.xp} XP
+                <Sparkles className="size-3.5" aria-hidden />+{lesson.xp} {t().term('xp')}
               </span>
             ) : null}
             {showTime ? (

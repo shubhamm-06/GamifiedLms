@@ -54,6 +54,7 @@ import type { TableSelection } from '@/components/admin/selection/useTableSelect
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import type { AdminUserRow, RoleFilter } from '@/hooks/admin/useUsers'
 import { dateFormatter, PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * TanStack Table v9 feature registration — see `context.md` for why this is
@@ -100,8 +101,8 @@ function RoleBadge({ role }: { role: string }) {
       className="border-transparent font-semibold"
       style={
         isAdmin
-          ? { backgroundColor: 'var(--gold)', color: 'var(--ink)' }
-          : { backgroundColor: 'var(--teal)', color: '#ffffff' }
+          ? { backgroundColor: 'var(--gold)', color: 'var(--gold-fg)' }
+          : { backgroundColor: 'var(--teal)', color: 'var(--teal-fg)' }
       }
     >
       {isAdmin ? 'Admin' : 'Student'}
@@ -200,11 +201,11 @@ function buildColumns({
     // free, since they have no accessor.
     columnHelper.display({
       id: 'xp',
-      header: 'XP / Level',
+      header: `${tw().term('xp')} / ${tw().term('level')}`,
       cell: ({ row }) => (
         <span className="text-muted-foreground tabular-nums">
           {row.original.user_stats
-            ? `${row.original.user_stats.total_xp} XP · L${row.original.user_stats.level}`
+            ? `${row.original.user_stats.total_xp} ${tw().term('xp')} · L${row.original.user_stats.level}`
             : '—'}
         </span>
       ),

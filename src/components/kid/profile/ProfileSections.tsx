@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { ChevronRight, FileText, LifeBuoy, Shield, Trash2, Vibrate, Volume2 } from 'lucide-react'
+import { ChevronRight, CircleHelp, FileText, LifeBuoy, Shield, Trash2, Vibrate, Volume2 } from 'lucide-react'
 import { AuthField } from '@/components/auth/AuthField'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import {
@@ -13,6 +13,7 @@ import {
 import { useBackClosable } from '@/hooks/useBackClosable'
 import { useHapticsSetting } from '@/hooks/useHapticsSetting'
 import { useSoundEffects } from '@/hooks/useSoundEffects'
+import { useBranding } from '@/hooks/useSettings'
 import * as haptics from '@/lib/haptics'
 
 /*
@@ -22,8 +23,7 @@ import * as haptics from '@/lib/haptics'
  */
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-// Placeholders — swap for the real address/URLs before ship (flagged again in the task summary).
-const SUPPORT_EMAIL = 'support@wisdomhatch.example'
+// Placeholders — swap for the real legal URLs before ship (flagged again in the task summary).
 const PRIVACY_URL = 'https://wisdomhatch.example/privacy'
 const TERMS_URL = 'https://wisdomhatch.example/terms'
 
@@ -72,6 +72,8 @@ export function AccountSection({ profile }: { profile: KidProfile }) {
 export function PreferencesSection() {
   const [soundEnabled, setSoundEnabled] = useSoundEffects()
   const [hapticsEnabled, setHapticsEnabled] = useHapticsSetting()
+  // Settings > Branding: support email and help link, each shown only when set.
+  const { productName, supportEmail, helpUrl } = useBranding()
   return (
     <section className="kid-card kp-card" aria-label="Preferences">
       <h2 className="kp-card-title">Preferences &amp; Support</h2>
@@ -121,19 +123,34 @@ export function PreferencesSection() {
           </button>
         </div>
       </div>
-      <div className="kp-subsection">
-        <h3 className="kp-subsection-title">Help &amp; Support</h3>
-        <a href={`mailto:${SUPPORT_EMAIL}`} className="kp-row kid-tap" data-testid="help-support">
-          <span className="kp-row-icon" data-color="teal">
-            <LifeBuoy className="size-4" aria-hidden />
-          </span>
-          <span className="kp-row-text">Email support</span>
-          <ChevronRight className="kp-row-chevron size-5" aria-hidden />
-        </a>
-      </div>
+      {supportEmail || helpUrl ? (
+        <div className="kp-subsection">
+          <h3 className="kp-subsection-title">Help &amp; Support</h3>
+          {supportEmail ? (
+            <a href={`mailto:${supportEmail}`} className="kp-row kid-tap" data-testid="help-support">
+              <span className="kp-row-icon" data-color="teal">
+                <LifeBuoy className="size-4" aria-hidden />
+              </span>
+              <span className="kp-row-text">Email support</span>
+              <ChevronRight className="kp-row-chevron size-5" aria-hidden />
+            </a>
+          ) : null}
+          {helpUrl ? (
+            <a href={helpUrl} target="_blank" rel="noopener noreferrer" className="kp-row kid-tap" data-testid="help-link">
+              <span className="kp-row-icon" data-color="teal">
+                <CircleHelp className="size-4" aria-hidden />
+              </span>
+              <span className="kp-row-text">Help</span>
+              <ChevronRight className="kp-row-chevron size-5" aria-hidden />
+            </a>
+          ) : null}
+        </div>
+      ) : null}
       <div className="kp-subsection">
         <h3 className="kp-subsection-title">About</h3>
-        <p className="kp-about-version">Version {__APP_VERSION__}</p>
+        <p className="kp-about-version" data-testid="about-product">
+          {productName} · Version {__APP_VERSION__}
+        </p>
         <a href={PRIVACY_URL} target="_blank" rel="noreferrer" className="kp-row kid-tap" data-testid="privacy-link">
           <span className="kp-row-icon" data-color="plum">
             <Shield className="size-4" aria-hidden />

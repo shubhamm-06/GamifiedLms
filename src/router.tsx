@@ -18,6 +18,8 @@ import { LoginPage } from '@/pages/LoginPage'
 import { PublicCoursePage } from '@/pages/PublicCoursePage'
 import { SignupPage } from '@/pages/SignupPage'
 import { redirectIfAdminAlreadySignedIn, requireAdmin } from '@/lib/adminSession'
+import { effectiveFeatures } from '@/lib/settings/schema'
+import { getSettingsSnapshot, refreshSettings } from '@/lib/settings/store'
 import { queryClient } from '@/lib/queryClient'
 import { hasSession, requireStudentSession } from '@/lib/studentSession'
 import { LessonPlayerGallery } from '@/pages/dev/LessonPlayerGallery'
@@ -73,6 +75,11 @@ const publicCourseRoute = createRoute({
   path: '/course/$courseRef',
   beforeLoad: async ({ params }) => {
     if (await hasSession()) throw redirect({ to: '/courses/$courseId', params: { courseId: params.courseRef } })
+    // Settings > Features > Public course pages off: a signed-out visitor logs in first, then lands on the in-app page.
+    // A cached "off" is confirmed with the server first, so turning the pages back on takes effect at once.
+    if (!effectiveFeatures(getSettingsSnapshot().features).publicCoursePages && !effectiveFeatures((await refreshSettings()).features).publicCoursePages) {
+      throw redirect({ to: '/login', search: { redirect: `/courses/${params.courseRef}` } })
+    }
   },
   component: PublicCoursePage,
 })
@@ -254,10 +261,13 @@ const adminNotificationsRoute = createRoute({
  * `/admin/orders`'s `?view=` — survives a refresh, is linkable. Defaults to
  * `commerce`, matching this tab's position as the first/leftmost one.
  */
+type SettingsTab = 'branding' | 'colors' | 'terminology' | 'features' | 'commerce' | 'gamification' | 'identity'
+
 function validateSettingsTab(
   search: Record<string, unknown>,
-): { tab: 'commerce' | 'gamification' | 'identity' } {
-  const tab = search.tab === 'gamification' || search.tab === 'identity' ? search.tab : 'commerce'
+): { tab: SettingsTab } {
+  const tabs = ['branding', 'colors', 'terminology', 'features', 'commerce', 'gamification', 'identity'] as const
+  const tab = tabs.find((t) => t === search.tab) ?? 'branding'
   return { tab }
 }
 

@@ -19,6 +19,8 @@
     --color-gold-d: var(--gold-d);
     --color-teal: var(--teal);
     --color-teal-d: var(--teal-d);
+    --color-gold-fg: var(--gold-fg);
+    --color-teal-fg: var(--teal-fg);
     --color-coral: var(--coral);
     --color-coral-d: var(--coral-d);
     --color-plum: var(--plum);

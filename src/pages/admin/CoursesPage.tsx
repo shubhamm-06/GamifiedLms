@@ -19,6 +19,7 @@ import {
   type LifecycleAction,
 } from '@/hooks/admin/useCourses'
 import { useTrashActions } from '@/hooks/admin/useTrashActions'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 export function CoursesPage() {
   const navigate = useNavigate()
@@ -59,14 +60,14 @@ export function CoursesPage() {
     <div className="space-y-4">
       <header className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Courses</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{`${tw().terms('course')}`}</h1>
           <p className="text-muted-foreground text-sm">
-            {data?.length ?? 0} {(data?.length ?? 0) === 1 ? 'course' : 'courses'}
+            {data?.length ?? 0} {tw().lower('course', (data?.length ?? 0) !== 1)}
           </p>
         </div>
         <Button onClick={() => navigate({ to: '/admin/courses/new' })}>
           <Plus />
-          New course
+          {`New ${tw().lower('course')}`}
         </Button>
       </header>
 
@@ -76,7 +77,7 @@ export function CoursesPage() {
           <Input
             className="pl-8"
             placeholder="Search by title…"
-            aria-label="Search courses"
+            aria-label={`Search ${tw().lower('course', true)}`}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

@@ -29,8 +29,9 @@ import {
   useUnresolvedPaymentsCount,
   type PaymentRow,
 } from '@/hooks/admin/usePayments'
+import { getTerms as tw } from '@/lib/settings/terms'
 
-const EXPORT_HEADER = ['Received', 'Email', 'Course', 'Amount', 'Currency', 'Provider', 'Status', 'Reconciliation']
+const EXPORT_HEADER = ['Received', 'Email', `${tw().term('course')}`, 'Amount', 'Currency', 'Provider', 'Status', 'Reconciliation']
 
 function exportPaymentsCsv(payments: PaymentRow[]) {
   const rows = payments.map((p) => [

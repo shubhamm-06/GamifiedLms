@@ -15,6 +15,7 @@ import {
   type MyCourse,
 } from '@/hooks/useMyCourses'
 import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
+import { getTerms as t } from '@/lib/settings/terms'
 
 /**
  * `/courses`: every course the student is actively enrolled in (draft, archived
@@ -28,7 +29,7 @@ import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
  * uses, so only one view is ever mounted).
  */
 export function KidCoursesPage() {
-  useKidHeader('Courses')
+  useKidHeader(t().terms('course'))
   const desktop = useMediaQuery(LG_UP)
   const courses = useMyCourses()
   const enrolledIds = (courses.data ?? []).map((c) => c.id)
@@ -38,7 +39,7 @@ export function KidCoursesPage() {
     return desktop ? (
       <DesktopCoursesSkeleton />
     ) : (
-      <div className="kc-list" aria-busy="true" aria-label="Loading your courses">
+      <div className="kc-list" aria-busy="true" aria-label={`Loading your ${t().lower('course', true)}`}>
         {[0, 1].map((i) => (
           <Skeleton key={i} className="h-28 w-full rounded-[26px] bg-ink/10" />
         ))}
@@ -46,7 +47,7 @@ export function KidCoursesPage() {
     )
   }
   if (courses.isError) {
-    return <RetryScreen title="Oops! We couldn't load your courses" onRetry={() => void courses.refetch()} />
+    return <RetryScreen title={`Oops! We couldn't load your ${t().lower('course', true)}`} onRetry={() => void courses.refetch()} />
   }
 
   const hasEnrolled = courses.data.length > 0
@@ -122,8 +123,8 @@ function CourseRow({
             </span>
             <span className="kc-meta" data-testid="course-progress">
               {progress.total === 0
-                ? 'No lessons yet'
-                : `${progress.done} of ${progress.total} ${progress.total === 1 ? 'lesson' : 'lessons'}`}
+                ? `No ${t().lower('lesson', true)} yet`
+                : `${progress.done} of ${progress.total} ${t().lower('lesson', progress.total !== 1)}`}
             </span>
           </>
         ) : progress.status === 'loading' ? (
@@ -139,8 +140,8 @@ function CourseRow({
 function ExploreSection({ courses }: { courses: ExploreCourse[] | undefined }) {
   if (!courses || courses.length === 0) return null
   return (
-    <section className="kc-explore" aria-label="Explore courses" data-testid="explore-section">
-      <h2 className="kc-explore-title">Explore courses</h2>
+    <section className="kc-explore" aria-label={`Explore ${t().lower('course', true)}`} data-testid="explore-section">
+      <h2 className="kc-explore-title">Explore {t().lower('course', true)}</h2>
       <div className="kc-list">
         {courses.map((course) => (
           <ExploreRow key={course.id} course={course} />

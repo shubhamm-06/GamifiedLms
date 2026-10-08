@@ -4,6 +4,8 @@ import { DesktopPageHeader } from '@/components/kid/DesktopPageHeader'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatAmount } from '@/lib/currency'
 import { useCoursePicker, useCoursesProgress, type CourseProgress, type ExploreCourse, type MyCourse } from '@/hooks/useMyCourses'
+import { getTerms as t } from '@/lib/settings/terms'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * `/courses` at >= 1024px: the same enrollments as mobile (`useMyCourses`,
@@ -26,7 +28,7 @@ export function DesktopCourses({ courses, explore }: { courses: MyCourse[]; expl
 
   return (
     <div className="kcd" data-testid="courses-desktop">
-      <DesktopPageHeader title="Courses" />
+      <DesktopPageHeader title={t().terms('course')} />
       {failed ? (
         <p className="kc-error" role="alert">
           We couldn&apos;t open that course. Please try again.
@@ -55,8 +57,8 @@ export function DesktopCourses({ courses, explore }: { courses: MyCourse[]; expl
 function ExploreSection({ courses }: { courses: ExploreCourse[] | undefined }) {
   if (!courses || courses.length === 0) return null
   return (
-    <section className="kcd-explore" aria-label="Explore courses" data-testid="explore-section">
-      <h2 className="kcd-explore-title">Explore courses</h2>
+    <section className="kcd-explore" aria-label={`Explore ${t().lower('course', true)}`} data-testid="explore-section">
+      <h2 className="kcd-explore-title">Explore {t().lower('course', true)}</h2>
       <ul className="kcd-grid">
         {courses.map((course) => (
           <ExploreCard key={course.id} course={course} />
@@ -122,7 +124,7 @@ function CourseCard({
         {current ? (
           <span className="kcd-current">
             <Compass className="size-4" aria-hidden />
-            Current course
+            {`Current ${tw().lower('course')}`}
           </span>
         ) : null}
         <span className="kcd-title" title={course.title}>
@@ -141,14 +143,14 @@ function CourseCard({
               <span className="kc-bar-fill" style={{ width: `${percent}%` }} />
             </span>
             <span className="kcd-meta" data-testid="course-progress">
-              {progress.total === 0 ? 'No lessons yet' : `${progress.done} of ${progress.total} ${progress.total === 1 ? 'lesson' : 'lessons'}`}
+              {progress.total === 0 ? `No ${t().lower('lesson', true)} yet` : `${progress.done} of ${progress.total} ${t().lower('lesson', progress.total !== 1)}`}
             </span>
           </div>
         ) : progress.status === 'loading' ? (
           <Skeleton className="h-4 w-3/4 rounded-full bg-ink/10" />
         ) : null}
         <span className="kcd-action" data-tone={current ? 'gold' : 'quiet'}>
-          {current ? (done ? 'Review' : started ? 'Continue' : 'Start') : 'Switch to this course'}
+          {current ? (done ? 'Review' : started ? 'Continue' : 'Start') : `Switch to this ${t().lower('course')}`}
           <ChevronRight aria-hidden />
         </span>
       </button>
@@ -158,8 +160,8 @@ function CourseCard({
 
 export function DesktopCoursesSkeleton() {
   return (
-    <div className="kcd" data-testid="courses-desktop-skeleton" aria-busy="true" aria-label="Loading your courses">
-      <DesktopPageHeader title="Courses" />
+    <div className="kcd" data-testid="courses-desktop-skeleton" aria-busy="true" aria-label={`Loading your ${t().lower('course', true)}`}>
+      <DesktopPageHeader title={t().terms('course')} />
       <ul className="kcd-grid">
         {[0, 1, 2].map((i) => (
           <li key={i}>

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/lib/database.types'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 export type LevelThreshold = Tables<'level_thresholds'>
 
@@ -43,10 +44,10 @@ export function validateThreshold(
   const above = others.filter((t) => t.level > level).sort((a, b) => a.level - b.level)[0]
 
   if (below && xpRequired <= below.xp_required) {
-    return `Level ${level} needs more XP than level ${below.level} (${below.xp_required}).`
+    return `${tw().term('level')} ${level} needs more ${tw().term('xp')} than ${tw().lower('level')} ${below.level} (${below.xp_required}).`
   }
   if (above && xpRequired >= above.xp_required) {
-    return `Level ${level} needs less XP than level ${above.level} (${above.xp_required}).`
+    return `${tw().term('level')} ${level} needs less ${tw().term('xp')} than ${tw().lower('level')} ${above.level} (${above.xp_required}).`
   }
   return null
 }
@@ -69,7 +70,7 @@ export function useCreateLevelThreshold() {
     },
     onSuccess: (_data, row) => {
       invalidate()
-      toast.success(`Level ${row.level} added.`)
+      toast.success(`${tw().term('level')} ${row.level} added.`)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -87,7 +88,7 @@ export function useUpdateLevelThreshold() {
     },
     onSuccess: (_data, row) => {
       invalidate()
-      toast.success(`Level ${row.level} saved.`)
+      toast.success(`${tw().term('level')} ${row.level} saved.`)
     },
     onError: (error: Error) => toast.error(error.message),
   })
@@ -102,7 +103,7 @@ export function useDeleteLevelThreshold() {
     },
     onSuccess: (_data, level) => {
       invalidate()
-      toast.success(`Level ${level} deleted.`)
+      toast.success(`${tw().term('level')} ${level} deleted.`)
     },
     onError: (error: Error) => toast.error(error.message),
   })

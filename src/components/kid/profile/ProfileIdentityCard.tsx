@@ -1,6 +1,6 @@
 import type { Ref } from 'react'
 import { Pencil } from 'lucide-react'
-import { Avatar } from '@/components/kid/Avatar'
+import { ProfileAvatar } from '@/components/kid/ProfileAvatar'
 import type { AvatarConfig } from '@/lib/avatar'
 
 /**
@@ -17,21 +17,24 @@ export function ProfileIdentityCard({
 }: {
   config: AvatarConfig
   name: string
-  onEdit: () => void
+  /** Opens the avatar builder; absent when avatars are off (Settings > Features): no button, an initials disc. */
+  onEdit?: () => void
   editRef: Ref<HTMLButtonElement>
 }) {
   return (
     <section className="kpd-identity" aria-label="Your profile" data-testid="profile-identity">
       <div className="kpd-avatar-ring">
-        <Avatar config={config} size={152} data-testid="profile-avatar" />
+        <ProfileAvatar config={config} name={name} size={152} data-testid="profile-avatar" />
       </div>
       <p className="kpd-name" title={name} data-testid="profile-name">
         {name}
       </p>
-      <button ref={editRef} type="button" className="kpd-edit kid-tap" onClick={onEdit} data-testid="edit-avatar">
-        <Pencil className="size-4" strokeWidth={2.75} aria-hidden />
-        Edit your avatar
-      </button>
+      {onEdit ? (
+        <button ref={editRef} type="button" className="kpd-edit kid-tap" onClick={onEdit} data-testid="edit-avatar">
+          <Pencil className="size-4" strokeWidth={2.75} aria-hidden />
+          Edit your avatar
+        </button>
+      ) : null}
     </section>
   )
 }

@@ -123,9 +123,9 @@ ok('learn / need: trimmed non-blank items; hidden when none or not an array', ()
   assert.equal(sec(build({ learning_outcomes: [' ', ''] }), 'learn'), undefined); assert.equal(sec(build({ requirements: 'nope' }), 'need'), undefined)
   assert.deepEqual(sec(build({ requirements: ['x'] }), 'need').items, ['x'])
 })
-ok('How it works: points-and-badges rule only with gamification on', () => {
-  assert.equal(sec(build({ gamification_enabled: true }), 'how').items.some((l) => /points and badges/.test(l)), true)
-  for (const g of [false, null, undefined]) assert.equal(sec(build({ gamification_enabled: g }), 'how').items.some((l) => /points/.test(l)), false)
+ok('How it works: the XP-and-badges rule (terminology words) only with gamification on', () => {
+  assert.equal(sec(build({ gamification_enabled: true }), 'how').items.some((l) => /XP and badges/.test(l)), true)
+  for (const g of [false, null, undefined]) assert.equal(sec(build({ gamification_enabled: g }), 'how').items.some((l) => /badges/.test(l)), false)
 })
 ok('made by: needs a name; role/bio/photo optional; photo must be https; initials', () => {
   assert.equal(sec(build({ instructor_role: 'Teacher', instructor_bio: 'Bio' }), 'made_by'), undefined)

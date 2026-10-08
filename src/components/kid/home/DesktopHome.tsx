@@ -23,10 +23,13 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCourseRoadmap } from '@/hooks/useCourseRoadmap'
 import { useHomeCourse, useTouchEnrollment } from '@/hooks/useHomeCourse'
+import { useFeature, useTerms } from '@/hooks/useSettings'
 import { useKidProfile } from '@/hooks/useKidProfile'
 import { prefersReducedMotion } from '@/hooks/useMediaQuery'
 import type { Roadmap, RoadmapLesson, RoadmapSection } from '@/lib/roadmap'
 import { clearLessonLeft } from '@/lib/roadmapReturn'
+import { getTerms as t } from '@/lib/settings/terms'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Home at desktop widths (>= 1024px, `LG_UP`): the same course, the same data
@@ -145,7 +148,7 @@ function ReadyHome({ title, roadmap, courseId }: { title: string; roadmap: Roadm
               </button>
             ) : null}
             <Link to="/courses" className="khd-switch kid-tap" data-testid="switch-course">
-              Switch course
+              {`Switch ${tw().lower('course')}`}
             </Link>
           </div>
         </header>
@@ -163,7 +166,7 @@ function ReadyHome({ title, roadmap, courseId }: { title: string; roadmap: Roadm
         {roadmap.courseComplete ? (
           <p className="khd-complete" role="status" data-testid="course-complete-note">
             <PartyPopper className="size-6 flex-none" aria-hidden />
-            You finished every lesson!
+            {`You finished every ${tw().lower('lesson')}!`}
           </p>
         ) : null}
       </div>
@@ -234,7 +237,7 @@ function Section({
             {hasNext && !open ? <span className="khd-band-hint">Next up</span> : null}
             <span className="khd-band-count kid-num">
               {section.allLocked ? <Lock aria-hidden /> : null}
-              {section.doneCount} of {total} {total === 1 ? 'lesson' : 'lessons'}
+              {section.doneCount} of {total} {t().lower('lesson', total !== 1)}
             </span>
             {complete ? (
               <span className="khd-band-done" aria-hidden>
@@ -318,7 +321,7 @@ function LessonRow({ lesson, courseId, next }: { lesson: RoadmapLesson; courseId
       </span>
       {showXp ? (
         <span className="khd-chip kid-num">
-          <Sparkles aria-hidden />+{lesson.xp} XP
+          <Sparkles aria-hidden />+{lesson.xp} {t().term('xp')}
         </span>
       ) : null}
       {status === 'locked' ? null : (
@@ -355,29 +358,39 @@ function LessonRow({ lesson, courseId, next }: { lesson: RoadmapLesson; courseId
 
 function Rail({ roadmap }: { roadmap: Roadmap }) {
   const profile = useKidProfile()
+  // `roadmap.gamified` already includes the global gamification switch; each card also needs its own.
+  const streaksOn = useFeature('streaks')
+  const showStreak = roadmap.gamified && streaksOn
+  const xpOn = useFeature('xp')
+  const showXp = roadmap.gamified && xpOn
+  const { lower } = useTerms()
   const value = (n: number | undefined) => (n === undefined ? '–' : n)
   return (
     <aside className="khd-rail" aria-label="Your progress" data-testid="home-rail">
-      {roadmap.gamified ? (
+      {showStreak || showXp ? (
         <>
+          {showStreak ? (
           <div className="khd-card" data-kind="streak" data-testid="rail-streak">
             <span className="khd-card-icon" aria-hidden>
               <Flame className="size-6" />
             </span>
             <div>
               <p className="khd-card-value kid-num">{value(profile.data?.currentStreak)}</p>
-              <p className="khd-card-label">day streak</p>
+              <p className="khd-card-label">day {lower('streak')}</p>
             </div>
           </div>
+          ) : null}
+          {showXp ? (
           <div className="khd-card" data-kind="xp" data-testid="rail-xp">
             <span className="khd-card-icon" aria-hidden>
               <Sparkles className="size-6" />
             </span>
             <div>
               <p className="khd-card-value kid-num">{value(profile.data?.totalXp)}</p>
-              <p className="khd-card-label">total XP</p>
+              <p className="khd-card-label">total {lower('xp')}</p>
             </div>
           </div>
+          ) : null}
         </>
       ) : null}
       <div className="khd-card khd-card-progress" data-kind="progress" data-testid="rail-progress">
@@ -385,14 +398,14 @@ function Rail({ roadmap }: { roadmap: Roadmap }) {
           <Target className="size-6" />
         </span>
         <div className="khd-progress-body">
-          <p className="khd-card-label">Course progress</p>
+          <p className="khd-card-label">{t().term('course')} progress</p>
           <p className="khd-card-value kid-num">
-            {roadmap.doneLessons} of {roadmap.totalLessons} lessons
+            {roadmap.doneLessons} of {roadmap.totalLessons} {tw().lower('lesson', roadmap.totalLessons !== 1)}
           </p>
           <div
             className="khd-bar"
             role="progressbar"
-            aria-label="Course progress"
+            aria-label={`${t().term('course')} progress`}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={roadmap.percent}
@@ -409,7 +422,7 @@ function Rail({ roadmap }: { roadmap: Roadmap }) {
 
 function DesktopHomeSkeleton() {
   return (
-    <div className="khd" data-testid="roadmap-skeleton" aria-busy="true" aria-label="Loading your lessons">
+    <div className="khd" data-testid="roadmap-skeleton" aria-busy="true" aria-label={`Loading your ${t().lower('lesson', true)}`}>
       <div className="khd-main">
         <Skeleton className="h-10 w-2/3 rounded-xl bg-ink/10" />
         <Skeleton className="h-16 w-full rounded-[18px] bg-ink/10" />

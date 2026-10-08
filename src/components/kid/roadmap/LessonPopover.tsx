@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { Sparkles } from 'lucide-react'
 import type { RoadmapLesson } from '@/lib/roadmap'
 import { stuckModuleBarBottom } from '@/lib/stickyTop'
+import { getTerms as t } from '@/lib/settings/terms'
 
 /** Gap between the node and the card, which the tail spans. */
 const GAP = 14
@@ -14,7 +15,7 @@ const EDGE = 12
 /** The label the old lesson sheet used for each state, with the XP still to earn inline. */
 function ctaLabel(lesson: RoadmapLesson): string {
   const verb = lesson.state === 'completed' ? 'Review' : lesson.state === 'in_progress' ? 'Keep going' : 'Start'
-  const xp = lesson.state !== 'completed' && lesson.xp !== null && lesson.xp > 0 ? ` +${lesson.xp} XP` : ''
+  const xp = lesson.state !== 'completed' && lesson.xp !== null && lesson.xp > 0 ? ` +${lesson.xp} ${t().term('xp')}` : ''
   return verb + xp
 }
 

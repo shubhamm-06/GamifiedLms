@@ -27,6 +27,7 @@ import { useCourses } from '@/hooks/admin/useCourses'
 import { useNotificationsHistory, useSendNotification, type NotificationHistoryRow } from '@/hooks/admin/useNotifications'
 import { type AdminUserRow } from '@/hooks/admin/useUsers'
 import { type NotificationTarget } from '@/lib/adminNotificationsApi'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const MAX_TITLE_LENGTH = 200
 const MAX_BODY_LENGTH = 1000
@@ -35,7 +36,7 @@ type TargetKind = 'all' | 'course' | 'user'
 
 const TARGET_LABEL: Record<TargetKind, string> = {
   all: 'Everyone',
-  course: 'A specific course',
+  course: `A specific ${tw().lower('course')}`,
   user: 'A specific student',
 }
 
@@ -96,7 +97,7 @@ function ComposeSection() {
     else if (body.length > MAX_BODY_LENGTH) next.body = `Body must be at most ${MAX_BODY_LENGTH} characters.`
 
     const target = buildTarget()
-    if (targetKind === 'course' && !courseId) next.target = 'Pick a course.'
+    if (targetKind === 'course' && !courseId) next.target = `Pick ${tw().lower('course')}.`
     if (targetKind === 'user' && !user) next.target = 'Pick a student.'
 
     setErrors(next)
@@ -126,7 +127,7 @@ function ComposeSection() {
             value={title}
             maxLength={MAX_TITLE_LENGTH}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="New lessons are up!"
+            placeholder={`New ${tw().lower('lesson', true)} are up!`}
           />
           {errors.title ? <p className="text-coral-d text-sm">{errors.title}</p> : null}
         </div>
@@ -159,10 +160,10 @@ function ComposeSection() {
         </div>
         {targetKind === 'course' ? (
           <div className="space-y-1.5">
-            <Label>Course</Label>
+            <Label>{`${tw().term('course')}`}</Label>
             <Select value={courseId} onValueChange={setCourseId}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Pick a course…" />
+                <SelectValue placeholder={`Pick ${tw().lower('course')}…`} />
               </SelectTrigger>
               <SelectContent>
                 {(courses ?? []).map((course) => (
@@ -211,7 +212,7 @@ function formatRelativeTime(iso: string): string {
 }
 
 function targetLabel(row: NotificationHistoryRow): string {
-  if (row.target_type === 'course') return row.target_course_title ?? 'A course'
+  if (row.target_type === 'course') return row.target_course_title ?? `${tw().term('course')}`
   if (row.target_type === 'user') return row.target_user_name ?? 'A student'
   return 'Everyone'
 }

@@ -5,6 +5,7 @@ import { DEFAULT_CURRENCY } from '@/lib/currency'
 import type { Tables } from '@/lib/database.types'
 import { coursesQueryKey } from './useCourses'
 import { FK_VIOLATION } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 export type Payment = Tables<'payments'>
 
@@ -430,7 +431,7 @@ export async function importManualOrders(rows: ImportOrderRow[]): Promise<Import
     }
     const courseId = slugToCourseId.get(slug)
     if (!courseId) {
-      results.push({ row: rowNumber, email, success: false, error: `No course found with slug "${slug}".` })
+      results.push({ row: rowNumber, email, success: false, error: `No ${tw().lower('course')} found with slug "${slug}".` })
       continue
     }
     const amount = Number(row.amount)

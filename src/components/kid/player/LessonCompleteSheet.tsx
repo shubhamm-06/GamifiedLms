@@ -8,6 +8,7 @@ import { useCountUp } from '@/hooks/useCountUp'
 import { MD_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 import * as haptics from '@/lib/haptics'
 import { playerCopy } from '@/lib/playerCopy'
+import { useFeature } from '@/hooks/useSettings'
 import { Confetti } from './Confetti'
 
 type TextSlot = ComponentType<{ className?: string; children?: ReactNode }>
@@ -35,14 +36,18 @@ function Body({
   Title,
   Description,
 }: Omit<Props, 'onOpenChange'> & { Title: TextSlot; Description: TextSlot }) {
-  const xp = useCountUp(xpAwarded, 600, open && xpAwarded > 0)
+  // Settings > Features: no XP line when XP is off (the server still records it), and no
+  // burst or medallion bounce when celebrations are off (reduced motion already removes them).
+  const xpOn = useFeature('xp')
+  const celebrations = useFeature('celebrations')
+  const xp = useCountUp(xpAwarded, 600, open && xpAwarded > 0 && xpOn)
   return (
     <div className="px-5 pt-6 pb-[calc(var(--sa-bottom)+1.5rem)] text-center" data-testid="complete-sheet">
       <div className="relative">
         {/* The celebration is for finishing, not for earning: a course with
             gamification off awards no XP but still gets the burst. */}
-        {!alreadyDone ? <Confetti /> : null}
-        <div className="lp-medallion" aria-hidden="true">
+        {!alreadyDone && celebrations ? <Confetti /> : null}
+        <div className="lp-medallion" aria-hidden="true" data-still={celebrations ? undefined : 'true'}>
           <Check className="size-9" strokeWidth={3.5} />
         </div>
       </div>
@@ -50,7 +55,7 @@ function Body({
       <Description className="mt-2 kid-text-body text-ink">
         {alreadyDone ? playerCopy.complete.alreadyDone : playerCopy.complete.encouragement}
       </Description>
-      {xpAwarded > 0 && !alreadyDone ? (
+      {xpOn && xpAwarded > 0 && !alreadyDone ? (
         <p className="lp-xp kid-num" data-testid="xp-earned">
           <Sparkles className="size-5" aria-hidden />
           {playerCopy.complete.xp(xp)}

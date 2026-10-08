@@ -45,6 +45,7 @@ import type { PaymentRow } from '@/hooks/admin/usePayments'
 import { PaymentStatusPill } from './PaymentStatusPill'
 import { ReconciliationStatusPill } from './ReconciliationStatusPill'
 import { dateTimeFormatter } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Same TanStack Table v9 feature registration as `CourseTable.tsx`/
@@ -160,7 +161,7 @@ function buildColumns({ view, onView, onTrash, onRestore, onDeletePermanently }:
     }),
     columnHelper.display({
       id: 'course',
-      header: 'Course',
+      header: `${tw().term('course')}`,
       cell: ({ row }) => (
         <span className="truncate">{row.original.courses?.title ?? '—'}</span>
       ),

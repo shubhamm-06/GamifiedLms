@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { formatAmount } from '@/lib/currency'
 import { useUpdatePaymentReconciliation, type PaymentRow } from '@/hooks/admin/usePayments'
 import { PaymentStatusPill } from './PaymentStatusPill'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -149,7 +150,7 @@ export function OrderDetailDialog({ payment, open, onOpenChange }: OrderDetailDi
                 }
               />
               <ReadOnlyField
-                label="Course"
+                label={`${tw().term('course')}`}
                 value={
                   <Link
                     to="/admin/courses/$courseId/edit"
@@ -157,7 +158,7 @@ export function OrderDetailDialog({ payment, open, onOpenChange }: OrderDetailDi
                     search={{ tab: 'basics' }}
                     className="text-teal-d hover:underline"
                   >
-                    {payment.courses?.title ?? 'View course'}
+                    {payment.courses?.title ?? `View ${tw().lower('course')}`}
                   </Link>
                 }
               />

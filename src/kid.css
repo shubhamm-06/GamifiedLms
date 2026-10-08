@@ -15,7 +15,12 @@
        face: applied by .kid-app (the student layout) and .kid-font (for
        portaled UI such as the lesson sheet, which renders outside .kid-app).
        Admin routes never carry either class, so they stay on Geist. */
-    --font-kid: 'Baloo 2 Variable', 'Baloo 2', sans-serif;
+    /* Settings > Appearance > Fonts: the HEADING role on kid-facing surfaces. "default"
+       sets no --learner-font-heading, so the chain below (today's Baloo 2) renders
+       unchanged. Named --learner-font-heading, not --font-heading, because index.css's
+       `@theme inline` already owns --font-heading as a Tailwind utility token (Geist) —
+       see lib/settings/store.ts for the full explanation. */
+    --font-kid: var(--learner-font-heading, 'Baloo 2 Variable', 'Baloo 2', sans-serif);
     /* Height of the sticky top bar's content row (the safe-area inset is added on top). */
     --kid-topbar-h: 3.5rem;
     /* The bottom nav's content height (the safe-area inset is added on top). The
@@ -72,9 +77,16 @@
      come is neutral, rewards are --coral. Nodes are coloured by STATE, never
      by module position. */
 
+  /* BODY is the base (most kid-facing text is body copy, nav labels, buttons — see
+     ui.md "Settings system > Fonts"); it falls through to --font-kid (HEADING) while
+     --learner-font-body is unset, so "default" renders exactly as before. The
+     title/stat-number exceptions below opt back into --font-kid explicitly, the same
+     pattern the desktop shell already used for its own two exceptions (.kp-card-title,
+     the stat number). */
   .kid-app,
   .kid-font {
-    font-family: var(--font-kid);
+    font-family: var(--learner-font-body, var(--font-kid));
+    font-synthesis-weight: none;
   }
 
   .kid-app[data-nav] { --kid-bottom-inset: var(--kid-nav-h); }
@@ -221,6 +233,7 @@
   }
 
   .kid-topbar-title {
+    font-family: var(--font-kid); /* heading role: page/section title */
     min-width: 0;
     flex: 1;
     overflow: hidden;
@@ -253,7 +266,7 @@
   .candy-btn {
     --c: var(--gold);
     --c-d: var(--gold-d);
-    --c-on: var(--ink);
+    --c-on: var(--gold-fg);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -377,6 +390,7 @@
   .rm-modbar[data-locked='true'] .rm-modbar-caption { color: inherit; }
 
   .rm-modbar-title {
+    font-family: var(--font-kid); /* heading role: page/section title */
     margin: 0;
     min-width: 0;
     font-size: var(--kid-text-body);
@@ -406,7 +420,7 @@
     animation: rm-pop-in var(--motion-base) var(--ease-standard) both;
   }
 
-  .rm-pop[data-tone='gold'] { background: var(--gold); color: var(--ink); --pop-bg: var(--gold); }
+  .rm-pop[data-tone='gold'] { background: var(--gold); color: var(--gold-fg); --pop-bg: var(--gold); }
   .rm-pop[data-tone='teal'] { background: var(--teal-d); color: var(--cream); --pop-bg: var(--teal-d); }
 
   /* The tail: a rotated square in the card's colour, centred on the node. */
@@ -667,8 +681,9 @@
     border-radius: 999px;
     --node: var(--teal);
     --node-d: var(--teal-d);
+    --node-on: var(--teal-fg);
     background: var(--node);
-    color: var(--ink);
+    color: var(--node-on);
     box-shadow: 0 6px 0 var(--node-d);
     transform: translateY(0);
     transition: transform 0.08s ease, box-shadow 0.08s ease;
@@ -691,6 +706,7 @@
     --size: var(--rm-node-active);
     --node: var(--gold);
     --node-d: var(--gold-d);
+    --node-on: var(--gold-fg);
   }
 
   /* Locked: smaller and softer than everything else, still readable. */
@@ -890,13 +906,6 @@
     gap: 0.5rem;
   }
 
-  .lp-body {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
   /* A wrapper inside the body that fills it, so a bar inside it rests at the bottom edge. */
   .lp-fill {
     display: flex;
@@ -906,11 +915,7 @@
   }
 
   /* Reading column: caps line length at 560px so tablets/desktop don't stretch text. */
-  .lp-col {
-    width: 100%;
-    max-width: 35rem;
-    margin-inline: auto;
-  }
+  .lp-col { width: 100%; }
 
   /* A slim, non-blocking strip for offline/reconnecting only. Hidden pause and
      resume are silent (the ring alone shows them) — this is for the two states
@@ -937,22 +942,6 @@
     font-size: var(--kid-text-body);
     line-height: var(--kid-leading-body);
     font-weight: 600;
-  }
-
-  /* Small status chip under the title for a completed lesson (replay). Ink text
-     on a light teal tint, never a solid teal fill with ink text (fails 3:1 for
-     text this size) — see ui.md for the measured ratios. */
-  .lp-chip-completed {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.25rem 0.75rem;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--teal) 18%, var(--surface));
-    color: var(--ink);
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-    font-weight: 700;
   }
 
   /* --------------------------------------------------------- active time ring */
@@ -1030,47 +1019,6 @@
     font-weight: 700;
   }
 
-  /* Media frames. The video frame is 16:9 on an ink letterbox; the document is a
-     plain surface; the game gets a tall frame, edge to edge on phones. */
-  .lp-frame {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    overflow: hidden;
-    border-radius: 20px;
-    background: var(--ink);
-  }
-
-  .lp-frame iframe,
-  .lp-frame video {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    border: 0;
-  }
-
-  .lp-video-caption {
-    padding-inline: 0.25rem;
-  }
-
-
-
-
-  .lp-game {
-    aspect-ratio: auto;
-    height: min(70dvh, 34rem);
-    background: var(--surface);
-    border-radius: 0;
-  }
-
-  @media (min-width: 480px) {
-    .lp-game { border-radius: 20px; }
-  }
-
-
-
-
   .lp-doc {
     display: block;
     width: 100%;
@@ -1098,12 +1046,6 @@
     color: var(--ink);
     text-align: center;
     overflow-y: auto;
-  }
-
-  .lp-frame .lp-error {
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
   }
 
   .lp-error-icon {
@@ -1145,16 +1087,6 @@
     text-align: center;
   }
 
-  .lp-bar-row {
-    display: flex;
-    width: 100%;
-    max-width: 26rem;
-    gap: 0.75rem;
-  }
-
-  .lp-bar-row .lp-primary { flex: 1; }
-  .lp-bar-row .candy-btn-quiet { flex: none; }
-
   /* The single primary action in the bottom bar. Fixed size regardless of label
      or state, so nothing shifts when the label changes or a spinner appears
      (Part B3/B4 of the spec). "muted" is a state, not a disabled decoration: the
@@ -1163,7 +1095,7 @@
     display: inline-flex;
     width: 100%;
     max-width: 26rem;
-    height: 3.5rem;
+    min-height: 3.5rem;
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
@@ -1179,7 +1111,7 @@
   }
 
   .lp-primary[data-variant='candy'] {
-    color: var(--ink);
+    color: var(--gold-fg);
     background: var(--gold);
     box-shadow: 0 6px 0 var(--gold-d);
   }
@@ -1297,6 +1229,7 @@
     --choice-bg: var(--teal);
     --choice-lip: var(--teal-d);
     border-color: var(--teal-d);
+    color: var(--teal-fg);
   }
 
   .lp-choice[data-state='wrong'] {
@@ -1362,10 +1295,13 @@
     margin-inline: auto;
     border-radius: 999px;
     background: var(--teal);
-    color: var(--ink);
+    color: var(--teal-fg);
     box-shadow: 0 6px 0 var(--teal-d);
     animation: lp-medallion-in var(--motion-slow) var(--ease-playful) both;
   }
+
+  /* Settings > Features > Celebrations off: the medallion just appears. */
+  .lp-medallion[data-still] { animation: none; }
 
   @keyframes lp-medallion-in {
     0% { transform: scale(0.5); opacity: 0; }
@@ -1428,209 +1364,6 @@
 
   /* ------------------------------------------------ lesson page (ages 5 to 7) */
 
-  /* One column at every size, the same content everywhere: hero, activity card,
-     the module's lesson list, then (only once the lesson is done) one Next
-     button. From lg the list becomes a sticky left column beside the card.
-     Gold is only the Play button, the Next button and the "next" row's accent;
-     everything else is teal or neutral. No uppercase, letter-spaced labels. */
-
-  .lp-hero {
-    position: relative;
-    overflow: hidden;
-    margin: -1rem calc(-1 * max(1rem, var(--sa-right))) 0 calc(-1 * max(1rem, var(--sa-left)));
-    padding: 1.5rem 1.25rem 2.5rem;
-    background: color-mix(in srgb, var(--teal) 8%, var(--cream));
-  }
-
-  /* The curved bottom edge: a cream ellipse cut into the soft teal wash. */
-  .lp-hero::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -1px;
-    height: 1.5rem;
-    background: var(--cream);
-    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
-  }
-
-  .lp-hero-copy {
-    position: relative;
-    z-index: 1;
-    max-width: 51rem;
-    margin-inline: auto;
-    text-align: center;
-  }
-
-  .lp-hero-title {
-    margin: 0;
-    font-size: clamp(1.75rem, 7vw, 3rem);
-    line-height: 1.1;
-    font-weight: 800;
-    overflow-wrap: anywhere;
-  }
-
-  .lp-hero-sub {
-    margin: 0.5rem 0 0;
-    min-height: var(--kid-leading-body);
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-    font-weight: 400;
-  }
-
-  /* Decoration, md and up only; teal and plum outlines, never gold. Nothing moves. */
-  .lp-shape { display: none; }
-
-  @media (min-width: 768px) {
-    .lp-hero {
-      margin: 0;
-      padding: 2.5rem 1.5rem 3.5rem;
-      border-radius: 26px;
-    }
-    .lp-shape {
-      display: block;
-      position: absolute;
-      z-index: 0;
-      border-radius: 999px;
-      pointer-events: none;
-    }
-    .lp-shape-a { top: 1.5rem; left: 7%; width: 3.5rem; height: 3.5rem; border: 5px solid color-mix(in srgb, var(--teal) 45%, transparent); }
-    .lp-shape-b { bottom: 2rem; right: 8%; width: 2.5rem; height: 2.5rem; border: 5px dashed color-mix(in srgb, var(--plum) 40%, transparent); }
-  }
-
-  .lp-layout {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .lp-main {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    min-width: 0;
-  }
-
-  /* display: contents, so the sticky bar's containing block is the whole page
-     column, not a wrapper exactly its own size (it would never stick). */
-  .lp-bar-slot { display: contents; }
-
-  @media (min-width: 1024px) {
-    .lp-layout {
-      display: grid;
-      grid-template-columns: 20rem minmax(0, 1fr);
-      grid-template-areas: 'side main' 'side bar';
-      grid-template-rows: auto 1fr;
-      align-items: start;
-      gap: 1.5rem 2rem;
-    }
-    .lp-main { grid-area: main; }
-    .lp-side {
-      grid-area: side;
-      position: sticky;
-      top: calc(var(--kid-topbar-h) + var(--sa-top) + 1rem);
-    }
-    .lp-bar-slot > .lp-bar { grid-area: bar; align-self: end; margin-inline: 0; border-radius: 26px 26px 0 0; }
-  }
-
-  /* The activity card: the card surface, radius and shadow come from .kid-card. */
-  .lp-activity {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    text-align: center;
-  }
-
-  @media (min-width: 768px) {
-    .lp-activity { padding: 1.5rem; }
-  }
-
-  .lp-activity > .lp-frame,
-  .lp-activity > [data-testid='game-lesson'],
-  .lp-activity > .lp-col,
-  .lp-activity > .lp-error { width: 100%; }
-
-  /* Inside the card, media drop their own card look (no card in a card). */
-  .lp-activity .lp-doc { box-shadow: none; }
-  .lp-activity .lp-game { border-radius: 20px; }
-
-  .lp-activity-bare {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  /* Before Play: a big friendly icon tile in a teal tint. */
-  .lp-activity-art {
-    display: grid;
-    place-items: center;
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    max-height: 14rem;
-    border-radius: 20px;
-    background: color-mix(in srgb, var(--teal) 16%, white);
-    color: var(--teal-d);
-  }
-
-  .lp-activity-text {
-    margin: 0;
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-    font-weight: 400;
-  }
-
-  /* One teal "Done" badge: cream on --teal-d (6.20:1), the same fix the module bar
-     got; ink on plain --teal was 4.50:1. */
-  .lp-done {
-    display: inline-flex;
-    align-self: flex-start;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 2.5rem;
-    padding: 0.25rem 1rem 0.25rem 0.75rem;
-    border-radius: 999px;
-    background: var(--teal-d);
-    color: var(--cream);
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-    font-weight: 800;
-  }
-
-  /* The module's lesson list. */
-  .lp-list { padding: 1rem; }
-
-  .lp-list-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem 1rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .lp-list-title {
-    margin: 0;
-    min-width: 0;
-    font-size: var(--kid-text-heading);
-    line-height: var(--kid-leading-heading);
-    font-weight: 800;
-    overflow-wrap: anywhere;
-  }
-
-  .lp-list-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-    font-weight: 800;
-  }
-
   /* A small conic-gradient ring: the one thing here Tailwind cannot draw. */
   .lp-ring {
     display: block;
@@ -1641,76 +1374,6 @@
     background: conic-gradient(var(--teal-d) calc(var(--p, 0) * 1%), color-mix(in srgb, var(--ink) 12%, var(--cream)) 0);
     -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), var(--ink) calc(100% - 5px));
     mask: radial-gradient(farthest-side, transparent calc(100% - 6px), var(--ink) calc(100% - 5px));
-  }
-
-  .lp-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .lp-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    width: 100%;
-    min-height: 3.5rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: 18px;
-    color: var(--ink);
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-    font-weight: 700;
-    text-decoration: none;
-  }
-
-  .lp-row-icon {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 14px;
-    background: color-mix(in srgb, var(--ink) 8%, white);
-  }
-
-  .lp-row-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-
-  .lp-row[data-kind='done'] .lp-row-icon { background: color-mix(in srgb, var(--teal) 22%, white); color: var(--teal-d); }
-
-  .lp-row[data-kind='current'] {
-    background: color-mix(in srgb, var(--teal) 12%, white);
-    box-shadow: inset 0 0 0 3px var(--teal-d);
-  }
-
-  .lp-row[data-kind='current'] .lp-row-icon { background: var(--teal); }
-
-  /* Next: the gold accent (the next-up item) and a "Next" tag, plus an arrow icon. */
-  .lp-row[data-kind='next'] {
-    background: color-mix(in srgb, var(--gold) 16%, white);
-    box-shadow: inset 0 0 0 3px var(--gold-d);
-  }
-
-  .lp-row[data-kind='next'] .lp-row-icon { background: var(--gold); }
-
-  .lp-row-tag {
-    flex: none;
-    padding: 0.125rem 0.75rem;
-    border-radius: 999px;
-    background: var(--gold);
-    font-size: var(--kid-text-label);
-    line-height: var(--kid-leading-label);
-    font-weight: 800;
-  }
-
-  .lp-row[data-kind='locked'] { color: var(--kid-muted-fg); cursor: default; }
-  .lp-row[data-kind='locked'] .lp-row-icon { color: var(--kid-muted-fg); }
-
-  @media (hover: hover) {
-    a.lp-row:not([data-kind='current'], [data-kind='next']):hover { background: color-mix(in srgb, var(--ink) 6%, white); }
   }
 
   /* ---------------------------------------------------------------- stat bar */
@@ -2072,6 +1735,7 @@
   }
 
   .kp-name {
+    font-family: var(--font-kid); /* heading role: page/section title */
     margin: 0;
     font-size: var(--kid-text-display);
     line-height: var(--kid-leading-display);
@@ -2117,6 +1781,7 @@
   .kp-stat-icon[data-color='coral'] { --callout: var(--coral); --callout-d: var(--coral-d); }
 
   .kp-stat-num {
+    font-family: var(--font-kid); /* heading role: page/section title */
     font-size: var(--kid-text-title);
     line-height: var(--kid-leading-title);
     font-weight: 800;
@@ -2187,6 +1852,7 @@
      as a distinct colour+weight, not a subtle grey-shade shift. */
   .kp-cal-cell[data-active='true'] {
     background: var(--teal);
+    color: var(--teal-fg);
     box-shadow: 0 2px 0 var(--teal-d);
   }
 
@@ -2719,131 +2385,7 @@
     .kc-row { transition: none; }
   }
 
-  /* ------------------------------------------------------------ video lesson */
-
-  /* The player runs edge to edge right under the top bar on phones (it cancels the
-     page gutter and the first bit of top padding); from md it sits in its column
-     with rounded corners instead. */
-  .lp-video-bleed {
-    margin-inline: calc(-1 * max(1rem, var(--sa-left))) calc(-1 * max(1rem, var(--sa-right)));
-    margin-top: -1rem;
-  }
-
-  @media (min-width: 768px) {
-    .lp-video-bleed {
-      margin: 0;
-      overflow: hidden;
-      border-radius: 20px;
-    }
-  }
-
-  /* Our own player chrome: a chromeless stage (file or embed, never tappable
-     itself) over a slim control strip. Cream on ink throughout, the gold big
-     Play as the one main action, no speed control. */
-  .vp {
-    display: flex;
-    flex-direction: column;
-    background: var(--ink);
-    color: var(--cream);
-  }
-
-  .vp-stage {
-    position: relative;
-    aspect-ratio: 16 / 9;
-    background: var(--ink);
-  }
-
-  .vp-media {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    border: 0;
-    object-fit: contain;
-    pointer-events: none;
-  }
-
-  .vp-tap {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    border: 0;
-    background: transparent;
-    cursor: pointer;
-  }
-
-  .vp-bigplay {
-    display: grid;
-    place-items: center;
-    width: 4.5rem;
-    height: 4.5rem;
-    border-radius: 999px;
-    background: var(--gold);
-    color: var(--ink);
-    box-shadow: 0 6px 0 var(--gold-d);
-  }
-
-  .vp-controls {
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-    padding: 0.125rem 0.5rem;
-  }
-
-  .vp-btn {
-    display: grid;
-    flex: none;
-    place-items: center;
-    width: 2.75rem;
-    height: 2.75rem;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    color: var(--cream);
-    cursor: pointer;
-  }
-
-  .vp-btn:active { background: color-mix(in srgb, var(--cream) 16%, transparent); }
-  .vp-btn:focus-visible, .vp-tap:focus-visible { outline: 3px solid var(--cream); outline-offset: -3px; }
-
-  .vp-time {
-    flex: none;
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-    font-weight: 600;
-    white-space: nowrap;
-  }
-
-  .vp-range {
-    height: 2.75rem;
-    margin: 0;
-    accent-color: var(--teal);
-    cursor: pointer;
-  }
-
-  .vp-seek { flex: 1; min-width: 3rem; }
-
-  /* Room is tight on the narrowest phones: show only the current time there. */
-  @media (max-width: 399px) {
-    .vp-time-total { display: none; }
-  }
-  .vp-volume { flex: none; width: 4rem; }
-
-  @media (max-width: 399px) {
-    .vp-volume { display: none; }
-  }
-
-  .vp:fullscreen { height: 100%; }
-  .vp:fullscreen .vp-stage { flex: 1; aspect-ratio: auto; }
-
-  /* Under the player: title, module, the XP pill, and the minimum-time bar. The bar
-     counts time the video actually played; it is not the scrubber. */
-  .lp-vinfo {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
+  /* ---------------------------------------------------------- doc lesson blocks */
 
   /* A block-based doc lesson: its blocks in one column, 1rem apart. */
   .lp-blocks {
@@ -2912,43 +2454,6 @@
     height: auto;
   }
 
-  .lp-vdesc {
-    margin: 0;
-    font-size: var(--kid-text-body);
-    line-height: var(--kid-leading-body);
-    font-weight: 400;
-    overflow-wrap: anywhere;
-  }
-
-  /* The status marker sits inside the title, glued to its last word (nowrap), so a title that
-     fills the line wraps that word and the marker together. */
-  .lp-vtitle-tail { white-space: nowrap; }
-  .lp-vtitle-tail .rm-chip { margin-left: 0.75rem; vertical-align: middle; }
-
-  /* A finished lesson: a small check badge, cream on --teal-d (6.20:1). A marker, not a control. */
-  .lp-done-mark {
-    display: inline-grid;
-    place-items: center;
-    margin-left: 0.75rem;
-    vertical-align: middle;
-    width: 1.75rem;
-    height: 1.75rem;
-    border-radius: 999px;
-    background: var(--teal-d);
-    color: var(--cream);
-  }
-
-  /* A video lesson has no list beside it: one centred column at every size. */
-  @media (min-width: 1024px) {
-    .lp-layout[data-video='true'] {
-      display: flex;
-      flex-direction: column;
-      width: 100%;
-      max-width: 48rem;
-      margin-inline: auto;
-    }
-  }
-
   .lp-timebar-track {
     height: 0.625rem;
     overflow: hidden;
@@ -2964,27 +2469,11 @@
     transition: width var(--motion-base) var(--ease-standard);
   }
 
-  .lp-timebar-text {
-    margin: 0.25rem 0 0;
-    font-size: var(--kid-text-caption);
-    line-height: var(--kid-leading-caption);
-    font-weight: 600;
-    color: var(--kid-muted-fg);
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .lp-timebar-fill { transition: none; }
   }
 
   /* ------------------------------------------------------------- game lesson */
-
-  /* The game fills the screen below the top bar: it cancels the page gutter and
-     padding, so nothing but Back is on screen with it. */
-  .lp-game-bleed {
-    margin: -1rem calc(-1 * max(1rem, var(--sa-right))) calc(-1 * (var(--sa-bottom) + 1.5rem)) calc(-1 * max(1rem, var(--sa-left)));
-    height: calc(100dvh - var(--kid-topbar-h) - var(--sa-top));
-    background: var(--ink);
-  }
 
   .lp-game-stage {
     position: relative;
@@ -3058,12 +2547,11 @@
   /* ONE breakpoint, 768px (the same one the tiers above already use). Below it
      nothing here applies, so phones are untouched. From it the kid app is a
      centred column, not a redesign: --kid-col (40rem) is the standard content
-     measure for the roadmap, text, quizzes and the nav; --kid-col-wide (64rem)
-     is the only exception, for the video player and the game frame. The cream
-     page still fills the window. There is no sidebar and no second column. */
+     measure for the roadmap, text and the nav. Lesson pages set their own measure
+     (LessonLayout, below). The cream page still fills the window. There is no
+     sidebar and no second column. */
   .kid-app {
     --kid-col: 40rem;
-    --kid-col-wide: 64rem;
   }
 
   @media (min-width: 768px) {
@@ -3087,45 +2575,42 @@
       transform: translateX(-50%);
     }
 
-    /* Every lesson page is a single column at any width (no list beside the card). */
-    .lp-layout,
-    .lp-layout[data-video='true'] {
-      display: flex;
-      flex-direction: column;
-      max-width: none;
-      margin-inline: 0;
-    }
-    .lp-side { position: static; }
-    /* The column never grows to fit a wider child (the media below is centred over it instead). */
-    .lp,
-    .lp-layout,
-    .lp-main { width: 100%; min-width: 0; }
+    /* The column never grows to fit a wider child. */
+    .lp { width: 100%; min-width: 0; }
 
-    /* Video and game: room to breathe, still centred and capped. */
-    .lp-video-bleed,
-    .lp-game-bleed {
-      position: relative;
-      left: 50%;
-      width: min(var(--kid-col-wide), calc(100vw - 2rem));
-      margin: 0;
-      overflow: hidden;
-      border-radius: 20px;
-      transform: translateX(-50%);
-    }
-    .lp-game-bleed {
-      height: min(calc(100dvh - var(--kid-topbar-h) - var(--sa-top) - 3rem), 44rem);
-    }
-
-    /* Quiz: answers stay tap-sized, not a wide slab. */
-    [data-testid='quiz-lesson'] {
-      width: 100%;
-      max-width: 34rem;
-      margin-inline: auto;
-    }
-
-    /* Cards inside the column keep a sensible measure. */
-    .lp-callout { max-width: 36rem; }
     [data-testid='quiz-lesson'] .lp-xp { width: fit-content; margin-inline: auto; }
+  }
+
+  /* ------------------------------------------------------------ lesson pages */
+
+  /* Every lesson page (LessonLayout) draws its own slim bar inside its column, so the
+     shell's bar keeps only its safe-area padding here, the same way Home's does. The
+     page gutter is .kid-main's (16px; 24px from md) and the column's measure is set
+     per lesson type by LessonLayout, so .kid-main's own 40rem cap is lifted. */
+  .kid-app[data-lesson] { --kid-topbar-h: 0px; }
+  .kid-app[data-lesson] .kid-topbar { border-bottom: 0; }
+  .kid-app[data-lesson] .kid-topbar-row { display: none; }
+  .kid-app[data-lesson] .kid-main { max-width: none; padding-top: 0; }
+  .lsn-bar { top: var(--sa-top); }
+
+  /* A game is as wide as the column allows and as tall as the screen below the bar
+     and the title, never less than a usable 20rem. */
+  [data-width='game'] .lp-game-stage {
+    height: max(20rem, calc(100dvh - var(--sa-top) - 9rem));
+    max-height: 48rem;
+    overflow: hidden;
+    border-radius: 1rem;
+    background: var(--ink);
+  }
+
+  @media (min-width: 768px) {
+    .kid-app[data-lesson] .kid-main {
+      padding-left: max(1.5rem, var(--sa-left));
+      padding-right: max(1.5rem, var(--sa-right));
+    }
+    .kid-app[data-lesson] .lp-bar {
+      margin-inline: calc(-1 * max(1.5rem, var(--sa-left))) calc(-1 * max(1.5rem, var(--sa-right)));
+    }
   }
 
   /* Hover feedback for a mouse (a touch screen has no hover, so phones are unchanged). Simple on purpose. */
@@ -3133,8 +2618,7 @@
     .rm-node:not(:active):hover,
     .rm-pop-cta:not(:active):hover,
     .candy-btn:not(:disabled):not(:active):hover,
-    .lp-primary[data-variant='candy']:not(:disabled):not(:active):hover,
-    .lp-bigplay:hover { filter: brightness(1.06); }
+    .lp-primary[data-variant='candy']:not(:disabled):not(:active):hover { filter: brightness(1.06); }
 
     .kid-nav-tab:hover { color: var(--ink); }
     .kid-nav-tab:not([aria-current='page']):hover .kid-nav-icon { background: color-mix(in srgb, var(--teal) 14%, var(--surface)); }
@@ -3143,7 +2627,7 @@
 
     .kc-row:hover { transform: translateY(-2px); }
     .kid-statbar-course:hover { text-decoration-thickness: 3px; }
-    .vp-btn:hover { background: color-mix(in srgb, var(--cream) 14%, transparent); }
+
     .candy-btn-quiet:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
   }
 
@@ -3168,7 +2652,10 @@
        Tailwind's own theme namespace, and redefining it here would change every
        text-sm / text-xs used inside this scope. Nothing outside the desktop
        shell's own selectors reads these, and admin never carries .kid-app. */
-    --font-ui-desktop: 'Nunito Variable', 'Baloo 2 Variable', 'Baloo 2', ui-rounded, system-ui, sans-serif;
+    /* The BODY role at the desktop shell. "default" keeps today's Nunito-then-Baloo
+       chain (the chain is the no-JS fallback too: it is what every reader gets before
+       --learner-font-body, if set, has finished loading). */
+    --font-ui-desktop: var(--learner-font-body, 'Nunito Variable', 'Baloo 2 Variable', 'Baloo 2', ui-rounded, system-ui, sans-serif);
     --kd-text-xs: 0.75rem;     /* 12: section caption, chips */
     --kd-text-sm: 0.8125rem;   /* 13: meta line, counts, stat labels */
     --kd-text-md: 0.875rem;    /* 14: row actions, text links */
@@ -3222,12 +2709,6 @@
   }
 
   .kid-side-brand svg { flex: none; }
-
-  /* SkillXP logo image (public/logo.png); the link's aria-label carries the name. */
-  .kid-side-logo {
-    height: 2rem;
-    width: auto;
-  }
 
   .kid-side-list {
     display: flex;
@@ -3298,8 +2779,9 @@
     margin-bottom: 0.75rem;
   }
 
-  /* Baloo 2, inherited: the one big personality moment on the page. */
+  /* Heading role, explicit now that .kid-app's base is BODY (it used to just inherit). */
   .khd-title {
+    font-family: var(--font-kid); /* heading role: page/section title */
     margin: 0;
     color: var(--ink);
     font-size: var(--kd-text-3xl);
@@ -3389,8 +2871,9 @@
 
   .khd-band[data-locked='true'] .khd-band-caption { color: inherit; }
 
-  /* Baloo 2, inherited. */
+  /* Heading role, explicit now that .kid-app's base is BODY (it used to just inherit). */
   .khd-band-title {
+    font-family: var(--font-kid); /* heading role: page/section title */
     font-size: var(--kd-text-xl);
     line-height: var(--kd-leading-tight);
     font-weight: 700;
@@ -3554,7 +3037,7 @@
 
   .khd-row[data-state='next'] .khd-status {
     background: var(--gold);
-    color: var(--ink);
+    color: var(--gold-fg);
   }
 
   .khd-row[data-state='locked'] .khd-status { color: var(--kid-muted-fg); }
@@ -3654,7 +3137,7 @@
   .khd-cta[data-tone='gold'] {
     padding: 0 1.25rem;
     background: var(--gold);
-    color: var(--ink);
+    color: var(--gold-fg);
     font-size: var(--kd-text-base);
     font-weight: 800;
   }
@@ -3830,6 +3313,7 @@
   }
 
   .kid-app[data-shell='side'] .kdh-title {
+    font-family: var(--font-kid); /* heading role: page/section title */
     margin: 0;
     color: var(--ink);
     font-size: var(--kd-text-3xl);
@@ -3922,7 +3406,7 @@
     border: 0;
     border-radius: 999px;
     background: var(--gold);
-    color: var(--ink);
+    color: var(--gold-fg);
     font-family: var(--font-ui-desktop);
     font-size: var(--kd-text-base);
     line-height: 1;
@@ -4219,7 +3703,7 @@
     padding: 0 1.25rem;
     border-radius: 999px;
     background: var(--gold);
-    color: var(--ink);
+    color: var(--gold-fg);
     font-size: var(--kd-text-base);
     font-weight: 800;
   }

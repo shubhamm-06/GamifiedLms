@@ -30,6 +30,11 @@
   --gold-d: #C98A0D;
   --teal: #2FA3A0;
   --teal-d: #1E6765;
+  /* Role tokens: --gold is the PRIMARY role and --teal the SECONDARY role. These locked values are the
+     defaults; an admin may override both in Settings > Colors (applied at runtime on <html>, lib/settings/store.ts).
+     --gold-fg / --teal-fg are the text/icon colours that sit ON each role (white or ink, by contrast). */
+  --gold-fg: var(--ink);
+  --teal-fg: var(--ink);
   --coral: #F0705A;
   --coral-d: #D73014;
   --plum: #7A5FA8;
@@ -60,6 +65,28 @@ html[data-native] .auth-page {
 
 html[data-native] .admin-shell {
   padding: var(--sa-top) var(--sa-right) var(--sa-bottom) var(--sa-left);
+}
+
+/* Settings > Appearance > Fonts (site_config.theme.fonts, ui.md "Settings system").
+   The auth pages' base is BODY: "default" sets no --learner-font-body, so `inherit`
+   keeps today's look (Geist, inherited from the global font-sans) with zero change.
+   The heading role (the h1, the submit button — AuthCard.tsx) opts in explicitly.
+   --learner-font-heading/--learner-font-body are set on <html> for a flash-free first
+   paint (lib/settings/store.ts) — named with a `learner-` prefix, not `--font-heading`/
+   `--font-body`, because index.css's `@theme inline` already owns `--font-heading` as a
+   Tailwind utility token (bound to Geist); reusing that name would make "default"
+   silently render Geist instead of truly falling through. .admin-shell resets both to
+   `initial` right below so the admin panel can never inherit a customer font, however a
+   future rule reaches for the variable — a real CSS guarantee, not just "nothing
+   references it today". */
+.auth-page {
+  font-family: var(--learner-font-body, inherit);
+  font-synthesis-weight: none;
+}
+
+.admin-shell {
+  --learner-font-heading: initial;
+  --learner-font-body: initial;
 }
 
 /* The one-shot cold-start owl entrance (components/AppEntranceSplash.tsx), native

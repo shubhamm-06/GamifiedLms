@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { TrashEntity } from '@/lib/trash'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Trash page data. Every key starts with `['admin', 'trash']`, so the
@@ -92,7 +93,7 @@ async function fetchRows(entity: TrashEntity): Promise<TrashRow[]> {
         name: r.title,
         detail: r.slug,
         slug: r.slug,
-        wasIn: `${r.status.charAt(0).toUpperCase()}${r.status.slice(1)} course`,
+        wasIn: `${r.status.charAt(0).toUpperCase()}${r.status.slice(1)} ${tw().lower('course')}`,
         deletedAt: r.deleted_at,
         deletedBy: deleterName(r),
         restoreBlockedBy: null,

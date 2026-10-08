@@ -1,3 +1,4 @@
+import { useBranding } from '@/hooks/useSettings'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useBlocker } from '@tanstack/react-router'
 import { Copy, ExternalLink, Eye, X } from 'lucide-react'
@@ -29,6 +30,7 @@ import { previewCourse, samePage, toPageFormValues, validatePageValues, type Pag
 import { ChoiceCard, Counter, CustomFactsEditor, FieldError, ListEditor, Segmented } from './PageEditors'
 import { CoursePagePreview } from './CoursePagePreview'
 import { SectionsEditor } from './SectionsEditor'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const XL_UP = '(min-width: 1280px)'
 const LANGUAGES = ['English', 'Hindi', 'Marathi', 'Tamil', 'Telugu', 'Bengali', 'Gujarati', 'Kannada', 'Punjabi', 'Spanish', 'French']
@@ -38,7 +40,7 @@ const THEME_SWATCH: Record<PageTheme, { label: string; color: string }> = {
   coral: { label: 'Coral', color: '#e2543d' },
   ink: { label: 'Ink', color: '#3a2a1a' },
 }
-const UNSAVED = 'You have unsaved changes to this course page. Leave without saving them?'
+const UNSAVED = `You have unsaved changes to this ${tw().lower('course')} page. Leave without saving them?`
 
 /** A plain white card with a clear heading: the editor's five groups. */
 function Card({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
@@ -138,7 +140,8 @@ export function CoursePageTab({ course }: { course: Course }) {
     }),
     [course],
   )
-  const supportEmail = settings.data?.support_email ?? null
+  const branding = useBranding()
+  const supportEmail = branding.supportEmail || settings.data?.support_email || null
   const model = useMemo(
     () => buildCoursePageModel({ course: previewCourse(basics, values), outline: outline.data ?? [], viewer: { kind: 'new' }, supportEmail }),
     [basics, values, outline.data, supportEmail],
@@ -160,7 +163,7 @@ export function CoursePageTab({ course }: { course: Course }) {
         setBaseline(saved)
         setValues(saved)
         setTriedSave(false)
-        toast.success('Course page saved.')
+        toast.success(`${tw().term('course')} page saved.`)
       },
       onError: (e: Error) => toast.error(e.message),
     })
@@ -202,7 +205,7 @@ export function CoursePageTab({ course }: { course: Course }) {
           </p>
         </div>
       ) : (
-        <p className="text-muted-foreground text-xs">Publish the course to open the saved page as a student sees it.</p>
+        <p className="text-muted-foreground text-xs">{`Publish the ${tw().lower('course')} to open the saved page as a student sees it.`}</p>
       )}
     </div>
   )
@@ -220,7 +223,7 @@ export function CoursePageTab({ course }: { course: Course }) {
         }}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-muted-foreground text-sm">What parents see on the course page. Sections with no content are hidden automatically.</p>
+          <p className="text-muted-foreground text-sm">{`What parents see on the ${tw().lower('course')} page. Sections with no content are hidden automatically.`}</p>
           {!wide ? (
             <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
               <SheetTrigger asChild>
@@ -231,7 +234,7 @@ export function CoursePageTab({ course }: { course: Course }) {
               </SheetTrigger>
               <SheetContent side="right" className="w-full overflow-y-auto p-4 sm:max-w-[560px]">
                 <SheetHeader className="p-0">
-                  <SheetTitle>Course page preview</SheetTitle>
+                  <SheetTitle>{`${tw().term('course')} page preview`}</SheetTitle>
                   <SheetDescription>Shows your unsaved changes.</SheetDescription>
                 </SheetHeader>
                 {preview}
@@ -241,7 +244,7 @@ export function CoursePageTab({ course }: { course: Course }) {
         </div>
 
         <Card title="Top of page">
-          <Text id="tagline" label="Tagline" value={values.tagline} max={PAGE_LIMITS.tagline} error={errors.tagline} hint="One short line shown under the course name." onChange={(t) => set('tagline', t)} />
+          <Text id="tagline" label="Tagline" value={values.tagline} max={PAGE_LIMITS.tagline} error={errors.tagline} hint={`One short line shown under the ${tw().lower('course')} name.`} onChange={(t) => set('tagline', t)} />
           <Text
             id="thumbnail_url"
             label="Cover image link"
@@ -250,7 +253,7 @@ export function CoursePageTab({ course }: { course: Course }) {
             max={PAGE_LIMITS.url}
             placeholder="https://"
             error={errors.thumbnail_url}
-            hint={<>This is the course thumbnail (also in the {basicsLink}). Without one, a plain generated cover is drawn.</>}
+            hint={<>{`This is the ${tw().lower('course')} thumbnail (also in the `}{basicsLink}). Without one, a plain generated cover is drawn.</>}
             onChange={(t) => set('thumbnail_url', t)}
           />
           <div className="flex flex-wrap items-end gap-x-8 gap-y-3">
@@ -340,7 +343,7 @@ export function CoursePageTab({ course }: { course: Course }) {
             </datalist>
             <FieldError id="language-err" message={errors.language} />
           </div>
-          <p className="text-muted-foreground text-xs">Lessons and total time come from the published lessons; access from the {basicsLink}.</p>
+          <p className="text-muted-foreground text-xs">{`${tw().terms('lesson')} and total time come from the published ${tw().lower('lesson', true)}; access from the `}{basicsLink}.</p>
           <div className="space-y-2">
             <p className="text-sm font-medium">Custom facts</p>
             <CustomFactsEditor items={o.custom_facts} errors={errors} warnings={warnings} onChange={(n) => setOpt('custom_facts', n)} />
@@ -381,7 +384,7 @@ export function CoursePageTab({ course }: { course: Course }) {
                     Learning made calm
                   </span>
                   <span className="text-muted-foreground text-sm" style={{ fontFamily: FONT_PRESETS[f].body }}>
-                    Short lessons your child can finish in one sitting.
+                    {`Short ${tw().lower('lesson', true)} your child can finish in one sitting.`}
                   </span>
                 </ChoiceCard>
               ))}

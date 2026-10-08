@@ -9,6 +9,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useRevokeEnrollment, type EnrollmentWithCourse } from '@/hooks/admin/useUserDetail'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 interface RevokeEnrollmentAlertDialogProps {
   userId: string
@@ -33,7 +34,7 @@ export function RevokeEnrollmentAlertDialog({
             Revoke access to &ldquo;{enrollment?.courses?.title}&rdquo;?
           </AlertDialogTitle>
           <AlertDialogDescription>
-            They immediately lose access to this course. There is no undo — re-enrolling later
+            {`They immediately lose access to this ${tw().lower('course')}. There is no undo — re-enrolling later`}{' '}
             starts a fresh enrollment.
           </AlertDialogDescription>
         </AlertDialogHeader>

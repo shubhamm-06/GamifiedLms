@@ -17,14 +17,20 @@ import { Button } from '@/components/ui/button'
 import { adminSessionQueryOptions, clearAdminSession } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
-import { useAppSettings } from '@/hooks/useAppSettings'
 import { useTrashCounts } from '@/hooks/admin/useTrash'
-import { APP_NAME } from '@/lib/brand'
+import { Logo } from '@/components/settings/Logo'
+import { useSettings, useTerms } from '@/hooks/useSettings'
+import { effectiveFeatures, type FeatureKey } from '@/lib/settings/schema'
+import type { Terms } from '@/lib/settings/terms'
 
 interface NavItem {
   label: string
   to: string
   icon: typeof LayoutDashboard
+  /** The label from the terminology settings, when it names a term. */
+  termLabel?: (t: Terms) => string
+  /** Hidden from the nav while this feature is off (the page stays reachable by URL). */
+  feature?: FeatureKey
 }
 
 interface NavGroup {
@@ -55,14 +61,20 @@ const NAV_GROUPS: NavGroup[] = [
   {
     heading: 'Content',
     items: [
-      { label: 'Courses', to: '/admin/courses', icon: BookOpen },
+      { label: 'Courses', to: '/admin/courses', icon: BookOpen, termLabel: (t) => t.terms('course') },
       { label: 'Games', to: '/admin/games', icon: Gamepad2 },
     ],
   },
   {
     heading: 'Engagement',
     items: [
-      { label: 'Badges & XP', to: '/admin/gamification', icon: BadgeCheck },
+      {
+        label: 'Badges & XP',
+        to: '/admin/gamification',
+        icon: BadgeCheck,
+        termLabel: (t) => `${t.terms('badge')} & ${t.term('xp')}`,
+        feature: 'gamification',
+      },
       { label: 'Notifications', to: '/admin/notifications', icon: Bell },
     ],
   },
@@ -80,9 +92,16 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-const PAGE_TITLES = new Map(
-  NAV_GROUPS.flatMap((group) => group.items).map((item) => [item.to, item.label]),
-)
+function useNavGroups(): NavGroup[] {
+  const terms = useTerms()
+  const features = effectiveFeatures(useSettings().features)
+  return NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items
+      .filter((i) => !i.feature || features[i.feature])
+      .map((i) => ({ ...i, label: i.termLabel ? i.termLabel(terms) : i.label })),
+  }))
+}
 
 /**
  * `Link`'s `to` is typed against the registered route tree, and nav targets
@@ -106,6 +125,11 @@ function NavLink({ to, children }: { to: string; children: ReactNode }) {
 
 function useCurrentPageTitle(): string {
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const terms = useTerms()
+  // Every item, hidden ones included: a page reached by URL still gets its title.
+  const PAGE_TITLES = new Map(
+    NAV_GROUPS.flatMap((group) => group.items).map((item) => [item.to, item.termLabel ? item.termLabel(terms) : item.label]),
+  )
 
   const exact = PAGE_TITLES.get(pathname)
   if (exact) return exact
@@ -122,8 +146,8 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const title = useCurrentPageTitle()
+  const navGroups = useNavGroups()
   const { data: session } = useQuery(adminSessionQueryOptions)
-  const { data: appSettings } = useAppSettings()
   // Total items in the trash, for the sidebar badge (refreshed by every trash/restore).
   const { data: trashCounts } = useTrashCounts()
 
@@ -141,15 +165,11 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     <div className="admin-shell bg-background text-foreground flex min-h-screen font-sans">
       <aside className="flex w-60 shrink-0 flex-col border-r">
         <div className="flex h-14 items-center border-b px-5">
-          {/* Read from app_settings.site_name (migration 010), not
-              hardcoded — falls back to the column's own DB default only
-              for the instant before the first fetch resolves. */}
-          <span className="text-sm font-semibold tracking-tight">
-            {appSettings?.site_name ?? APP_NAME}
-          </span>
+          {/* Settings > Branding: the uploaded logo, else the product name (fixed-height slot). */}
+          <Logo />
         </div>
         <nav className="flex-1 space-y-5 overflow-y-auto p-3">
-          {NAV_GROUPS.map((group, index) => (
+          {navGroups.filter((g) => g.items.length > 0).map((group, index) => (
             <div key={group.heading ?? `group-${index}`} className="space-y-1">
               {group.heading ? (
                 <p className="text-muted-foreground px-2.5 pb-1 text-[11px] font-medium tracking-wider uppercase">

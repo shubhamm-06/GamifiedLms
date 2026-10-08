@@ -1,19 +1,22 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Clock, Compass, WifiOff } from 'lucide-react'
-import { useKidHeader } from '@/components/kid/kidHeader'
+import { LessonLayout } from './LessonLayout'
 import { Screen } from '@/components/kid/roadmap/StateScreens'
 import { playerCopy } from '@/lib/playerCopy'
 
 /**
  * Whole-page states of the lesson player (not enrolled, expired, unavailable,
  * could not load). They reuse the roadmap's screen frame (spec Part A0: reuse
- * before building). `PlayerFrame` gives them the top bar title and a Back that
- * returns to the course path.
+ * before building). `PlayerFrame` puts them in the lesson layout, so Back (to the
+ * course path) sits where it does on every lesson page.
  */
 export function PlayerFrame({ courseId, children }: { courseId: string; children: ReactNode }) {
-  useKidHeader('Lesson', `/courses/${courseId}`)
-  return <>{children}</>
+  return (
+    <LessonLayout courseId={courseId} width="doc" context={null}>
+      {children}
+    </LessonLayout>
+  )
 }
 
 function BackToPath({ courseId }: { courseId: string }) {

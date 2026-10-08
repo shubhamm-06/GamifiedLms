@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Flame, LogOut, Pencil, Sparkles, Trophy } from 'lucide-react'
 import { Avatar } from '@/components/kid/Avatar'
+import { ProfileAvatar } from '@/components/kid/ProfileAvatar'
 import { AvatarBuilder } from '@/components/kid/AvatarBuilder'
 import { StreakCalendar } from '@/components/kid/StreakCalendar'
 import { useKidHeader } from '@/components/kid/kidHeader'
@@ -11,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useProfileData } from '@/hooks/useKidProfile'
 import { useBackClosable } from '@/hooks/useBackClosable'
 import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
+import { useFeature, useTerms } from '@/hooks/useSettings'
 
 /**
  * `/profile`: avatar (tap to open the builder), account info a student can
@@ -32,6 +34,11 @@ export function KidProfilePage() {
 
 function MobileProfile({ building, setBuilding }: { building: boolean; setBuilding: (building: boolean) => void }) {
   const { profile, activity, updateAvatar, leaving, logOut } = useProfileData()
+  const avatars = useFeature('avatars')
+  const showLevel = useFeature('levels')
+  const showXp = useFeature('xp')
+  const showStreak = useFeature('streaks')
+  const { term, lower } = useTerms()
 
   if (profile.isPending) {
     return (
@@ -46,7 +53,7 @@ function MobileProfile({ building, setBuilding }: { building: boolean; setBuildi
   }
   const p = profile.data
 
-  if (building) {
+  if (building && avatars) {
     return (
       <AvatarBuilder
         initial={p.avatarConfig}
@@ -59,52 +66,68 @@ function MobileProfile({ building, setBuilding }: { building: boolean; setBuildi
 
   return (
     <div className="kp" data-testid="profile">
-      <button type="button" className="kp-avatar-btn kid-tap" onClick={() => setBuilding(true)} data-testid="edit-avatar">
-        <Avatar config={p.avatarConfig} size={96} />
-        <span className="kp-avatar-edit" aria-hidden>
-          <Pencil className="size-4" strokeWidth={2.75} />
+      {avatars ? (
+        <button type="button" className="kp-avatar-btn kid-tap" onClick={() => setBuilding(true)} data-testid="edit-avatar">
+          <Avatar config={p.avatarConfig} size={96} />
+          <span className="kp-avatar-edit" aria-hidden>
+            <Pencil className="size-4" strokeWidth={2.75} />
+          </span>
+          <span className="sr-only">Edit your avatar</span>
+        </button>
+      ) : (
+        <span className="mx-auto">
+          <ProfileAvatar config={p.avatarConfig} name={p.displayName} size={96} data-testid="profile-avatar" />
         </span>
-        <span className="sr-only">Edit your avatar</span>
-      </button>
+      )}
 
       <h1 className="kp-name" data-testid="profile-name">
         {p.displayName}
       </h1>
 
-      <ul className="kp-stats">
-        <li className="kid-card kp-stat" data-testid="stat-level">
-          <span className="kp-stat-icon" data-color="teal">
-            <Trophy className="size-5" aria-hidden />
-          </span>
-          <span className="kp-stat-num kid-num">{p.level}</span>
-          <span className="kp-stat-label">Level</span>
-        </li>
-        <li className="kid-card kp-stat" data-testid="stat-xp">
-          <span className="kp-stat-icon" data-color="plum">
-            <Sparkles className="size-5" aria-hidden />
-          </span>
-          <span className="kp-stat-num kid-num">{p.totalXp}</span>
-          <span className="kp-stat-label">XP</span>
-        </li>
-        <li className="kid-card kp-stat" data-testid="stat-streak">
-          <span className="kp-stat-icon" data-color="coral">
-            <Flame className="size-5" aria-hidden />
-          </span>
-          <span className="kp-stat-num kid-num">{p.currentStreak}</span>
-          <span className="kp-stat-label">Day streak</span>
-        </li>
-      </ul>
+      {showLevel || showXp || showStreak ? (
+        <ul className="kp-stats">
+          {showLevel ? (
+            <li className="kid-card kp-stat" data-testid="stat-level">
+              <span className="kp-stat-icon" data-color="teal">
+                <Trophy className="size-5" aria-hidden />
+              </span>
+              <span className="kp-stat-num kid-num">{p.level}</span>
+              <span className="kp-stat-label">{term('level')}</span>
+            </li>
+          ) : null}
+          {showXp ? (
+            <li className="kid-card kp-stat" data-testid="stat-xp">
+              <span className="kp-stat-icon" data-color="plum">
+                <Sparkles className="size-5" aria-hidden />
+              </span>
+              <span className="kp-stat-num kid-num">{p.totalXp}</span>
+              <span className="kp-stat-label">{term('xp')}</span>
+            </li>
+          ) : null}
+          {showStreak ? (
+            <li className="kid-card kp-stat" data-testid="stat-streak">
+              <span className="kp-stat-icon" data-color="coral">
+                <Flame className="size-5" aria-hidden />
+              </span>
+              <span className="kp-stat-num kid-num">{p.currentStreak}</span>
+              <span className="kp-stat-label">Day {lower('streak')}</span>
+            </li>
+          ) : null}
+        </ul>
+      ) : null}
 
-      <section className="kid-card kp-card" aria-label="Your streak">
-        <h2 className="kp-card-title">Your last 5 weeks</h2>
-        {activity.isPending ? (
-          <Skeleton className="h-32 w-full rounded-xl bg-ink/10" />
-        ) : activity.isError ? (
-          <p className="kp-card-note">Couldn't load your calendar right now.</p>
-        ) : (
-          <StreakCalendar activeDays={activity.data} />
-        )}
-      </section>
+      {showStreak ? (
+        <section className="kid-card kp-card" aria-label={`Your ${lower('streak')}`}>
+          <h2 className="kp-card-title">Your last 5 weeks</h2>
+          {activity.isPending ? (
+            <Skeleton className="h-32 w-full rounded-xl bg-ink/10" />
+          ) : activity.isError ? (
+            <p className="kp-card-note">Couldn't load your calendar right now.</p>
+          ) : (
+            <StreakCalendar activeDays={activity.data} />
+          )}
+        </section>
+      ) : null}
 
       <PreferencesSection />
 

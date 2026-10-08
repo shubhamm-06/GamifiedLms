@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
+import { Link, Navigate, useNavigate, useParams } from '@tanstack/react-router'
 import { RetryScreen } from '@/components/kid/roadmap/StateScreens'
 import { CourseInfoSkeleton, presetOf, useWarmCover } from '@/components/kid/courses/CourseInfoPage'
 import { CoursePageView } from '@/components/kid/coursePage/CoursePageView'
@@ -11,7 +11,8 @@ import { useCourseInfo, useCourseOutline } from '@/hooks/useCourseInfo'
 import { buildCoursePageModel } from '@/lib/coursePage'
 import { courseAuthHref, courseRoadmapHref } from '@/lib/freeEnrollment'
 import { isUuid } from '@/lib/slug'
-import { APP_NAME } from '@/lib/brand'
+import { useBranding, useFeature } from '@/hooks/useSettings'
+import { getTerms as t } from '@/lib/settings/terms'
 
 /**
  * `/course/$courseRef` (the ref is the course SLUG; a course id also works and is rewritten to the slug): the parent-facing course page for someone who is NOT signed in
@@ -26,6 +27,13 @@ import { APP_NAME } from '@/lib/brand'
  */
 export function PublicCoursePage() {
   const { courseRef } = useParams({ strict: false }) as { courseRef: string }
+  // Settings > Features > Public course pages, re-checked here because the settings may arrive
+  // after the route's own check ran with the cached or default values.
+  if (!useFeature('publicCoursePages')) return <Navigate to="/login" search={{ redirect: `/courses/${courseRef}` }} replace />
+  return <PublicCourse courseRef={courseRef} />
+}
+
+function PublicCourse({ courseRef }: { courseRef: string }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const info = useCourseInfo(courseRef)
@@ -33,8 +41,9 @@ export function PublicCoursePage() {
   useWarmCover(info.data)
   const fontsReady = useCoursePageFonts(info.data ? presetOf(info.data.page_font) : info.isPending ? null : 'inter')
   const settings = useAppSettings()
-  const siteName = settings.data?.site_name || APP_NAME
-  const supportEmail = settings.data?.support_email ?? null
+  const branding = useBranding()
+  const siteName = branding.productName
+  const supportEmail = branding.supportEmail || settings.data?.support_email || null
 
   const model = useMemo(
     () => (info.data ? buildCoursePageModel({ course: info.data, outline: outline.data ?? [], viewer: { kind: 'anon' }, supportEmail }) : null),
@@ -97,7 +106,7 @@ export function PublicCoursePage() {
           </div>
           <div className="cp-layout">
             <main className="cp-main">
-              <h1 className="cp-title">This course isn&apos;t available</h1>
+              <h1 className="cp-title">This {t().lower('course')} isn&apos;t available</h1>
               <p className="cp-lead">It may not be open yet, or the link may be wrong.</p>
             </main>
           </div>

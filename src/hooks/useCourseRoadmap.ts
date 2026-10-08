@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { LessonEngineError, toEngineError, isRetryableEngineError } from '@/lib/lessonEngine'
+import { useFeature } from '@/hooks/useSettings'
 import { buildRoadmap, type CourseContent, type Roadmap } from '@/lib/roadmap'
 import { useCourseLessonStates } from '@/hooks/useLessonEngine'
 
@@ -86,10 +87,12 @@ export function useCourseRoadmap(courseId: string): RoadmapScreen {
     retry: (count, error) => count < 2 && isRetryableEngineError(error),
   })
   const states = useCourseLessonStates(courseId)
+  const gamification = useFeature('gamification')
+  const xp = useFeature('xp')
 
   const roadmap = useMemo(
-    () => (content.data && states.data ? buildRoadmap(content.data, states.data) : null),
-    [content.data, states.data],
+    () => (content.data && states.data ? buildRoadmap(content.data, states.data, { gamification, xp }) : null),
+    [content.data, states.data, gamification, xp],
   )
 
   // The engine's refusal decides first: not enrolled (also a trashed user) must

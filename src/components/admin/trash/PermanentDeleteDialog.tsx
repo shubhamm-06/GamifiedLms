@@ -20,6 +20,7 @@ import {
   type PermanentDeleteOutcome,
 } from '@/lib/permanentDelete'
 import { ENTITY_NOUN, type TrashEntity, type TrashItem } from '@/lib/trash'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 interface PermanentDeleteDialogProps {
   entity: TrashEntity
@@ -37,13 +38,13 @@ const CONFIRM_WORD = 'DELETE'
 /** What is skipped, per entity — shown before the run so a blocked item is not a surprise. */
 const SKIP_NOTE: Record<TrashEntity, string> = {
   courses:
-    'A course that still has enrollments, payments, lesson progress, quiz attempts or lesson XP is skipped and stays in Trash.',
+    `${tw().term('course')} that still has enrollments, payments, ${tw().lower('lesson')} progress, quiz attempts or ${tw().lower('lesson')} ${tw().term('xp')} is skipped and stays in Trash.`,
   modules: '',
-  lessons: 'A lesson that students have started or attempted is skipped and stays in Trash.',
-  games: 'A game that any lesson still uses (trashed lessons included) is skipped and stays in Trash.',
-  badges: 'A badge that any student has unlocked is skipped and stays in Trash.',
+  lessons: `${tw().term('lesson')} that students have started or attempted is skipped and stays in Trash.`,
+  games: `A game that any ${tw().lower('lesson')} still uses (trashed ${tw().lower('lesson', true)} included) is skipped and stays in Trash.`,
+  badges: `${tw().term('badge')} that any student has unlocked is skipped and stays in Trash.`,
   users:
-    'A user with activity history (enrollments, payments, progress, XP …) is skipped and stays in Trash.',
+    `A user with activity history (enrollments, payments, progress, ${tw().term('xp')} …) is skipped and stays in Trash.`,
 }
 
 /**
@@ -194,8 +195,8 @@ function DialogBody({
             {entity === 'modules' ? (
               <p>
                 {lessonCount.isPending
-                  ? 'Counting their lessons…'
-                  : `${lessonCount.data ?? 0} ${lessonCount.data === 1 ? 'lesson' : 'lessons'} will move to trash (they stay restorable).`}
+                  ? `Counting their ${tw().lower('lesson', true)}…`
+                  : `${lessonCount.data ?? 0} ${tw().lower('lesson', lessonCount.data !== 1)} will move to trash (they stay restorable).`}
               </p>
             ) : (
               <p>{SKIP_NOTE[entity]}</p>

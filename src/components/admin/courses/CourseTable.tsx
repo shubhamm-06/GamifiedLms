@@ -54,6 +54,7 @@ import type { TableSelection } from '@/components/admin/selection/useTableSelect
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import { CourseStatusPill } from './CourseStatusPill'
 import { dateFormatter } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * TanStack Table v9 feature registration. Unlike v8 there is no
@@ -108,7 +109,7 @@ function buildColumns(
   return columnHelper.columns([
     columnHelper.display({
       id: 'select',
-      header: ({ table }) => <SelectPageCheckbox table={table} label="Select all courses on this page" />,
+      header: ({ table }) => <SelectPageCheckbox table={table} label={`Select all ${tw().lower('course', true)} on this page`} />,
       cell: ({ row }) => <SelectRowCheckbox row={row} label={`Select ${row.original.title}`} />,
       enableSorting: false,
     }),
@@ -153,7 +154,7 @@ function buildColumns(
     }),
     columnHelper.accessor('total_lessons', {
       id: 'total_lessons',
-      header: 'Lessons',
+      header: `${tw().terms('lesson')}`,
       sortFn: 'basic',
       cell: (info) => <span className="tabular-nums">{info.getValue()}</span>,
     }),
@@ -201,10 +202,10 @@ function buildColumns(
                     params={{ courseId: course.slug }}
                     target="_blank"
                     rel="noopener noreferrer"
-                    aria-label={`View course: ${course.title} (opens in a new tab)`}
+                    aria-label={`View ${tw().lower('course')}: ${course.title} (opens in a new tab)`}
                   >
                     <ExternalLink />
-                    View course
+                    {`View ${tw().lower('course')}`}
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => onEdit(course)}>Edit</DropdownMenuItem>
@@ -323,7 +324,7 @@ export function CourseTable({
             ) : isError ? (
               <TableRow>
                 <TableCell colSpan={COLUMN_COUNT} className="h-28 text-center">
-                  <p className="text-coral-d font-medium">Couldn&rsquo;t load courses.</p>
+                  <p className="text-coral-d font-medium">{`Couldn’t load ${tw().lower('course', true)}.`}</p>
                   <p className="text-muted-foreground mt-1 text-sm">
                     Check your connection and try again.
                   </p>
@@ -337,7 +338,7 @@ export function CourseTable({
                   </p>
                   <p className="text-muted-foreground mt-1 text-sm">
                     {courses.length === 0
-                      ? 'Create your first course to get started.'
+                      ? `Create your first ${tw().lower('course')} to get started.`
                       : 'Try a different search or status filter.'}
                   </p>
                 </TableCell>

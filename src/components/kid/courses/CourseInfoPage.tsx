@@ -1,3 +1,4 @@
+import { useBranding } from '@/hooks/useSettings'
 import { useEffect, useMemo, type ReactNode } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -10,6 +11,7 @@ import { useEnrollFreeCourse } from '@/hooks/useEnrollFreeCourse'
 import { courseAuthHref, courseRoadmapHref, describeEnrollError } from '@/lib/freeEnrollment'
 import { useCoursePageFonts } from '@/components/kid/coursePage/fonts'
 import { RetryScreen, UnavailableScreen } from '@/components/kid/roadmap/StateScreens'
+import { getTerms as t } from '@/lib/settings/terms'
 
 /**
  * `/courses/$courseId` for a student who is NOT actively enrolled (`CoursePage.tsx`
@@ -71,7 +73,7 @@ export function presetOf(font: string | null | undefined): PageFont {
 /** Uses the real page's boxes (top bar, reserved cover, title lines), so the swap to the page does not shift anything. */
 export function CourseInfoSkeleton() {
   return (
-    <div className="cp" aria-busy="true" aria-label="Loading this course">
+    <div className="cp" aria-busy="true" aria-label={`Loading this ${t().lower('course')}`}>
       <div className="cp-top">
         <div className="cp-top-in" />
       </div>
@@ -101,7 +103,8 @@ function CourseInfoPage({ course, outline, history }: { course: CourseInfo; outl
   const settings = useAppSettings()
   const router = useRouter()
   const enrollFree = useEnrollFreeCourse(course)
-  const supportEmail = settings.data?.support_email ?? null
+  const branding = useBranding()
+  const supportEmail = branding.supportEmail || settings.data?.support_email || null
   const model = useMemo(
     () =>
       buildCoursePageModel({

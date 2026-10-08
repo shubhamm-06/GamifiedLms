@@ -41,6 +41,7 @@ import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
 import type { TableSelection } from '@/components/admin/selection/useTableSelection'
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import { describeCondition, type Badge } from '@/hooks/admin/useBadges'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /** Same TanStack Table v9 feature registration as `GameTable.tsx` — see `CourseTable.tsx`'s comment for why it looks this way. */
 const badgesFeatures = tableFeatures({
@@ -83,7 +84,7 @@ function buildColumns({
   return columnHelper.columns([
     columnHelper.display({
       id: 'select',
-      header: ({ table }) => <SelectPageCheckbox table={table} label="Select all badges on this page" />,
+      header: ({ table }) => <SelectPageCheckbox table={table} label={`Select all ${tw().lower('badge', true)} on this page`} />,
       cell: ({ row }) => <SelectRowCheckbox row={row} label={`Select ${row.original.name}`} />,
       enableSorting: false,
     }),
@@ -100,7 +101,7 @@ function buildColumns({
     }),
     columnHelper.accessor('name', {
       id: 'name',
-      header: 'Badge',
+      header: `${tw().term('badge')}`,
       filterFn: 'includesString',
       sortFn: 'text',
       cell: (info) => (
@@ -240,7 +241,7 @@ export function BadgeTable({
             ) : isError ? (
               <TableRow>
                 <TableCell colSpan={COLUMN_COUNT} className="h-28 text-center">
-                  <p className="text-coral-d font-medium">Couldn&rsquo;t load badges.</p>
+                  <p className="text-coral-d font-medium">{`Couldn’t load ${tw().lower('badge', true)}.`}</p>
                   <p className="text-muted-foreground mt-1 text-sm">
                     Check your connection and try again.
                   </p>
@@ -254,7 +255,7 @@ export function BadgeTable({
                   </p>
                   <p className="text-muted-foreground mt-1 text-sm">
                     {badges.length === 0
-                      ? 'Add your first badge to get started.'
+                      ? `Add your first ${tw().lower('badge')} to get started.`
                       : 'Try a different search.'}
                   </p>
                 </TableCell>

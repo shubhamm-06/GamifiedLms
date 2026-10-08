@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, Flame, Sparkles } from 'lucide-react'
 import { courseContentKey } from '@/hooks/useCourseRoadmap'
 import { useKidProfile } from '@/hooks/useKidProfile'
+import { useFeature, useTerms } from '@/hooks/useSettings'
 import type { CourseContent } from '@/lib/roadmap'
 
 /**
@@ -29,23 +30,34 @@ export function StatBar({ courseId }: { courseId: string | null }) {
     enabled: false,
   })
   const title = content.data?.course?.title
-  const showPills = content.data?.course?.gamificationEnabled === true
+  // The course's own flag AND Settings > Features (streaks / XP, each after the gamification master switch).
+  const courseGamified = content.data?.course?.gamificationEnabled === true
+  const streaksOn = useFeature('streaks')
+  const showStreak = courseGamified && streaksOn
+  const xpOn = useFeature('xp')
+  const showXp = courseGamified && xpOn
+  const showPills = showStreak || showXp
+  const { lower } = useTerms()
   const value = (n: number | undefined) => (n === undefined ? '–' : n)
 
   return (
     <div className="kid-statbar" data-testid="stat-bar">
       {showPills ? (
         <ul className="kid-stats">
-          <li className="kid-stat" data-kind="streak" data-testid="stat-bar-streak">
-            <Flame className="size-5" aria-hidden />
-            <span className="kid-num">{value(profile.data?.currentStreak)}</span>
-            <span className="sr-only">day streak</span>
-          </li>
-          <li className="kid-stat" data-kind="xp" data-testid="stat-bar-xp">
-            <Sparkles className="size-5" aria-hidden />
-            <span className="kid-num">{value(profile.data?.totalXp)}</span>
-            <span className="sr-only">XP</span>
-          </li>
+          {showStreak ? (
+            <li className="kid-stat" data-kind="streak" data-testid="stat-bar-streak">
+              <Flame className="size-5" aria-hidden />
+              <span className="kid-num">{value(profile.data?.currentStreak)}</span>
+              <span className="sr-only">day {lower('streak')}</span>
+            </li>
+          ) : null}
+          {showXp ? (
+            <li className="kid-stat" data-kind="xp" data-testid="stat-bar-xp">
+              <Sparkles className="size-5" aria-hidden />
+              <span className="kid-num">{value(profile.data?.totalXp)}</span>
+              <span className="sr-only">{lower('xp')}</span>
+            </li>
+          ) : null}
         </ul>
       ) : null}
       {courseId && title ? (

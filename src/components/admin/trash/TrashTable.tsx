@@ -133,6 +133,8 @@ interface TrashTableProps {
   isError: boolean
   /** Singular noun for the empty states and labels: "course", "user" … */
   noun: string
+  /** Its plural, as the terminology settings write it (never `noun + 's'`). */
+  nounMany: string
   nameHeader: string
   search: string
   onRestore: (row: TrashRow) => void
@@ -141,12 +143,12 @@ interface TrashTableProps {
   bulkActions?: ReactNode
 }
 
-function buildColumns({ noun, nameHeader }: Pick<TrashTableProps, 'noun' | 'nameHeader'>) {
+function buildColumns({ nounMany, nameHeader }: Pick<TrashTableProps, 'nounMany' | 'nameHeader'>) {
   return columnHelper.columns([
     columnHelper.display({
       id: 'select',
       header: ({ table }) => (
-        <SelectPageCheckbox table={table} label={`Select all ${noun}s on this page`} />
+        <SelectPageCheckbox table={table} label={`Select all ${nounMany} on this page`} />
       ),
       cell: ({ row }) => <SelectRowCheckbox row={row} label={`Select ${row.original.name}`} />,
       enableSorting: false,
@@ -202,6 +204,7 @@ export function TrashTable({
   isPending,
   isError,
   noun,
+  nounMany,
   nameHeader,
   search,
   onRestore,
@@ -217,7 +220,7 @@ export function TrashTable({
   )
 
   // Memoised (see RowActionsContext): stable columns keep open menus open.
-  const columns = useMemo(() => buildColumns({ noun, nameHeader }), [noun, nameHeader])
+  const columns = useMemo(() => buildColumns({ nounMany, nameHeader }), [nounMany, nameHeader])
   const actionHandlers = useMemo(
     () => ({ onRestore, onDeletePermanently }),
     [onRestore, onDeletePermanently],
@@ -300,11 +303,11 @@ export function TrashTable({
               <TableRow>
                 <TableCell colSpan={columnCount} className="h-28 text-center">
                   <p className="font-medium">
-                    {rows.length === 0 ? `No ${noun}s in the trash` : `No ${noun}s match`}
+                    {rows.length === 0 ? `No ${nounMany} in the trash` : `No ${nounMany} match`}
                   </p>
                   <p className="text-muted-foreground mt-1 text-sm">
                     {rows.length === 0
-                      ? `A ${noun} you move to trash will show up here.`
+                      ? `Every ${noun} you move to trash will show up here.`
                       : 'Try a different search term.'}
                   </p>
                 </TableCell>

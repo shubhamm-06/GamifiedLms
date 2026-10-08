@@ -21,6 +21,7 @@ import {
   type Course,
   type CourseFormValues,
 } from '@/hooks/admin/useCourses'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const publishedFormatter = new Intl.DateTimeFormat(undefined, {
   day: 'numeric',
@@ -73,12 +74,12 @@ export function CourseEditPage() {
   if (isError || !course) {
     return (
       <div className="rounded-lg border p-8 text-center">
-        <p className="font-medium">Course not found</p>
+        <p className="font-medium">{`${tw().term('course')} not found`}</p>
         <p className="text-muted-foreground mt-1 text-sm">
           It may have been removed, or the link is wrong.
         </p>
         <Link to="/admin/courses" className="text-teal-d mt-3 inline-block text-sm hover:underline">
-          Back to courses
+          {`Back to ${tw().lower('course', true)}`}
         </Link>
       </div>
     )
@@ -91,7 +92,7 @@ export function CourseEditPage() {
       { id: courseId, values },
       {
         onSuccess: () => {
-          toast.success('Course updated.')
+          toast.success(`${tw().term('course')} updated.`)
           navigate({ to: '/admin/courses' })
         },
         onError: (error: Error) => {
@@ -118,7 +119,7 @@ export function CourseEditPage() {
       <header className="flex max-w-3xl items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-lg font-semibold tracking-tight [overflow-wrap:anywhere]">{course.title}</h1>
-          <p className="text-muted-foreground text-sm">Edit course</p>
+          <p className="text-muted-foreground text-sm">{`Edit ${tw().lower('course')}`}</p>
         </div>
         {/* Student-facing page in a new tab, whatever the status. It sits in the
             page header rather than beside the lifecycle buttons because that row
@@ -132,10 +133,10 @@ export function CourseEditPage() {
             params={{ courseId: course.slug }}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`View course: ${course.title} (opens in a new tab)`}
+            aria-label={`View ${tw().lower('course')}: ${course.title} (opens in a new tab)`}
           >
             <ExternalLink />
-            View course
+            {`View ${tw().lower('course')}`}
           </Link>
         </Button>
       </header>
@@ -171,7 +172,7 @@ export function CourseEditPage() {
             mistaken for form fields sitting right below. */}
         <p className="text-muted-foreground border-t pt-3 text-xs">
           {course.total_students} {course.total_students === 1 ? 'student' : 'students'} ·{' '}
-          {course.total_lessons} {course.total_lessons === 1 ? 'lesson' : 'lessons'} · maintained
+          {course.total_lessons} {tw().lower('lesson', course.total_lessons !== 1)} · maintained
           automatically
         </p>
       </section>

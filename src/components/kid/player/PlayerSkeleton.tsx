@@ -1,9 +1,10 @@
 import { Skeleton } from '@/components/ui/skeleton'
+import { getTerms as t } from '@/lib/settings/terms'
 
 /** Shaped like the player (chips, a content block, a bar) so nothing jumps when it loads. */
 export function PlayerSkeleton() {
   return (
-    <div className="lp" data-testid="player-skeleton" aria-busy="true" aria-label="Loading your lesson">
+    <div className="lp" data-testid="player-skeleton" aria-busy="true" aria-label={`Loading your ${t().lower('lesson')}`}>
       <div className="lp-meta">
         <Skeleton className="h-7 w-20 rounded-full bg-ink/10" />
         <Skeleton className="h-7 w-24 rounded-full bg-ink/10" />

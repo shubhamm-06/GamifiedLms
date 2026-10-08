@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 export type CourseTab = 'basics' | 'curriculum' | 'page'
 
@@ -38,7 +39,7 @@ export function CourseBuilder({
                 </TabsTrigger>
               </span>
             </TooltipTrigger>
-            <TooltipContent>Save the course first</TooltipContent>
+            <TooltipContent>{`Save the ${tw().lower('course')} first`}</TooltipContent>
           </Tooltip>
         ) : (
           <TabsTrigger value="curriculum">Curriculum</TabsTrigger>
@@ -48,14 +49,14 @@ export function CourseBuilder({
             <TooltipTrigger asChild>
               <span>
                 <TabsTrigger value="page" disabled>
-                  Course page
+                  {`${tw().term('course')} page`}
                 </TabsTrigger>
               </span>
             </TooltipTrigger>
-            <TooltipContent>Save the course first</TooltipContent>
+            <TooltipContent>{`Save the ${tw().lower('course')} first`}</TooltipContent>
           </Tooltip>
         ) : (
-          <TabsTrigger value="page">Course page</TabsTrigger>
+          <TabsTrigger value="page">{`${tw().term('course')} page`}</TabsTrigger>
         )}
       </TabsList>
 

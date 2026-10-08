@@ -9,13 +9,14 @@ import { TrashTable } from '@/components/admin/trash/TrashTable'
 import { useTrashedRows, type TrashRow } from '@/hooks/admin/useTrash'
 import { useTrashActions } from '@/hooks/admin/useTrashActions'
 import { ENTITY_NOUN, type TrashEntity, type TrashItem } from '@/lib/trash'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const NAME_HEADER: Record<TrashEntity, string> = {
-  courses: 'Course',
-  modules: 'Module',
-  lessons: 'Lesson',
+  courses: `${tw().term('course')}`,
+  modules: `${tw().term('module')}`,
+  lessons: `${tw().term('lesson')}`,
   games: 'Game',
-  badges: 'Badge',
+  badges: `${tw().term('badge')}`,
   users: 'User',
 }
 
@@ -82,6 +83,7 @@ export function TrashTab({ entity }: { entity: TrashEntity }) {
         isPending={isPending}
         isError={isError}
         noun={noun.one}
+        nounMany={noun.many}
         nameHeader={NAME_HEADER[entity]}
         search={search}
         onRestore={(row) => requestRestore([row])}

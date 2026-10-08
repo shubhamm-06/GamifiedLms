@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useAwardXp } from '@/hooks/admin/useUserDetail'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Inline, not a dialog — this is a small, tightly-scoped action attached to
@@ -59,7 +60,7 @@ export function AwardXpForm({ userId }: { userId: string }) {
         />
       </div>
       <Button type="submit" disabled={awardXp.isPending}>
-        {awardXp.isPending ? 'Awarding…' : 'Award XP'}
+        {awardXp.isPending ? 'Awarding…' : `Award ${tw().term('xp')}`}
       </Button>
       {error ? <p className="text-coral-d w-full text-sm">{error}</p> : null}
     </form>

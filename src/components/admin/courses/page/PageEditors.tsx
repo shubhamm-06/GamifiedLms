@@ -18,6 +18,7 @@ import { SourceGlyph } from '@/components/kid/coursePage/testimonialSources'
 import { PAGE_LIMITS } from '@/lib/coursePage'
 import { TESTIMONIAL_SOURCES, type TestimonialSource } from '@/lib/coursePageLimits'
 import { blankTestimonial, detectSource, type FaqRow, type TestimonialForm } from '@/lib/coursePageForm'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /** A running "12/160" count, so a limit is visible before it is hit (the inputs also enforce it with maxLength). */
 export function Counter({ value, max }: { value: number; max: number }) {
@@ -266,7 +267,7 @@ export function CustomFactsEditor({
             <div className="flex items-start gap-2">
               <Input
                 aria-label={`Custom fact ${i + 1} label`}
-                placeholder="Label, e.g. Level"
+                placeholder={`Label, e.g. ${tw().term('level')}`}
                 value={f.label}
                 maxLength={L.label}
                 aria-invalid={!!errors[`${k}.label`]}

@@ -54,6 +54,7 @@ import {
 import { ContentTypeBadge, LessonSettingChips, LessonStatusBadge } from './ContentTypeBadge'
 import { LessonDialog } from './LessonDialog'
 import { SetMinTimeDialog } from './SetMinTimeDialog'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /** Where a new/edited lesson belongs. `null` moduleId means Ungrouped. */
 interface LessonTarget {
@@ -633,7 +634,7 @@ function ModuleCard({
         )}
 
         <span className="text-muted-foreground shrink-0 text-xs">
-          {moduleLessons.length} {moduleLessons.length === 1 ? 'lesson' : 'lessons'}
+          {moduleLessons.length} {tw().lower('lesson', moduleLessons.length !== 1)}
         </span>
         <Button
           variant="ghost"
@@ -650,7 +651,7 @@ function ModuleCard({
           <LessonList
             lessons={moduleLessons}
             container={module.id}
-            emptyLabel="No lessons in this topic yet."
+            emptyLabel={`No ${tw().lower('lesson', true)} in this topic yet.`}
             selectedIds={selectedIds}
             onToggleSelect={onToggleSelect}
             onEdit={onEditLesson}
@@ -658,7 +659,7 @@ function ModuleCard({
           />
           <Button variant="outline" size="sm" onClick={onAddLesson}>
             <Plus />
-            Add lesson
+            {`Add ${tw().lower('lesson')}`}
           </Button>
         </div>
       ) : null}
@@ -678,7 +679,7 @@ function ModuleCardPreview({ module, lessonCount }: { module: Module; lessonCoun
       </span>
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{module.title}</span>
       <span className="text-muted-foreground shrink-0 text-xs">
-        {lessonCount} {lessonCount === 1 ? 'lesson' : 'lessons'}
+        {lessonCount} {tw().lower('lesson', lessonCount !== 1)}
       </span>
     </div>
   )
@@ -871,7 +872,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
       <div className="flex items-center justify-between">
         <p className="text-muted-foreground text-sm">
           {modules.length} {modules.length === 1 ? 'topic' : 'topics'} · {lessons.length}{' '}
-          {lessons.length === 1 ? 'lesson' : 'lessons'}
+          {tw().lower('lesson', lessons.length !== 1)}
         </p>
         {modules.length > 0 ? (
           <div className="flex gap-2">
@@ -889,7 +890,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
         <div className="rounded-lg border p-8 text-center">
           <p className="font-medium">No curriculum yet</p>
           <p className="text-muted-foreground mt-1 text-sm">
-            Add a topic to start grouping lessons.
+            {`Add a topic to start grouping ${tw().lower('lesson', true)}.`}
           </p>
         </div>
       ) : null}
@@ -986,7 +987,7 @@ export function CurriculumTab({ courseId }: { courseId: string }) {
               <LessonList
                 lessons={ungrouped}
                 container={UNGROUPED}
-                emptyLabel="Drop a lesson here to take it out of its topic."
+                emptyLabel={`Drop ${tw().lower('lesson')} here to take it out of its topic.`}
                 selectedIds={selection.rowSelection}
                 onToggleSelect={(id) => selection.toggle(id)}
                 onEdit={(l) => setLessonTarget({ moduleId: null, lesson: l, position: 0 })}

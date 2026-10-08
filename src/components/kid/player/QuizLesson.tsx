@@ -13,14 +13,14 @@ import {
 import { useDelayedFlag } from '@/hooks/useDelayedFlag'
 import { useLeaveGuard } from '@/hooks/useBackClosable'
 import * as haptics from '@/lib/haptics'
-import { clockText, type LessonContent } from '@/lib/lessonPlayer'
+import { clockText, type LessonContent, type PlayerMode } from '@/lib/lessonPlayer'
 import { DEFAULT_PASS_PERCENTAGE } from '@/lib/lessonSettings'
 import { playerCopy } from '@/lib/playerCopy'
 import { PlayerBar } from './PlayerBar'
+import { useFeature } from '@/hooks/useSettings'
 import { PlayerError } from './PlayerError'
 import { PlayerSkeleton } from './PlayerSkeleton'
 import { PrimaryButton, PrimaryLink } from './PrimaryButton'
-import type { PlayerMode } from './LessonPlayerShell'
 import { QuizProgress } from './QuizProgress'
 import { QuizQuestion } from './QuizQuestion'
 import { QuizResultView } from './QuizResultView'
@@ -62,6 +62,7 @@ const REFUSALS: ReadonlySet<LessonEngineErrorCode> = new Set<LessonEngineErrorCo
  */
 export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing, finishError, onCompleted, onRefused }: Props) {
   const questions = useQuizQuestions(lesson.id, true)
+  const xpOn = useFeature('xp')
   const check = useCheckQuizAnswer()
   const submit = useSubmitQuiz(courseId)
   const [answers, setAnswers] = useState<Record<string, string>>({})
@@ -222,7 +223,7 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
             passPercentage={lesson.passPercentage ?? DEFAULT_PASS_PERCENTAGE}
             practice={practice}
           />
-          {result.passed && !practice && result.xpAwarded > 0 ? (
+          {xpOn && result.passed && !practice && result.xpAwarded > 0 ? (
             <p className="lp-xp kid-num" data-testid="quiz-xp">
               <Sparkles className="size-5" aria-hidden />
               {playerCopy.quiz.xpEarned(result.xpAwarded)}

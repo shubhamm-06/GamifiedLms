@@ -5,6 +5,7 @@ import { DesktopPageHeader } from '@/components/kid/DesktopPageHeader'
 import { StreakCalendar } from '@/components/kid/StreakCalendar'
 import { RetryScreen } from '@/components/kid/roadmap/StateScreens'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useFeature, useTerms } from '@/hooks/useSettings'
 import { useProfileData } from '@/hooks/useKidProfile'
 import { ProfileIdentityCard } from './ProfileIdentityCard'
 import { ProfileStatCard } from './ProfileStatCard'
@@ -26,6 +27,11 @@ import { AccountSection, PreferencesSection } from './ProfileSections'
  */
 export function DesktopProfile({ building, setBuilding }: { building: boolean; setBuilding: (building: boolean) => void }) {
   const { profile, activity, updateAvatar, leaving, logOut } = useProfileData()
+  const avatars = useFeature('avatars')
+  const showLevel = useFeature('levels')
+  const showXp = useFeature('xp')
+  const showStreak = useFeature('streaks')
+  const { term, lower } = useTerms()
 
   const editRef = useRef<HTMLButtonElement>(null)
   const builderRef = useRef<HTMLDivElement>(null)
@@ -67,8 +73,8 @@ export function DesktopProfile({ building, setBuilding }: { building: boolean; s
 
   return (
     <div className="kpd" data-testid="profile-desktop">
-      <DesktopPageHeader title={building ? 'Edit your avatar' : 'Profile'} />
-      {building ? (
+      <DesktopPageHeader title={building && avatars ? 'Edit your avatar' : 'Profile'} />
+      {building && avatars ? (
         <div ref={builderRef}>
           <AvatarBuilder
             initial={p.avatarConfig}
@@ -79,15 +85,20 @@ export function DesktopProfile({ building, setBuilding }: { building: boolean; s
         </div>
       ) : (
         <div className="kpd-body" data-testid="profile">
-          <ProfileIdentityCard config={p.avatarConfig} name={p.displayName} onEdit={() => setBuilding(true)} editRef={editRef} />
+          <ProfileIdentityCard config={p.avatarConfig} name={p.displayName} onEdit={avatars ? () => setBuilding(true) : undefined} editRef={editRef} />
           <div className="kpd-main">
-            <ul className="kpd-stats">
-              <ProfileStatCard kind="level" icon={<Trophy className="size-5" />} value={p.level} label="Level" testId="stat-level" />
-              <ProfileStatCard kind="xp" icon={<Sparkles className="size-5" />} value={p.totalXp} label="XP" testId="stat-xp" />
-              <ProfileStatCard kind="streak" icon={<Flame className="size-5" />} value={p.currentStreak} label="Day streak" testId="stat-streak" />
-            </ul>
+            {showLevel || showXp || showStreak ? (
+              <ul className="kpd-stats">
+                {showLevel ? <ProfileStatCard kind="level" icon={<Trophy className="size-5" />} value={p.level} label={term('level')} testId="stat-level" /> : null}
+                {showXp ? <ProfileStatCard kind="xp" icon={<Sparkles className="size-5" />} value={p.totalXp} label={term('xp')} testId="stat-xp" /> : null}
+                {showStreak ? (
+                  <ProfileStatCard kind="streak" icon={<Flame className="size-5" />} value={p.currentStreak} label={`Day ${lower('streak')}`} testId="stat-streak" />
+                ) : null}
+              </ul>
+            ) : null}
 
-            <section className="kid-card kp-card" aria-label="Your streak">
+            {showStreak ? (
+            <section className="kid-card kp-card" aria-label={`Your ${lower('streak')}`}>
               <h2 className="kp-card-title">Your last 5 weeks</h2>
               {activity.isPending ? (
                 <Skeleton className="h-32 w-full rounded-xl bg-ink/10" />
@@ -97,6 +108,7 @@ export function DesktopProfile({ building, setBuilding }: { building: boolean; s
                 <StreakCalendar activeDays={activity.data} />
               )}
             </section>
+            ) : null}
 
             <PreferencesSection />
             <AccountSection profile={p} />

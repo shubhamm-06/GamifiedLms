@@ -14,6 +14,7 @@ import {
   useResetCourseProgress,
   type EnrollmentWithCourse,
 } from '@/hooks/admin/useUserDetail'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 interface ResetProgressAlertDialogProps {
   userId: string
@@ -54,7 +55,7 @@ export function ResetProgressAlertDialog({
             <div className="space-y-3">
               <p>
                 This cannot be undone. Their enrollment itself is not changed, and they can
-                work through the course again from the start.
+                {' '}{`work through the ${tw().lower('course')} again from the start.`}
               </p>
 
               {summary.isPending ? (
@@ -67,7 +68,7 @@ export function ResetProgressAlertDialog({
                 <ul className="bg-muted/50 space-y-1 rounded-md border p-3 text-sm">
                   <li>
                     <span className="font-medium tabular-nums">{data.lessonsCompleted}</span>{' '}
-                    completed {data.lessonsCompleted === 1 ? 'lesson' : 'lessons'}
+                    completed {tw().lower('lesson', data.lessonsCompleted !== 1)}
                     {data.progressRows !== data.lessonsCompleted ? (
                       <span className="text-muted-foreground">
                         {' '}
@@ -89,7 +90,7 @@ export function ResetProgressAlertDialog({
               ) : null}
 
               <p className="text-muted-foreground text-xs">
-                Streaks, badges, manual XP awards and XP from other courses are left alone.
+                {`${tw().terms('streak')}, ${tw().lower('badge', true)}, manual ${tw().term('xp')} awards and ${tw().term('xp')} from other ${tw().lower('course', true)} are left alone.`}
               </p>
             </div>
           </AlertDialogDescription>

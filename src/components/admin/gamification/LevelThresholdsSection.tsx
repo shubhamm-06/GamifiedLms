@@ -23,6 +23,7 @@ import {
   validateThreshold,
   type LevelThreshold,
 } from '@/hooks/admin/useLevelThresholds'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Local draft state per row. The parent keys this by `level:xp_required`,
@@ -62,12 +63,12 @@ function ThresholdRow({
   return (
     <li className="px-3 py-2">
       <div className="flex items-center gap-3">
-        <span className="w-20 shrink-0 text-sm font-medium">Level {threshold.level}</span>
+        <span className="w-20 shrink-0 text-sm font-medium">{`${tw().term('level')} ${threshold.level}`}</span>
         <Input
           type="number"
           min={0}
           className="w-32"
-          aria-label={`XP required for level ${threshold.level}`}
+          aria-label={`${tw().term('xp')} required for ${tw().lower('level')} ${threshold.level}`}
           aria-invalid={!!error}
           // Level 1 must always exist and stay at 0 — protected here in the
           // UI rather than special-cased in the DB trigger (see rules.md).
@@ -75,7 +76,7 @@ function ThresholdRow({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
-        <span className="text-muted-foreground text-xs">XP</span>
+        <span className="text-muted-foreground text-xs">{`${tw().term('xp')}`}</span>
         <div className="ml-auto flex items-center gap-2">
           {isDirty ? (
             <Button
@@ -92,7 +93,7 @@ function ThresholdRow({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={`Delete level ${threshold.level}`}
+              aria-label={`Delete ${tw().lower('level')} ${threshold.level}`}
               onClick={() => onDelete(threshold.level)}
             >
               <Trash2 />
@@ -139,24 +140,22 @@ export function LevelThresholdsSection() {
   return (
     <section className="rounded-lg border p-4">
       <div className="mb-3">
-        <h2 className="text-base font-semibold tracking-tight">Level Thresholds</h2>
+        <h2 className="text-base font-semibold tracking-tight">{`${tw().term('level')} Thresholds`}</h2>
         <p className="text-muted-foreground text-xs">
-          XP needed to reach each level. Every level must need strictly more XP than the one below
-          it. Students above the highest level stay at it until you add more. Changes apply to a
-          student&rsquo;s stored level the next time they earn XP — existing levels aren&rsquo;t
-          recomputed when you edit this list.
+          {`${tw().term('xp')} needed to reach each ${tw().lower('level')}. Every ${tw().lower('level')} must need strictly more ${tw().term('xp')} than the one below`}{' '}
+          {`it. Students above the highest ${tw().lower('level')} stay at it until you add more. Changes apply to a student’s stored ${tw().lower('level')} the next time they earn ${tw().term('xp')} — existing ${tw().lower('level', true)} aren’t recomputed when you edit this list.`}
         </p>
       </div>
 
       <form className="mb-3 flex items-end gap-2" onSubmit={handleAdd} noValidate>
         <div className="space-y-1.5">
-          <Label htmlFor="new-level-xp">Add level {nextLevel}</Label>
+          <Label htmlFor="new-level-xp">{`Add ${tw().lower('level')} ${nextLevel}`}</Label>
           <Input
             id="new-level-xp"
             type="number"
             min={0}
             className="w-40"
-            placeholder="XP required"
+            placeholder={`${tw().term('xp')} required`}
             aria-invalid={!!addError}
             disabled={addingBase}
             value={addingBase ? '0' : newXp}
@@ -179,9 +178,9 @@ export function LevelThresholdsSection() {
           <Skeleton className="h-9 w-full" />
         </div>
       ) : isError ? (
-        <p className="text-coral-d text-sm">Couldn&rsquo;t load level thresholds.</p>
+        <p className="text-coral-d text-sm">{`Couldn’t load ${tw().lower('level')} thresholds.`}</p>
       ) : list.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No levels yet — add level 1 above.</p>
+        <p className="text-muted-foreground text-sm">{`No ${tw().lower('level', true)} yet — add ${tw().lower('level')} 1 above.`}</p>
       ) : (
         <ul className="max-h-96 divide-y overflow-y-auto rounded-md border">
           {list.map((threshold) => (
@@ -205,7 +204,7 @@ export function LevelThresholdsSection() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete level {levelToDelete}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes the level for good. Levels above it keep their numbers, so the list will
+              {`This removes the ${tw().lower('level')} for good. ${tw().terms('level')} above it keep their numbers, so the list will`}{' '}
               skip {levelToDelete}. Students&rsquo; stored levels aren&rsquo;t recomputed until
               their next XP event.
             </AlertDialogDescription>
@@ -225,7 +224,7 @@ export function LevelThresholdsSection() {
                 }
               }}
             >
-              {deleteLevel.isPending ? 'Deleting…' : 'Delete level'}
+              {deleteLevel.isPending ? 'Deleting…' : `Delete ${tw().lower('level')}`}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

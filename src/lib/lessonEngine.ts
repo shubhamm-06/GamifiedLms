@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/lib/database.types'
+import { getTerms as t } from '@/lib/settings/terms'
 
 /**
  * Thin typed wrappers around the four student-facing lesson-engine functions
@@ -67,15 +68,15 @@ export function isRetryableEngineError(error: unknown): boolean {
 export function describeEngineError(code: LessonEngineErrorCode): string {
   switch (code) {
     case 'not_enrolled':
-      return "You're not enrolled in this course."
+      return `You're not enrolled in this ${t().lower('course')}.`
     case 'locked':
-      return 'Finish the earlier lessons first.'
+      return `Finish the earlier ${t().lower('lesson', true)} first.`
     case 'too_early':
-      return "You haven't spent enough time on this lesson yet."
+      return `You haven't spent enough time on this ${t().lower('lesson')} yet.`
     case 'quiz_not_passed':
       return "You haven't passed this quiz yet."
     case 'lesson_unavailable':
-      return "This lesson isn't available."
+      return `This ${t().lower('lesson')} isn't available.`
     case 'invalid_answers':
       return "Those answers don't match this quiz."
     case 'invalid_score':

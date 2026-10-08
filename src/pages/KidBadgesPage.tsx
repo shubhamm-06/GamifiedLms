@@ -1,3 +1,4 @@
+import { Navigate } from '@tanstack/react-router'
 import { Award, Lock } from 'lucide-react'
 import { DesktopBadges, DesktopBadgesSkeleton } from '@/components/kid/badges/DesktopBadges'
 import { useKidHeader } from '@/components/kid/kidHeader'
@@ -5,6 +6,7 @@ import { RetryScreen, Screen } from '@/components/kid/roadmap/StateScreens'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useKidBadges } from '@/hooks/useKidProfile'
 import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
+import { useFeature, useTerms } from '@/hooks/useSettings'
 
 /**
  * `/badges`: every active badge, earned ones first in colour, the rest dimmed
@@ -14,15 +16,19 @@ import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
  * desktop screen uses, so only one view is ever mounted).
  */
 export function KidBadgesPage() {
-  useKidHeader('Badges')
+  const { terms, lower } = useTerms()
+  useKidHeader(terms('badge'))
   const desktop = useMediaQuery(LG_UP)
   const badges = useKidBadges()
+  // Settings > Features: with badges off (or gamification off) the screen is not offered at all.
+  const enabled = useFeature('badges')
+  if (!enabled) return <Navigate to="/" replace />
 
   if (badges.isPending) {
     return desktop ? (
       <DesktopBadgesSkeleton />
     ) : (
-      <div className="kb-grid" aria-busy="true" aria-label="Loading your badges">
+      <div className="kb-grid" aria-busy="true" aria-label={`Loading your ${lower('badge', true)}`}>
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-44 w-full rounded-[26px] bg-ink/10" />
         ))}
@@ -30,14 +36,14 @@ export function KidBadgesPage() {
     )
   }
   if (badges.isError) {
-    return <RetryScreen title="Oops! We couldn't load your badges" onRetry={() => void badges.refetch()} />
+    return <RetryScreen title={`Oops! We couldn't load your ${lower('badge', true)}`} onRetry={() => void badges.refetch()} />
   }
   if (badges.data.length === 0) {
     return (
       <Screen
         testId="state-no-badges"
         icon={<Award className="size-8" aria-hidden />}
-        title="No badges yet"
+        title={`No ${lower('badge', true)} yet`}
         body="Keep learning and they will show up here."
       />
     )

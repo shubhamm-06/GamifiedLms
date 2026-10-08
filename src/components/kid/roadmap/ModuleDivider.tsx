@@ -1,4 +1,5 @@
 import type { RoadmapSection } from '@/lib/roadmap'
+import { getTerms as t } from '@/lib/settings/terms'
 
 /**
  * A quiet break in the path where it crosses into the next module: a short rule,
@@ -10,7 +11,7 @@ import type { RoadmapSection } from '@/lib/roadmap'
  */
 export function ModuleDivider({ title }: { title: RoadmapSection['title'] }) {
   return (
-    <div className="rm-divider" role="separator" aria-label={`Next module: ${title}`} data-testid="module-divider">
+    <div className="rm-divider" role="separator" aria-label={`Next ${t().lower('module')}: ${title}`} data-testid="module-divider">
       <span className="rm-divider-rule" aria-hidden />
       <span className="rm-divider-label" aria-hidden>
         {title}

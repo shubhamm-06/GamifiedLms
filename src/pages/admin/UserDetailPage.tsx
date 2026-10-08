@@ -28,6 +28,7 @@ import {
 import type { AdminUserRow } from '@/hooks/admin/useUsers'
 import { dateFormatter, PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
 import { adminSessionQueryOptions } from '@/lib/adminSession'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 function initialsOf(displayName: string): string {
   const parts = displayName.trim().split(/\s+/).filter(Boolean)
@@ -230,10 +231,10 @@ export function UserDetailPage() {
       <Section title="Stats">
         {stats ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <StatTile label="Total XP" value={String(stats.total_xp)} />
-            <StatTile label="Level" value={String(stats.level)} />
-            <StatTile label="Current streak" value={`${stats.current_streak}d`} />
-            <StatTile label="Longest streak" value={`${stats.longest_streak}d`} />
+            <StatTile label={`Total ${tw().term('xp')}`} value={String(stats.total_xp)} />
+            <StatTile label={`${tw().term('level')}`} value={String(stats.level)} />
+            <StatTile label={`Current ${tw().lower('streak')}`} value={`${stats.current_streak}d`} />
+            <StatTile label={`Longest ${tw().lower('streak')}`} value={`${stats.longest_streak}d`} />
             <StatTile
               label="Last activity"
               value={
@@ -242,18 +243,18 @@ export function UserDetailPage() {
                   : '—'
               }
             />
-            <StatTile label="Lessons completed" value={String(stats.lessons_completed)} />
+            <StatTile label={`${tw().terms('lesson')} completed`} value={String(stats.lessons_completed)} />
           </div>
         ) : (
           // No row yet is the common case (fn_process_xp_transaction only
           // creates one on a user's first XP event) — not an error state.
           <p className="text-muted-foreground text-sm">
-            No activity yet — stats appear once this user earns their first XP.
+            {`No activity yet — stats appear once this user earns their first ${tw().term('xp')}.`}
           </p>
         )}
 
         <div className="border-t pt-3">
-          <p className="mb-2 text-xs font-medium">Award XP manually</p>
+          <p className="mb-2 text-xs font-medium">{`Award ${tw().term('xp')} manually`}</p>
           <AwardXpForm userId={userId} />
         </div>
       </Section>
@@ -263,14 +264,14 @@ export function UserDetailPage() {
         action={
           <Button variant="outline" size="sm" onClick={() => setEnrollOpen(true)}>
             <Plus />
-            Enroll in a course
+            {`Enroll in ${tw().lower('course')}`}
           </Button>
         }
       >
         {enrollmentsPending ? (
           <Skeleton className="h-24 w-full" />
         ) : (enrollments ?? []).length === 0 ? (
-          <p className="text-muted-foreground text-sm">Not enrolled in any course.</p>
+          <p className="text-muted-foreground text-sm">{`Not enrolled in any ${tw().lower('course')}.`}</p>
         ) : (
           <div className="space-y-2">
             {(enrollments ?? []).map((enrollment) => {
@@ -282,7 +283,7 @@ export function UserDetailPage() {
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">
-                      {enrollment.courses?.title ?? 'Unknown course'}
+                      {enrollment.courses?.title ?? `Unknown ${tw().lower('course')}`}
                     </p>
                     <p className="text-muted-foreground text-xs">
                       {enrollment.source} · enrolled{' '}
@@ -290,7 +291,7 @@ export function UserDetailPage() {
                       {enrollment.expires_at
                         ? ` · expires ${dateFormatter.format(new Date(enrollment.expires_at))}`
                         : ' · lifetime'}
-                      {p ? ` · ${p.completed}/${p.totalPublished} lessons complete` : null}
+                      {p ? ` · ${p.completed}/${p.totalPublished} ${tw().lower('lesson', true)} complete` : null}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -334,11 +335,11 @@ export function UserDetailPage() {
         )}
       </Section>
 
-      <Section title="Badges">
+      <Section title={`${tw().terms('badge')}`}>
         {badgesPending ? (
           <Skeleton className="h-16 w-full" />
         ) : (badges ?? []).length === 0 ? (
-          <p className="text-muted-foreground text-sm">No badges unlocked yet.</p>
+          <p className="text-muted-foreground text-sm">{`No ${tw().lower('badge', true)} unlocked yet.`}</p>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {(badges ?? []).map((entry) => (

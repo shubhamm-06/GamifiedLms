@@ -56,7 +56,6 @@ function toFormValues(settings: AppSettings): IdentityFormValues {
 function SiteIdentityForm({ settings }: { settings: AppSettings }) {
   const updateSettings = useUpdateAppSettings()
   const [values, setValues] = useState<IdentityFormValues>(toFormValues(settings))
-  const [siteNameError, setSiteNameError] = useState<string | null>(null)
 
   function set<K extends keyof IdentityFormValues>(field: K, value: IdentityFormValues[K]) {
     setValues((prev) => ({ ...prev, [field]: value }))
@@ -64,12 +63,8 @@ function SiteIdentityForm({ settings }: { settings: AppSettings }) {
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
-    const siteName = values.site_name.trim()
-    if (!siteName) {
-      setSiteNameError('Site name is required.')
-      return
-    }
-    setSiteNameError(null)
+    // The name is edited under Branding now; the stored value is kept as it is.
+    const siteName = values.site_name.trim() || settings.site_name
 
     updateSettings.mutate({
       id: settings.id,
@@ -83,22 +78,9 @@ function SiteIdentityForm({ settings }: { settings: AppSettings }) {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit} noValidate>
-      <Field
-        id="site-name"
-        label="Site name"
-        error={siteNameError ?? undefined}
-        hint={siteNameError ? undefined : 'Shown in the admin sidebar.'}
-      >
-        <Input
-          id="site-name"
-          value={values.site_name}
-          aria-invalid={!!siteNameError}
-          onChange={(e) => {
-            set('site_name', e.target.value)
-            setSiteNameError(null)
-          }}
-        />
-      </Field>
+      <p className="text-muted-foreground text-sm" data-testid="identity-moved-note">
+        The product name and support email now live under Branding.
+      </p>
       <Field id="site-url" label="Site URL" hint="Public base URL, for outbound links once this is deployed.">
         <Input
           id="site-url"
@@ -106,15 +88,6 @@ function SiteIdentityForm({ settings }: { settings: AppSettings }) {
           placeholder="https://example.com"
           value={values.site_url}
           onChange={(e) => set('site_url', e.target.value)}
-        />
-      </Field>
-      <Field id="support-email" label="Support email">
-        <Input
-          id="support-email"
-          type="email"
-          placeholder="support@example.com"
-          value={values.support_email}
-          onChange={(e) => set('support_email', e.target.value)}
         />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">

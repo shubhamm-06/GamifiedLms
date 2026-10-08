@@ -96,10 +96,20 @@ function asLessonType(value: string): LessonType {
  * the student can't read details for (shouldn't happen) is left out of the
  * display but still counts, because the states function defines the denominator.
  */
-export function buildRoadmap(content: CourseContent, states: LessonStateRow[]): Roadmap {
+/**
+ * `global` is Settings > Features after the dependency rules: the course's own
+ * `gamification_enabled` AND the global gamification switch decide `gamified`; XP on
+ * nodes and rows also needs the global XP switch.
+ */
+export function buildRoadmap(
+  content: CourseContent,
+  states: LessonStateRow[],
+  global: { gamification: boolean; xp: boolean } = { gamification: true, xp: true },
+): Roadmap {
   const lessonById = new Map(content.lessons.map((l) => [l.id, l]))
   const moduleById = new Map(content.modules.map((m) => [m.id, m]))
-  const gamified = content.course?.gamificationEnabled ?? true
+  const gamified = (content.course?.gamificationEnabled ?? true) && global.gamification
+  const showXp = gamified && global.xp
 
   const sections: RoadmapSection[] = []
   const byKey = new Map<string, RoadmapSection>()
@@ -126,7 +136,7 @@ export function buildRoadmap(content: CourseContent, states: LessonStateRow[]): 
       sections.push(section)
     }
     const min = row.minTimeSeconds
-    const xp = gamified ? (content.xpByLesson[row.lessonId] ?? null) : null
+    const xp = showXp ? (content.xpByLesson[row.lessonId] ?? null) : null
     section.lessons.push({
       id: row.lessonId,
       number: row.sortIndex,
@@ -146,7 +156,7 @@ export function buildRoadmap(content: CourseContent, states: LessonStateRow[]): 
   const doneLessons = states.filter((s) => s.state === 'completed').length
   const current =
     states.find((s) => s.state === 'in_progress') ?? states.find((s) => s.state === 'available')
-  const xpAvailable = gamified
+  const xpAvailable = showXp
     ? sections
         .flatMap((s) => s.lessons)
         .filter((l) => l.state !== 'completed')

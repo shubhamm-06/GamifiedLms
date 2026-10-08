@@ -35,12 +35,14 @@ import {
   validateXpOverride,
 } from '@/lib/lessonSettings'
 import { cn } from '@/lib/utils'
-import { isEmbedUrl, normalizeEmbedUrl } from '@/lib/video'
+import { VideoPlayer } from '@/components/kid/player/VideoPlayer'
+import { formatClock } from '@/lib/lessonSettings'
+import { parseVideoSource, VIDEO_PARSE_MESSAGE, VIDEO_PROVIDER_LABEL } from '@/lib/video'
 import { DocBlocksEditor } from './DocBlocksEditor'
 import { MinTimeField } from './MinTimeField'
 import { QuizQuestionsEditor } from './QuizQuestionsEditor'
+import { getTerms as tw } from '@/lib/settings/terms'
 
-type VideoMode = 'direct' | 'embed'
 
 /** The two course fields that decide what XP a lesson really awards. */
 interface LessonCourseXp {
@@ -119,12 +121,8 @@ function LessonForm({
   // video/game/text, 0 for quiz); once touched, the type never overwrites it.
   // An existing lesson's saved value is never re-derived.
   const [minTimeTouched, setMinTimeTouched] = useState(false)
-  // Not a stored field — there is no column marking a video as "embedded".
-  // Defaults from whatever's already saved: an existing embed URL opens back
-  // into Embed mode rather than looking like a mismatched direct link.
-  const [videoMode, setVideoMode] = useState<VideoMode>(() =>
-    lesson?.video_url && isEmbedUrl(lesson.video_url) ? 'embed' : 'direct',
-  )
+  // The video's length as the live preview reports it, for the URL it was measured on.
+  const [previewDuration, setPreviewDuration] = useState<{ url: string; seconds: number } | null>(null)
   const { data: games } = useGames()
 
   function set<K extends keyof LessonFormValues>(field: K, value: LessonFormValues[K]) {
@@ -157,17 +155,20 @@ function LessonForm({
     const xpError = validateXpOverride(values.xp_reward)
     if (xpError) next.xp_reward = xpError
 
-    // video_url is optional either way, so an empty field isn't an error —
-    // only a non-empty value that doesn't parse as a YouTube/Vimeo link is.
-    // Never store the raw input in that failure case; either it's the
-    // normalized embed URL or the save is refused.
-    let videoUrl = values.video_url
-    if (values.content_type === 'video' && videoMode === 'embed' && values.video_url.trim()) {
-      const normalized = normalizeEmbedUrl(values.video_url)
-      if (!normalized) {
-        next.video_url = "That doesn't look like a YouTube or Vimeo link."
-      } else {
-        videoUrl = normalized
+    // video_url is optional, so an empty field isn't an error. Anything else must parse
+    // (a file link, an allowlisted provider link or a pasted iframe snippet), and only the
+    // normalised URL is ever stored, never the pasted text (rules.md).
+    let videoUrl = values.video_url.trim()
+    if (values.content_type === 'video' && videoUrl) {
+      const parsed = parseVideoSource(videoUrl, { allowHttp: import.meta.env.DEV })
+      if (!parsed.ok) next.video_url = VIDEO_PARSE_MESSAGE[parsed.error]
+      else {
+        videoUrl = parsed.source.url
+        // A minimum watch time longer than the video itself could never be met in one viewing.
+        const seconds = previewDuration?.url === parsed.source.url ? Math.floor(previewDuration.seconds) : null
+        if (seconds && !next.min_time_seconds && Number(values.min_time_seconds) > seconds) {
+          next.min_time_seconds = `Longer than the video (${formatClock(seconds)}). Use ${seconds} seconds or less.`
+        }
       }
     }
 
@@ -222,54 +223,12 @@ function LessonForm({
       {/* Only the field matching the chosen type is shown; the others are
           cleared on save so a stale value can't linger in the row. */}
       {values.content_type === 'video' ? (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="lesson-video">Video URL</Label>
-            {/* Two plain buttons rather than a new shadcn radio-group/
-                toggle-group — the CLI's alias bug has hit this repo three
-                times already, and a two-option switch doesn't need a new
-                dependency to get right. */}
-            <div
-              role="radiogroup"
-              aria-label="Video link type"
-              className="inline-flex rounded-md border p-0.5"
-            >
-              {(['direct', 'embed'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  role="radio"
-                  aria-checked={videoMode === mode}
-                  onClick={() => setVideoMode(mode)}
-                  className={cn(
-                    'rounded-sm px-2.5 py-1 text-xs font-medium transition-colors',
-                    videoMode === mode
-                      ? 'bg-muted text-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {mode === 'direct' ? 'Direct URL' : 'Embed link'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Input
-            id="lesson-video"
-            value={values.video_url}
-            placeholder={videoMode === 'embed' ? 'https://youtu.be/… or https://vimeo.com/…' : 'https://…'}
-            aria-invalid={!!errors.video_url}
-            onChange={(e) => set('video_url', e.target.value)}
-          />
-          {errors.video_url ? (
-            <p className="text-coral-d text-sm">{errors.video_url}</p>
-          ) : (
-            <p className="text-muted-foreground text-xs">
-              {videoMode === 'embed'
-                ? 'Paste a YouTube or Vimeo share link — it will be converted to an embeddable URL on save.'
-                : "Paste a hosted or streaming file URL. Upload isn't wired yet (no Storage bucket exists)."}
-            </p>
-          )}
-        </div>
+        <VideoField
+          value={values.video_url}
+          error={errors.video_url}
+          onChange={(v) => set('video_url', v)}
+          onDuration={(url, seconds) => setPreviewDuration({ url, seconds })}
+        />
       ) : null}
 
       {values.content_type === 'text' ? (
@@ -371,7 +330,7 @@ function LessonForm({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="lesson-xp">XP reward</Label>
+          <Label htmlFor="lesson-xp">{`${tw().term('xp')} reward`}</Label>
           <Input
             id="lesson-xp"
             type="number"
@@ -385,8 +344,8 @@ function LessonForm({
           ) : (
             <p className="text-muted-foreground text-xs">
               {course
-                ? `Blank uses the course default (${course.default_lesson_xp} XP). ${describeEffectiveXp(values.xp_reward, course)}`
-                : 'Blank uses the course default.'}
+                ? `Blank uses the ${tw().lower('course')} default (${course.default_lesson_xp} ${tw().term('xp')}). ${describeEffectiveXp(values.xp_reward, course)}`
+                : `Blank uses the ${tw().lower('course')} default.`}
             </p>
           )}
         </div>
@@ -424,13 +383,13 @@ function LessonForm({
         <QuizQuestionsEditor lessonId={lesson.id} />
       ) : values.content_type === 'quiz' ? (
         <p className="text-muted-foreground border-t pt-4 text-sm">
-          Save the lesson first, then reopen it to add questions.
+          {`Save the ${tw().lower('lesson')} first, then reopen it to add questions.`}
         </p>
       ) : values.content_type === 'text' && lesson ? (
         <DocBlocksEditor lessonId={lesson.id} />
       ) : values.content_type === 'text' ? (
         <p className="text-muted-foreground border-t pt-4 text-sm">
-          Save the lesson first, then reopen it to add content blocks.
+          {`Save the ${tw().lower('lesson')} first, then reopen it to add content blocks.`}
         </p>
       ) : null}
 
@@ -439,7 +398,7 @@ function LessonForm({
           Cancel
         </Button>
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving…' : lesson ? 'Save lesson' : 'Add lesson'}
+          {isSubmitting ? 'Saving…' : lesson ? `Save ${tw().lower('lesson')}` : `Add ${tw().lower('lesson')}`}
         </Button>
       </DialogFooter>
     </form>
@@ -462,7 +421,7 @@ export function LessonDialog({
           max-h/overflow-y-auto since that combination can run tall. */}
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{lesson ? 'Edit lesson' : 'New lesson'}</DialogTitle>
+          <DialogTitle>{lesson ? `Edit ${tw().lower('lesson')}` : `New ${tw().lower('lesson')}`}</DialogTitle>
           <DialogDescription>
             {lesson ? lesson.title : 'Added to the selected topic.'}
           </DialogDescription>
@@ -479,5 +438,54 @@ export function LessonDialog({
         />
       </DialogContent>
     </Dialog>
+  )
+}
+
+/**
+ * The video field: a link or a pasted embed code, checked live with the same
+ * `parseVideoSource` the student page uses, the detected source named, and a small
+ * preview through the student-side player itself.
+ */
+function VideoField({
+  value,
+  error,
+  onChange,
+  onDuration,
+}: {
+  value: string
+  error?: string
+  onChange: (value: string) => void
+  onDuration: (url: string, seconds: number) => void
+}) {
+  const parsed = value.trim() ? parseVideoSource(value, { allowHttp: import.meta.env.DEV }) : null
+  const source = parsed?.ok ? parsed.source : null
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor="lesson-video">Video</Label>
+      <Textarea
+        id="lesson-video"
+        rows={2}
+        className="font-mono text-xs"
+        value={value}
+        placeholder="https://youtu.be/…, https://vimeo.com/…, a .mp4 link, or <iframe …> embed code"
+        aria-invalid={!!error || (parsed !== null && !parsed.ok)}
+        aria-describedby="lesson-video-help"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <p id="lesson-video-help" className={cn('text-xs', error || (parsed && !parsed.ok) ? 'text-coral-d' : 'text-muted-foreground')} data-testid="video-detected">
+        {error
+          ? error
+          : !parsed
+            ? 'Paste a YouTube, Vimeo, Loom or Wistia link or embed code, or a direct video file link.'
+            : parsed.ok
+              ? `Detected: ${VIDEO_PROVIDER_LABEL[parsed.source.provider]}. Saved as ${parsed.source.url}`
+              : VIDEO_PARSE_MESSAGE[parsed.error]}
+      </p>
+      {source ? (
+        <div className="max-w-xs pt-1" data-testid="video-preview">
+          <VideoPlayer source={source} title="Preview" onDuration={(s) => onDuration(source.url, s)} />
+        </div>
+      ) : null}
+    </div>
   )
 }

@@ -24,6 +24,7 @@ import {
   type ActivityRow,
 } from '@/hooks/admin/useDashboard'
 import { useRevenue } from '@/hooks/admin/usePayments'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /* ------------------------------------------------------------------ */
 /* KPI cards                                                           */
@@ -70,12 +71,12 @@ function KpiRow() {
         isError={students.isError}
       />
       <KpiCard
-        label="Courses"
+        label={`${tw().terms('course')}`}
         value={(courses.data?.published ?? 0) + (courses.data?.draft ?? 0)}
         sub={
           courses.data && courses.data.published + courses.data.draft === 0 ? (
             <Link to={'/admin/courses' as never} className="text-teal-d hover:underline">
-              Create your first course
+              {`Create your first ${tw().lower('course')}`}
             </Link>
           ) : (
             `${courses.data?.published ?? 0} published · ${courses.data?.draft ?? 0} draft`
@@ -157,7 +158,7 @@ function NeedsAttention() {
 const KIND_LABEL: Record<ActivityKind, string> = {
   enrollment: 'Enrollment',
   payment: 'Payment',
-  xp: 'XP',
+  xp: `${tw().term('xp')}`,
 }
 
 const KIND_PILL: Record<ActivityKind, string> = {
@@ -251,7 +252,7 @@ function RecentActivity() {
         <p className="text-coral-d p-4 text-sm">Couldn&rsquo;t load recent activity.</p>
       ) : (data?.length ?? 0) === 0 ? (
         <p className="text-muted-foreground p-4 text-sm">
-          No activity yet. Enrollments, payments and XP will show up here as they happen.
+          {`No activity yet. Enrollments, payments and ${tw().term('xp')} will show up here as they happen.`}
         </p>
       ) : (
         <Table>

@@ -115,6 +115,13 @@ export interface PageRow {
   testimonials: TestimonialRow[]
 }
 
+/** Every page column the editor writes (scripts/check-course-page.mjs checks a save touches only these). */
+export const PAGE_COLUMNS: (keyof PageRow)[] = [
+  'tagline', 'thumbnail_url', 'age_min', 'age_max', 'language', 'learning_outcomes', 'requirements', 'faqs',
+  'instructor_name', 'instructor_role', 'instructor_bio', 'instructor_photo_url', 'page_theme', 'page_font',
+  'page_hidden_sections', 'page_layout', 'page_options', 'testimonials',
+]
+
 type CourseRowLike = Omit<CoursePageCourse, 'title'>
 
 const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])

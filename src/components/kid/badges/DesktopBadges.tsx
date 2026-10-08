@@ -1,5 +1,6 @@
 import { Award, Lock } from 'lucide-react'
 import { DesktopPageHeader } from '@/components/kid/DesktopPageHeader'
+import { useTerms } from '@/hooks/useSettings'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { KidBadge } from '@/hooks/useKidProfile'
 
@@ -11,9 +12,10 @@ import type { KidBadge } from '@/hooks/useKidProfile'
  */
 export function DesktopBadges({ badges }: { badges: KidBadge[] }) {
   const earned = badges.filter((b) => b.earned).length
+  const { terms } = useTerms()
   return (
     <div className="kbd" data-testid="badges-desktop">
-      <DesktopPageHeader title="Badges" subtitle={`${earned} of ${badges.length} earned`} />
+      <DesktopPageHeader title={terms('badge')} subtitle={`${earned} of ${badges.length} earned`} />
       <ul className="kbd-grid" data-testid="badge-grid">
         {badges.map((b) => (
           <li key={b.id} className="kbd-card kid-card" data-earned={b.earned} data-testid="badge">
@@ -39,9 +41,10 @@ export function DesktopBadges({ badges }: { badges: KidBadge[] }) {
 }
 
 export function DesktopBadgesSkeleton() {
+  const { terms, lower } = useTerms()
   return (
-    <div className="kbd" data-testid="badges-desktop-skeleton" aria-busy="true" aria-label="Loading your badges">
-      <DesktopPageHeader title="Badges" />
+    <div className="kbd" data-testid="badges-desktop-skeleton" aria-busy="true" aria-label={`Loading your ${lower('badge', true)}`}>
+      <DesktopPageHeader title={terms('badge')} />
       <div className="kbd-grid">
         {[0, 1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-48 w-full rounded-[26px] bg-ink/10" />

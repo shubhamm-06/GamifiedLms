@@ -1,6 +1,7 @@
 import { AdminActionError, restoreUser, trashUser } from '@/lib/adminUserApi'
 import { supabase } from '@/lib/supabase'
 import { UNIQUE_VIOLATION, FK_VIOLATION, INSUFFICIENT_PRIVILEGE } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Trash / restore for the six trash-first entities (migration 013). Every
@@ -33,11 +34,12 @@ export interface BulkResult {
 }
 
 export const ENTITY_NOUN: Record<TrashEntity, { one: string; many: string }> = {
-  courses: { one: 'course', many: 'courses' },
-  modules: { one: 'module', many: 'modules' },
-  lessons: { one: 'lesson', many: 'lessons' },
+  // Getters: the words follow the terminology settings (display only; the entity keys stay).
+  courses: { get one() { return tw().lower('course') }, get many() { return tw().lower('course', true) } },
+  modules: { get one() { return tw().lower('module') }, get many() { return tw().lower('module', true) } },
+  lessons: { get one() { return tw().lower('lesson') }, get many() { return tw().lower('lesson', true) } },
   games: { one: 'game', many: 'games' },
-  badges: { one: 'badge', many: 'badges' },
+  badges: { get one() { return tw().lower('badge') }, get many() { return tw().lower('badge', true) } },
   users: { one: 'user', many: 'users' },
 }
 

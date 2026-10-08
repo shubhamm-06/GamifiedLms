@@ -3,13 +3,14 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TrashTab } from '@/components/admin/trash/TrashTab'
 import { TRASH_ENTITIES, useTrashCounts } from '@/hooks/admin/useTrash'
 import type { TrashEntity } from '@/lib/trash'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const TAB_LABEL: Record<TrashEntity, string> = {
-  courses: 'Courses',
-  modules: 'Modules',
-  lessons: 'Lessons',
+  courses: `${tw().terms('course')}`,
+  modules: `${tw().terms('module')}`,
+  lessons: `${tw().terms('lesson')}`,
   games: 'Games',
-  badges: 'Badges',
+  badges: `${tw().terms('badge')}`,
   users: 'Users',
 }
 

@@ -38,7 +38,8 @@
   --cp-ink2: #6a5742;
   --cp-line: #e9e4da;
   --cp-gold: var(--gold, #f2b233);
-  --cp-gold-hover: hsl(40 88% 52%);
+  /* The primary role (admin-editable, Settings > Colors), a touch darker on hover. */
+  --cp-gold-hover: color-mix(in srgb, var(--cp-gold) 82%, var(--gold-d, #c98a0d));
   /* Accent: ticks, dots, the quote mark, the hover/pressed tint (graphics, >= 3:1 on white). */
   --cp-accent: var(--teal, #2fa3a0);
   /* Accent as TEXT (links) and the generated cover's background (>= 4.5:1 on white). */
@@ -1206,7 +1207,7 @@ a.cp-src {
   border: 0;
   border-radius: 10px;
   background: var(--cp-gold);
-  color: var(--cp-ink);
+  color: var(--gold-fg, var(--cp-ink));
   font-size: 1rem;
   font-weight: 700;
   line-height: 1;

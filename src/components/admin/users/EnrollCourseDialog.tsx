@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { useCourses, type Course } from '@/hooks/admin/useCourses'
 import { filterEnrollableCourses, useEnrollUser } from '@/hooks/admin/useUserDetail'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 interface EnrollCourseDialogProps {
   userId: string
@@ -57,10 +58,10 @@ function EnrollCourseForm({
   return (
     <div className="space-y-4">
       <div className="space-y-1.5">
-        <Label htmlFor="enroll-course">Course</Label>
+        <Label htmlFor="enroll-course">{`${tw().term('course')}`}</Label>
         <Select value={courseId} onValueChange={setCourseId}>
           <SelectTrigger id="enroll-course" className="w-full">
-            <SelectValue placeholder="Select a published course…" />
+            <SelectValue placeholder={`Select a published ${tw().lower('course')}…`} />
           </SelectTrigger>
           <SelectContent>
             {courses.map((course) => (
@@ -106,10 +107,10 @@ export function EnrollCourseDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Enroll in a course</DialogTitle>
+          <DialogTitle>{`Enroll in ${tw().lower('course')}`}</DialogTitle>
           <DialogDescription>
             {publishableCourses.length === 0
-              ? 'No published courses exist yet.'
+              ? `No published ${tw().lower('course', true)} exist yet.`
               : 'Grants access immediately, as a manual enrollment.'}
           </DialogDescription>
         </DialogHeader>

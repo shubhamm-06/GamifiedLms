@@ -26,6 +26,7 @@ import { useCreateManualOrder } from '@/hooks/admin/usePayments'
 import { filterEnrollableCourses, useUserEnrollments } from '@/hooks/admin/useUserDetail'
 import { type AdminUserRow } from '@/hooks/admin/useUsers'
 import { DEFAULT_CURRENCY } from '@/lib/currency'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /** Mounts fresh per open, so a previous selection never carries into the next order. */
 function AddOrderForm({ onDone }: { onDone: () => void }) {
@@ -90,7 +91,7 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
   function handleSubmit() {
     const next: Record<string, string> = {}
     if (!user) next.user = 'Pick a student.'
-    if (!courseId) next.course = 'Pick a course.'
+    if (!courseId) next.course = `Pick ${tw().lower('course')}.`
     if (!provider.trim()) next.provider = 'Pick a provider.'
     const parsedAmount = Number(amount)
     // >= 0, not > 0: a free course or a full comp is legitimately a
@@ -125,7 +126,7 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="order-course">Course</Label>
+        <Label htmlFor="order-course">{`${tw().term('course')}`}</Label>
         <Select value={courseId} onValueChange={handleCourseChange} disabled={!enrollmentsSettled}>
           <SelectTrigger id="order-course" className="w-full">
             <SelectValue
@@ -134,7 +135,7 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
                   ? 'Pick a student first'
                   : !enrollmentsSettled
                     ? 'Loading this student’s enrollments…'
-                    : 'Select a published course…'
+                    : `Select a published ${tw().lower('course')}…`
               }
             />
           </SelectTrigger>
@@ -148,7 +149,7 @@ function AddOrderForm({ onDone }: { onDone: () => void }) {
         </Select>
         {enrollmentsSettled && eligibleCourses.length === 0 ? (
           <p className="text-muted-foreground text-xs">
-            No published courses left to enroll this student in.
+            {`No published ${tw().lower('course', true)} left to enroll this student in.`}
           </p>
         ) : null}
         {errors.course ? <p className="text-coral-d text-sm">{errors.course}</p> : null}

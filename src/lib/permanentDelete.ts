@@ -2,6 +2,7 @@ import { AdminActionError, deleteUser } from '@/lib/adminUserApi'
 import { supabase } from '@/lib/supabase'
 import { mapLimit, type ItemFailure, type TrashEntity, type TrashItem } from '@/lib/trash'
 import { FK_VIOLATION } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Permanent deletion — the ONLY place in the admin UI that removes a row for
@@ -51,9 +52,9 @@ function describeCourseBlockers(row: {
   return [
     row.enrollment_count > 0 && plural(row.enrollment_count, 'enrollment', 'enrollments'),
     row.payment_count > 0 && plural(row.payment_count, 'payment', 'payments'),
-    row.lesson_progress_count > 0 && plural(row.lesson_progress_count, 'lesson progress record', 'lesson progress records'),
+    row.lesson_progress_count > 0 && plural(row.lesson_progress_count, `${tw().lower('lesson')} progress record`, `${tw().lower('lesson')} progress records`),
     row.quiz_attempt_count > 0 && plural(row.quiz_attempt_count, 'quiz attempt', 'quiz attempts'),
-    row.xp_transaction_count > 0 && plural(row.xp_transaction_count, 'XP transaction', 'XP transactions'),
+    row.xp_transaction_count > 0 && plural(row.xp_transaction_count, `${tw().term('xp')} transaction`, `${tw().term('xp')} transactions`),
   ]
     .filter(Boolean)
     .join(', ')
@@ -81,7 +82,7 @@ async function attempt(entity: TrashEntity, item: TrashItem): Promise<Attempt> {
       const { data, error } = await supabase.rpc('fn_course_delete_blockers', { p_course_id: item.id })
       if (error) {
         console.error('[permanentDelete] fn_course_delete_blockers:', error)
-        return { status: 'failed', reason: 'Could not check what still uses this course. Please try again.' }
+        return { status: 'failed', reason: `Could not check what still uses this ${tw().lower('course')}. Please try again.` }
       }
       const summary = data?.[0] ? describeCourseBlockers(data[0]) : ''
       if (summary) {
@@ -107,7 +108,7 @@ async function attempt(entity: TrashEntity, item: TrashItem): Promise<Attempt> {
       if (result.status === 'blocked') {
         return {
           status: 'blocked',
-          reason: 'Students have progress or quiz attempts on this lesson, so it stays in Trash.',
+          reason: `Students have progress or quiz attempts on this ${tw().lower('lesson')}, so it stays in Trash.`,
         }
       }
       return result
@@ -119,11 +120,11 @@ async function attempt(entity: TrashEntity, item: TrashItem): Promise<Attempt> {
         .from('lessons')
         .select('id', { count: 'exact', head: true })
         .eq('game_id', item.id)
-      if (error) return { status: 'failed', reason: 'Could not check which lessons use this game.' }
+      if (error) return { status: 'failed', reason: `Could not check which ${tw().lower('lesson', true)} use this game.` }
       if ((count ?? 0) > 0) {
         return {
           status: 'blocked',
-          reason: `Used by ${plural(count ?? 0, 'lesson', 'lessons')} (trashed lessons count too). Remove it from them first, or keep it in Trash.`,
+          reason: `Used by ${plural(count ?? 0, tw().lower('lesson'), tw().lower('lesson', true))} (trashed ${tw().lower('lesson', true)} count too). Remove it from them first, or keep it in Trash.`,
         }
       }
       return deleteRow('games', item.id)
@@ -134,7 +135,7 @@ async function attempt(entity: TrashEntity, item: TrashItem): Promise<Attempt> {
         .from('user_badges')
         .select('id', { count: 'exact', head: true })
         .eq('badge_id', item.id)
-      if (error) return { status: 'failed', reason: 'Could not check who unlocked this badge.' }
+      if (error) return { status: 'failed', reason: `Could not check who unlocked this ${tw().lower('badge')}.` }
       if ((count ?? 0) > 0) {
         return {
           status: 'blocked',

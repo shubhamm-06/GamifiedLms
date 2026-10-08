@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { isHttpsUrl } from '@/lib/externalLink'
 import { courseSlugFromTitle, isValidCourseSlug } from '@/lib/slug'
 import type { CourseFormValues } from '@/hooks/admin/useCourses'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /** Defaults for create mode. Not exported — the form owns its blank state. */
 const EMPTY_COURSE_FORM: CourseFormValues = {
@@ -126,7 +127,7 @@ export function CourseForm({
     if (!values.is_free) {
       const price = Number(values.price_amount)
       if (!values.price_amount.trim() || Number.isNaN(price) || price <= 0) {
-        next.price_amount = 'Enter a price greater than 0, or mark the course free.'
+        next.price_amount = `Enter a price greater than 0, or mark the ${tw().lower('course')} free.`
       }
     }
 
@@ -178,8 +179,8 @@ export function CourseForm({
           label="Slug"
           hint={
             mode === 'edit'
-              ? 'The course link ends with this. Changing it breaks links people already have (the course id link keeps working).'
-              : 'The course link ends with this. Fills in from the title until you edit it.'
+              ? `The ${tw().lower('course')} link ends with this. Changing it breaks links people already have (the ${tw().lower('course')} id link keeps working).`
+              : `The ${tw().lower('course')} link ends with this. Fills in from the title until you edit it.`
           }
           error={slugError}
         >
@@ -227,7 +228,7 @@ export function CourseForm({
       <Section title="Pricing & access">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <Label htmlFor="is_free">Free course</Label>
+            <Label htmlFor="is_free">{`Free ${tw().lower('course')}`}</Label>
             <p className="text-muted-foreground text-xs">No payment required to enroll.</p>
           </div>
           <Switch
@@ -328,7 +329,7 @@ export function CourseForm({
           label="Enrollment link"
           hint={
             values.is_free
-              ? 'Not used: free courses enroll students directly on the site.'
+              ? `Not used: free ${tw().lower('course', true)} enroll students directly on the site.`
               : 'Where the Enroll now button sends students, for example a payment page, form or WhatsApp link. Must start with https://. Leave empty to hide the button.'
           }
           error={enrollUrlError}
@@ -348,8 +349,8 @@ export function CourseForm({
       <Section title="Gamification">
         <Field
           id="default_lesson_xp"
-          label="Default lesson XP"
-          hint="Used when a lesson doesn't set its own XP reward."
+          label={`Default ${tw().lower('lesson')} ${tw().term('xp')}`}
+          hint={`Used when ${tw().lower('lesson')} doesn't set its own ${tw().term('xp')} reward.`}
           error={errors.default_lesson_xp}
         >
           <Input
@@ -367,8 +368,8 @@ export function CourseForm({
           <div>
             <Label htmlFor="gamification_enabled">Gamification enabled</Label>
             <p className="text-muted-foreground text-xs">
-              Turning this off disables XP, levels, streaks, badges and lesson counts for this course.
-              It is not retroactive: XP, badges and counts already earned are kept, and only
+              {`Turning this off disables ${tw().term('xp')}, ${tw().lower('level', true)}, ${tw().lower('streak', true)}, ${tw().lower('badge', true)} and ${tw().lower('lesson')} counts for this ${tw().lower('course')}.`}{' '}
+              {`It is not retroactive: ${tw().term('xp')}, ${tw().lower('badge', true)} and counts already earned are kept, and only`}{' '}
               completions from now on follow the setting.
             </p>
           </div>

@@ -2,6 +2,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MIN_TIME_CHIPS, MIN_TIME_MAX_SECONDS } from '@/lib/lessonSettings'
 import { cn } from '@/lib/utils'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 interface MinTimeFieldProps {
   id: string
@@ -24,7 +25,7 @@ export function MinTimeField({ id, value, onChange, error }: MinTimeFieldProps) 
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor={id}>Minimum time on lesson</Label>
+      <Label htmlFor={id}>{`Minimum time on ${tw().lower('lesson')}`}</Label>
       <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Minimum time quick picks">
         {MIN_TIME_CHIPS.map((chip) => {
           const active = current === String(chip.seconds)
@@ -65,7 +66,7 @@ export function MinTimeField({ id, value, onChange, error }: MinTimeFieldProps) 
         <p className="text-coral-d text-sm">{error}</p>
       ) : (
         <p className="text-muted-foreground text-xs">
-          Kids can tap Mark complete after spending this long on the lesson. Off means no minimum.
+          {`Kids can tap Mark complete after spending this long on the ${tw().lower('lesson')}. Off means no minimum.`}
         </p>
       )}
     </div>

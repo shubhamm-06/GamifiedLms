@@ -12,6 +12,8 @@ import { ModuleDivider } from './ModuleDivider'
 import { PathDecor } from './PathDecor'
 import { RoadmapConnector } from './RoadmapConnector'
 import { RoadmapNode } from './RoadmapNode'
+import { getTerms as t } from '@/lib/settings/terms'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * The learning path: ONE continuous winding road through every lesson in the
@@ -155,7 +157,7 @@ export function RoadmapPath({
       {roadmap.courseComplete ? (
         <div className="rm-complete" role="status" data-testid="course-complete-note">
           <PartyPopper className="size-6 flex-none" aria-hidden />
-          You finished every lesson!
+          {`You finished every ${tw().lower('lesson')}!`}
         </div>
       ) : null}
       {openRow && openRow.lesson.state !== 'locked' ? (
@@ -164,7 +166,7 @@ export function RoadmapPath({
           lesson={openRow.lesson}
           courseId={courseId}
           current={openRow.lesson.id === roadmap.currentLessonId}
-          subtitle={`Lesson ${openRow.position} of ${openRow.of}`}
+          subtitle={`${t().term('lesson')} ${openRow.position} of ${openRow.of}`}
           rootRef={rootRef}
           focusOnOpen={open?.focus ?? false}
           onClose={close}

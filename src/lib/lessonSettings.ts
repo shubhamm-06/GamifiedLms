@@ -1,3 +1,4 @@
+import { getTerms as tw } from '@/lib/settings/terms'
 /**
  * Admin-configurable lesson and game settings (migration 015). `min_time_seconds`
  * is still stored-only. `pass_percentage` is enforced server-side by
@@ -93,10 +94,10 @@ export function describeEffectiveXp(
   course: { default_lesson_xp: number; gamification_enabled: boolean },
 ): string {
   if (!course.gamification_enabled) {
-    return 'Effective: none — gamification is off for this course.'
+    return `Effective: none — gamification is off for this ${tw().lower('course')}.`
   }
   const trimmed = override.trim()
   const amount = trimmed === '' ? course.default_lesson_xp : /^\d+$/.test(trimmed) ? Number(trimmed) : null
   if (amount === null) return ''
-  return amount > 0 ? `Effective: ${amount} XP.` : 'Effective: no XP.'
+  return amount > 0 ? `Effective: ${amount} ${tw().term('xp')}.` : `Effective: no ${tw().term('xp')}.`
 }

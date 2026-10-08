@@ -16,6 +16,10 @@ export interface ModulePath {
   nextUpId: string | null
   /** The lesson right after the open one in this module, or null when the open one is the module's last. */
   following: RoadmapLesson | null
+  /** The lesson right before the open one in this module, or null when the open one is the module's first. */
+  previous: RoadmapLesson | null
+  /** The open lesson's 1-based place in this module ("Lesson 2 of 5"), or 0 when unknown. */
+  position: number
 }
 
 /**
@@ -39,6 +43,7 @@ export function useModulePath(courseId: string, states: LessonStateRow[], lesson
     const lessons = section ? [...section.lessons].sort((a, b) => a.number - b.number) : null
     const idx = inModule.findIndex((s) => s.lessonId === lessonId)
     const followingId = idx >= 0 && idx < inModule.length - 1 ? inModule[idx + 1].lessonId : null
+    const previousId = idx > 0 ? inModule[idx - 1].lessonId : null
     const currentId = roadmap?.currentLessonId ?? null
     return {
       moduleTitle: section?.title ?? null,
@@ -48,6 +53,8 @@ export function useModulePath(courseId: string, states: LessonStateRow[], lesson
       percent: total === 0 ? 0 : Math.floor((done / total) * 100),
       nextUpId: currentId && currentId !== lessonId && inModule.some((s) => s.lessonId === currentId) ? currentId : null,
       following: followingId ? (lessons?.find((l) => l.id === followingId) ?? null) : null,
+      previous: previousId ? (lessons?.find((l) => l.id === previousId) ?? null) : null,
+      position: idx + 1,
     }
   }, [screen, states, moduleId, lessonId])
 }

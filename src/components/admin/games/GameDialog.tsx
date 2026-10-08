@@ -21,6 +21,7 @@ import { Textarea } from '@/components/ui/textarea'
 import type { Game, GameFormValues } from '@/hooks/admin/useGames'
 import { GAME_ORIENTATIONS } from '@/lib/lessonSettings'
 import { slugify } from '@/lib/slug'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const EMPTY_GAME: GameFormValues = {
   title: '',
@@ -227,7 +228,7 @@ function GameForm({
       </p>
 
       <div className="space-y-1.5">
-        <Label htmlFor="game-max-xp">Max XP</Label>
+        <Label htmlFor="game-max-xp">{`Max ${tw().term('xp')}`}</Label>
         <Input
           id="game-max-xp"
           type="number"
@@ -291,7 +292,7 @@ export function GameDialog({
         <DialogHeader>
           <DialogTitle>{game ? 'Edit game' : 'New game'}</DialogTitle>
           <DialogDescription>
-            {game ? game.title : 'A flat record — no nested content like a course has.'}
+            {game ? game.title : `A flat record — no nested content like ${tw().lower('course')} has.`}
           </DialogDescription>
         </DialogHeader>
         {/* Keyed so switching between games remounts with fresh state instead

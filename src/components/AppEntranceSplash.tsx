@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { AnimatePresence, motion } from 'framer-motion'
 import { REDUCED_MOTION, useMediaQuery } from '@/hooks/useMediaQuery'
-import { APP_NAME } from '@/lib/brand'
+import { useBranding } from '@/hooks/useSettings'
 
 const ENTRANCE_MS = 950
 const FADE_OUT_MS = 150
@@ -90,13 +90,14 @@ function OwlMark({
   size?: number
   decorative?: boolean
 }) {
+  const { productName } = useBranding()
   return (
     <svg
       viewBox="390 120 420 420"
       width={size}
       height={size}
       xmlns="http://www.w3.org/2000/svg"
-      {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': APP_NAME })}
+      {...(decorative ? { 'aria-hidden': true } : { role: 'img', 'aria-label': productName })}
     >
       <circle cx="600" cy="330" r="190" fill="#ffffff" />
       <ellipse cx="600" cy="345" rx="120" ry="124" fill="#18B6C9" />

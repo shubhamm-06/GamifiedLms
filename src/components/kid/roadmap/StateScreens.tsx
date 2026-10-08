@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Link, useRouter } from '@tanstack/react-router'
 import { BookOpen, Compass, LockKeyhole, Sprout, WifiOff } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
+import { getTerms as t } from '@/lib/settings/terms'
 
 /**
  * Whole-page states for the course roadmap. Copy is for children and
@@ -51,7 +52,7 @@ export function NotEnrolledScreen() {
     <Screen
       testId="state-not-enrolled"
       icon={<LockKeyhole className="size-8" aria-hidden />}
-      title="This course isn't on your list yet"
+      title={`This ${t().lower('course')} isn't on your list yet`}
       body="Ask a grown-up to help you get started."
     >
       <BackButton />
@@ -66,11 +67,11 @@ export function NoCoursesScreen() {
     <Screen
       testId="state-no-courses"
       icon={<BookOpen className="size-8" aria-hidden />}
-      title="No courses yet"
+      title={`No ${t().lower('course', true)} yet`}
       body="Ask a grown-up to help you get started."
     >
       <Link to="/courses" className="candy-btn-quiet kid-tap" data-testid="see-available-courses">
-        See available courses
+        See available {t().lower('course', true)}
       </Link>
     </Screen>
   )
@@ -86,7 +87,7 @@ export function UnavailableScreen() {
     <Screen
       testId="state-unavailable"
       icon={<Compass className="size-8" aria-hidden />}
-      title="This course hasn't launched yet"
+      title={`This ${t().lower('course')} hasn't launched yet`}
       body="Something fun is on its way. Check back soon!"
     >
       <BackButton />
@@ -99,8 +100,8 @@ export function EmptyCourseScreen() {
     <Screen
       testId="state-empty"
       icon={<Sprout className="size-8" aria-hidden />}
-      title="Lessons are on their way!"
-      body="This course doesn't have any lessons yet. Come back soon."
+      title={`${t().terms('lesson')} are on their way!`}
+      body={`This ${t().lower('course')} doesn't have any ${t().lower('lesson', true)} yet. Come back soon.`}
     >
       <BackButton />
     </Screen>

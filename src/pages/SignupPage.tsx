@@ -3,6 +3,7 @@ import { Link, useRouter, useSearch } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { AuthCard } from '@/components/auth/AuthCard'
 import { AuthField } from '@/components/auth/AuthField'
+import { useBranding } from '@/hooks/useSettings'
 import { resolvePostLoginPath } from '@/lib/adminSession'
 import { supabase } from '@/lib/supabase'
 import { EMAIL_PATTERN } from '@/lib/utils'
@@ -17,6 +18,7 @@ export function SignupPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const { redirect } = useSearch({ from: '/signup' })
+  const branding = useBranding()
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -79,8 +81,8 @@ export function SignupPage() {
 
   return (
     <AuthCard
-      heading="Create your account"
-      subheading="Get started in a minute"
+      heading={branding.registerHeading || 'Create your account'}
+      subheading={branding.registerSubline || 'Get started in a minute'}
       onSubmit={handleSubmit}
       submitLabel="Create account"
       submitting={submitting}

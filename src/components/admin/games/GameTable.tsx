@@ -42,6 +42,7 @@ import type { TableSelection } from '@/components/admin/selection/useTableSelect
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import type { Game } from '@/hooks/admin/useGames'
 import { dateFormatter } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Same TanStack Table v9 feature registration as `CourseTable.tsx` — see that
@@ -102,7 +103,7 @@ function buildColumns(onEdit: GameTableProps['onEdit'], onTrash: GameTableProps[
     }),
     columnHelper.accessor('max_xp', {
       id: 'max_xp',
-      header: 'Max XP',
+      header: `Max ${tw().term('xp')}`,
       sortFn: 'basic',
       cell: (info) => <span className="tabular-nums">{info.getValue()}</span>,
     }),

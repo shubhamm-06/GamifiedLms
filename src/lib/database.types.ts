@@ -1162,6 +1162,57 @@ export type Database = {
           },
         ]
       }
+      site_config: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+          version: number
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+          version?: number
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+          version?: number
+        }
+        Relationships: []
+      }
+      site_config_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: number
+          key: string
+          new_value: Json
+          old_value: Json | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          key: string
+          new_value: Json
+          old_value?: Json | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: never
+          key?: string
+          new_value?: Json
+          old_value?: Json | null
+        }
+        Relationships: []
+      }
       user_badges: {
         Row: {
           badge_id: string
@@ -1536,6 +1587,7 @@ export type Database = {
       }
       fn_touch_enrollment: { Args: { p_course_id: string }; Returns: undefined }
       fn_user_is_trashed: { Args: { p_user_id: string }; Returns: boolean }
+      get_public_settings: { Args: never; Returns: Json }
     }
     Enums: {
       [_ in never]: never

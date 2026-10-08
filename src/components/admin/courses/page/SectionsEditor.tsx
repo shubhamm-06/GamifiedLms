@@ -45,6 +45,7 @@ import { entryId, PAGE_LIMITS, SECTION_LABELS, type NormCustom, type NormEntry, 
 import { newCustomEntry, type PageFormValues } from '@/lib/coursePageForm'
 import type { CustomType } from '@/lib/coursePageSchema'
 import { Counter, FaqEditor, FieldError, ListEditor, Segmented, TestimonialEditor } from './PageEditors'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 const STATUS_TEXT: Record<SectionStatus, string> = {
   showing: 'Showing',
@@ -422,7 +423,7 @@ function RowPanel({
         max={L.howIntro}
         placeholder={autoHowIntro ?? ''}
         error={errors['options.how_intro']}
-        hint="Leave empty to describe the lesson types automatically."
+        hint={`Leave empty to describe the ${tw().lower('lesson')} types automatically.`}
         onChange={(t) => setOpt('how_intro', t)}
       />
     ) : (
@@ -488,7 +489,7 @@ function RowPanel({
             label="Show"
             value={values.options.outline.detail}
             options={[
-              { value: 'lessons', label: 'Sections and lessons' },
+              { value: 'lessons', label: `Sections and ${tw().lower('lesson', true)}` },
               { value: 'sections', label: 'Sections only' },
             ]}
             onChange={(d) => setOpt('outline', { ...values.options.outline, detail: d })}
@@ -514,7 +515,7 @@ function RowPanel({
             />
             <Label htmlFor="outline-minutes">Show minutes</Label>
           </div>
-          <p className="text-muted-foreground text-xs">Lessons and their minutes come from the Curriculum tab (published lessons only).</p>
+          <p className="text-muted-foreground text-xs">{`${tw().terms('lesson')} and their minutes come from the Curriculum tab (published ${tw().lower('lesson', true)} only).`}</p>
         </div>
       )
       break

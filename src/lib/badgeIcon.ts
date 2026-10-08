@@ -1,3 +1,4 @@
+import { getTerms as tw } from '@/lib/settings/terms'
 /**
  * Badge icons are drawn from a small, closed set of colour+glyph
  * combinations rather than pasted image URLs — a filled circle, a darker
@@ -135,7 +136,7 @@ export function readBadgeIconFile(file: File): Promise<{ dataUri: string } | { e
     return Promise.resolve({ error: 'Use a PNG, JPEG, WebP, GIF or SVG image.' })
   }
   if (file.size > BADGE_ICON_MAX_BYTES) {
-    return Promise.resolve({ error: `Keep it under ${Math.round(BADGE_ICON_MAX_BYTES / 1024)} KB — this is a small badge icon, not a hosted image.` })
+    return Promise.resolve({ error: `Keep it under ${Math.round(BADGE_ICON_MAX_BYTES / 1024)} KB — this is a small ${tw().lower('badge')} icon, not a hosted image.` })
   }
   return new Promise((resolve) => {
     const reader = new FileReader()

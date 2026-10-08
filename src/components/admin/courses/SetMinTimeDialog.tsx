@@ -12,6 +12,7 @@ import {
 import { useSetMinTime, type Lesson, type MinTimeResult } from '@/hooks/admin/useCurriculum'
 import { DEFAULT_MIN_TIME_SECONDS, validateMinTime } from '@/lib/lessonSettings'
 import { MinTimeField } from './MinTimeField'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 interface SetMinTimeDialogProps {
   open: boolean
@@ -67,8 +68,8 @@ function SetMinTimeForm({
           <AlertTriangle className="text-gold-d mt-0.5 size-4 shrink-0" />
           <p>
             {quizCount === 1
-              ? '1 of the selected lessons is a quiz'
-              : `${quizCount} of the selected lessons are quizzes`}{' '}
+              ? `1 of the selected ${tw().lower('lesson', true)} is a quiz`
+              : `${quizCount} of the selected ${tw().lower('lesson', true)} are quizzes`}{' '}
             and will be changed too. A minimum time on a quiz makes kids wait before they can
             finish it — most quizzes should stay Off.
           </p>

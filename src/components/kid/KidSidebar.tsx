@@ -1,9 +1,10 @@
 import { Link } from '@tanstack/react-router'
-import { APP_NAME } from '@/lib/brand'
+import { Logo } from '@/components/settings/Logo'
+import { useBranding } from '@/hooks/useSettings'
 import { DEFAULT_AVATAR, useKidProfile } from '@/hooks/useKidProfile'
 import * as haptics from '@/lib/haptics'
-import { Avatar } from './Avatar'
-import { KID_TABS } from './kidTabs'
+import { ProfileAvatar } from './ProfileAvatar'
+import { useKidTabs } from './useKidTabs'
 
 /**
  * The desktop navigation (>= 1024px, `LG_UP`): a fixed left sidebar that takes
@@ -16,22 +17,24 @@ import { KID_TABS } from './kidTabs'
  */
 export function KidSidebar({ activeTo }: { activeTo: string }) {
   const profile = useKidProfile()
+  const { productName } = useBranding()
   const avatarConfig = profile.data?.avatarConfig ?? DEFAULT_AVATAR
+  const tabs = useKidTabs()
   return (
     <div className="kid-side" data-testid="kid-sidebar">
       <Link
         to="/"
         className="kid-side-brand kid-tap"
-        aria-label={`${APP_NAME}, home`}
+        aria-label={`${productName}, home`}
         onClick={(e) => {
           if (activeTo === '/') e.preventDefault()
         }}
       >
-        <img src="/logo.png" alt="" width={720} height={155} className="kid-side-logo" />
+        <Logo decorative />
       </Link>
       <nav aria-label="Main" data-testid="kid-nav">
         <ul className="kid-side-list">
-          {KID_TABS.map(({ to, label, Icon }) => {
+          {tabs.map(({ to, id, label, Icon }) => {
             const active = to === activeTo
             const isProfile = to === '/profile'
             return (
@@ -40,7 +43,7 @@ export function KidSidebar({ activeTo }: { activeTo: string }) {
                   to={to}
                   className="kid-side-item kid-tap"
                   aria-current={active ? 'page' : undefined}
-                  data-testid={`nav-${label.toLowerCase()}`}
+                  data-testid={`nav-${id}`}
                   onClick={(e) => {
                     if (active) e.preventDefault()
                     else haptics.tap()
@@ -48,7 +51,7 @@ export function KidSidebar({ activeTo }: { activeTo: string }) {
                 >
                   <span className="kid-side-icon">
                     {isProfile ? (
-                      <Avatar config={avatarConfig} size={28} data-testid="nav-avatar" />
+                      <ProfileAvatar config={avatarConfig} name={profile.data?.displayName ?? ''} size={28} data-testid="nav-avatar" />
                     ) : (
                       <Icon className="size-6" strokeWidth={active ? 2.75 : 2.25} aria-hidden />
                     )}

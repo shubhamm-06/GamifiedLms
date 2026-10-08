@@ -6,6 +6,7 @@ import { DEFAULT_PASS_PERCENTAGE, formatClock } from '@/lib/lessonSettings'
 import { mapLimit } from '@/lib/trash'
 import { describeFailures } from './useTrashActions'
 import { CHECK_VIOLATION, INSUFFICIENT_PRIVILEGE } from '@/lib/adminConstants'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 export type Module = Tables<'modules'>
 export type Lesson = Tables<'lessons'>
@@ -305,7 +306,7 @@ export function useLessonMutations(courseId: string) {
     },
     onSuccess: () => {
       invalidate()
-      toast.success('Lesson added.')
+      toast.success(`${tw().term('lesson')} added.`)
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -327,7 +328,7 @@ export function useLessonMutations(courseId: string) {
     },
     onSuccess: () => {
       invalidate()
-      toast.success('Lesson saved.')
+      toast.success(`${tw().term('lesson')} saved.`)
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -425,7 +426,7 @@ export function useSetMinTime(courseId: string) {
           return { lesson, reason: settingWriteReason(error) }
         }
         if (!data || data.length !== 1) {
-          return { lesson, reason: "This lesson no longer exists or can't be changed." }
+          return { lesson, reason: `This ${tw().lower('lesson')} no longer exists or can't be changed.` }
         }
         return { lesson, reason: null }
       })
@@ -447,7 +448,7 @@ export function useSetMinTime(courseId: string) {
         toast.success(
           n === 1
             ? `Minimum time ${change} on “${succeeded[0].title}”`
-            : `Minimum time ${change} on ${n} lessons`,
+            : `Minimum time ${change} on ${n} ${tw().lower('lesson', true)}`,
         )
       } else if (n > 0) {
         toast.warning(`${n} updated, ${f} failed`, { description: detail })

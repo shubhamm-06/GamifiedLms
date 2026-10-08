@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { formatAmount } from '@/lib/currency'
+import { getTerms as tw } from '@/lib/settings/terms'
 
 /**
  * Every card gets its own query so one failing request degrades a single
@@ -122,8 +123,8 @@ export function useNeedsAttention() {
           count: draftCourses,
           label:
             draftCourses === 1
-              ? '1 course is still a draft'
-              : `${draftCourses} courses are still drafts`,
+              ? `1 ${tw().lower('course')} is still a draft`
+              : `${draftCourses} ${tw().lower('course', true)} are still drafts`,
           tone: 'gold',
           to: '/admin/courses',
         },
@@ -135,8 +136,8 @@ export function useNeedsAttention() {
           // its completions (not retroactive). See rules.md.
           label:
             gamificationOff === 1
-              ? '1 course has gamification switched off (no XP, levels, streaks, badges or lesson counts there)'
-              : `${gamificationOff} courses have gamification switched off (no XP, levels, streaks, badges or lesson counts there)`,
+              ? `1 ${tw().lower('course')} has gamification switched off (no ${tw().term('xp')}, ${tw().lower('level', true)}, ${tw().lower('streak', true)}, ${tw().lower('badge', true)} or ${tw().lower('lesson')} counts there)`
+              : `${gamificationOff} ${tw().lower('course', true)} have gamification switched off (no ${tw().term('xp')}, ${tw().lower('level', true)}, ${tw().lower('streak', true)}, ${tw().lower('badge', true)} or ${tw().lower('lesson')} counts there)`,
           tone: 'plum',
           to: '/admin/courses',
         },
@@ -223,7 +224,7 @@ export function useRecentActivity(limit = 8) {
           kind: 'enrollment' as const,
           at: row.enrolled_at,
           detail: `${row.profiles?.display_name ?? 'Someone'} enrolled in ${
-            row.courses?.title ?? 'a course'
+            row.courses?.title ?? `${tw().lower('course')}`
           }`,
         })),
         ...((payments.data ?? []) as unknown as PaymentActivity[]).map((row) => ({
@@ -239,7 +240,7 @@ export function useRecentActivity(limit = 8) {
           id: `xp-${row.id}`,
           kind: 'xp' as const,
           at: row.created_at,
-          detail: `${row.profiles?.display_name ?? 'Someone'} earned ${row.amount} XP — ${row.reason}`,
+          detail: `${row.profiles?.display_name ?? 'Someone'} earned ${row.amount} ${tw().term('xp')} — ${row.reason}`,
         })),
       ]
 

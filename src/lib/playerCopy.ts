@@ -3,86 +3,53 @@
  * sentences, simple words, second person, encouraging, no blame for a wrong
  * answer, no em dashes, at most one exclamation mark per screen. Kept as
  * plain strings (not JSX) so this file can be reviewed or translated without
- * touching a component.
+ * touching a component. Term words (lesson, course, XP, ...) come from the
+ * terminology settings through getters, so they are read when shown.
  */
+import { getTerms as t } from '@/lib/settings/terms'
+
 export const playerCopy = {
   button: {
     keepLearning: (clock: string) => `Keep learning, ${clock} left`,
-    finishLesson: 'Finish lesson',
-    startQuiz: 'Start quiz',
+    get finishLesson() { return `Finish ${t().lower('lesson')}` },
     check: 'Check',
     continueReview: 'Continue',
     tryAgain: 'Try again',
     backToRoadmap: 'Back to roadmap',
-    nextLesson: 'Continue to next lesson',
+    get nextLesson() { return `Continue to next ${t().lower('lesson')}` },
+    get nextLessonShort() { return `Next ${t().lower('lesson')}` },
+    previous: 'Previous',
+    markComplete: 'Mark as complete',
     finishing: 'Finishing',
     checking: 'Checking',
     back: 'Back',
     next: 'Next',
-    playGame: 'Play',
-    playVideo: 'Play video',
-    openFullScreen: 'Open full screen',
   },
   ring: {
     label: 'Learning time',
     popover: (elapsed: string, min: string) => `Learning time: ${elapsed} of ${min}`,
-    doneLabel: 'Time is up. You can finish the lesson.',
+    get doneLabel() { return `Time is up. You can finish the ${t().lower('lesson')}.` },
   },
   page: {
-    countOf: (done: number, total: number) => `${done} of ${total}`,
-    lessonsInModule: 'Lessons',
-    nextTag: 'Next',
-    done: 'Done',
-    play: 'Play',
-    playAgain: 'Play again',
-    nextLesson: (title: string) => `Next: ${title}`,
-    describe: {
-      video: 'Watch the story.',
-      game: 'Play the game.',
-      text: 'Read the story.',
-      quiz: 'Answer the questions.',
-    },
-    rowState: {
-      done: 'done',
-      current: 'you are here',
-      next: 'up next',
-      locked: 'locked',
-      open: 'ready',
-    },
+    get complete() { return `${t().term('lesson')} complete` },
+    context: (module: string, n: number, total: number) => `${module} · ${t().term('lesson')} ${n} of ${total}`,
   },
   offline: 'You are offline. We will save your progress when you are back.',
   reconnecting: "We can't reach the server right now. We'll keep trying.",
-  loading: 'Getting your lesson ready.',
+  get loading() { return `Getting your ${t().lower('lesson')} ready.` },
   error: {
     heading: 'Oops, something slipped',
     body: 'Check your internet and try again.',
     tryAgain: 'Try again',
   },
   video: {
-    controls: {
-      group: 'Video controls',
-      play: 'Play',
-      pause: 'Pause',
-      replay: 'Replay from the start',
-      seek: 'Seek',
-      mute: 'Mute',
-      unmute: 'Unmute',
-      volume: 'Volume',
-      fullscreen: 'Full screen',
-      exitFullscreen: 'Exit full screen',
-    },
-    watchTime: (elapsed: string, min: string) => `Watch time ${elapsed} of ${min}`,
-    unavailable: {
-      heading: "This video isn't ready",
-      body: "We can't play this video right now. Please check back soon.",
-    },
-    failed: {
-      heading: "This video won't load",
-      body: 'Check your internet and try again.',
-    },
+    unavailable: "This video can't be shown right now",
+    get watchToEnd() { return `Watch the whole video to finish this ${t().lower('lesson')}.` },
+    get watchAgain() { return `Watch it once more to finish this ${t().lower('lesson')}.` },
+    manualHint: 'Watch the video, then mark it as complete.',
   },
   doc: {
-    readTime: (elapsed: string, min: string) => `Reading time ${elapsed} of ${min}`,
+    get keepReading() { return `Take your time. This ${t().lower('lesson')} finishes on its own.` },
     empty: {
       heading: "There's nothing to read yet",
       body: 'Please check back soon.',
@@ -90,8 +57,7 @@ export const playerCopy = {
   },
   game: {
     loading: 'Getting your game ready.',
-    replayAck: 'Nice replay! No XP this time.',
-    playHint: 'Tap play to start the game.',
+    get replayAck() { return `Nice replay! No ${t().lower('xp', true)} this time.` },
     unavailable: {
       heading: "This game isn't ready",
       body: 'Please check back soon.',
@@ -111,7 +77,7 @@ export const playerCopy = {
     spokenWrong: 'Not quite',
     spokenRightAnswer: 'The right answer',
     progressLabel: 'Quiz progress',
-    xpEarned: (n: number) => `+${n} XP earned`,
+    xpEarned: (n: number) => `+${n} ${t().term('xp')} earned`,
     empty: {
       heading: "This quiz isn't ready yet",
       body: 'Please check back soon.',
@@ -128,31 +94,30 @@ export const playerCopy = {
     practiceScore: (score: number, max: number) => `You got ${score} of ${max} right`,
   },
   complete: {
-    headline: 'Lesson done!',
+    get headline() { return `${t().term('lesson')} done!` },
     encouragement: 'Great job. Keep it up!',
     alreadyDone: "You already finished this one",
-    xp: (n: number) => `+${n} XP`,
+    xp: (n: number) => `+${n} ${t().term('xp')}`,
   },
   replay: {
-    chip: 'Completed',
     quizPracticeNote: 'You can practice this quiz again. It will not change your score.',
   },
   edge: {
     notEnrolled: {
-      heading: "This course isn't on your list yet",
+      get heading() { return `This ${t().lower('course')} isn't on your list yet` },
       body: 'Ask a grown up to help you get started.',
     },
     expired: {
-      heading: 'Your course time is over',
+      get heading() { return `Your ${t().lower('course')} time is over` },
       body: 'Ask a grown up if you would like more time.',
       button: 'Back to home',
     },
     unavailableInitial: {
-      heading: "This lesson hasn't launched yet",
+      get heading() { return `This ${t().lower('lesson')} hasn't launched yet` },
       body: 'Something fun is on its way. Your path is waiting for you!',
     },
     unavailableMidSession: {
-      heading: 'This lesson is being updated',
+      get heading() { return `This ${t().lower('lesson')} is being updated` },
       body: 'Please check back soon.',
     },
     locked: {

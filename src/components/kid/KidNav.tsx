@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router'
-import { Avatar } from './Avatar'
-import { KID_TABS } from './kidTabs'
+import { ProfileAvatar } from './ProfileAvatar'
+import { useKidTabs } from './useKidTabs'
 import { DEFAULT_AVATAR, useKidProfile } from '@/hooks/useKidProfile'
 import * as haptics from '@/lib/haptics'
 
@@ -18,10 +18,11 @@ import * as haptics from '@/lib/haptics'
 export function KidNav({ activeTo }: { activeTo: string }) {
   const profile = useKidProfile()
   const avatarConfig = profile.data?.avatarConfig ?? DEFAULT_AVATAR
+  const tabs = useKidTabs()
   return (
     <nav className="kid-nav" aria-label="Main" data-testid="kid-nav">
       <ul className="kid-nav-list">
-        {KID_TABS.map(({ to, label, Icon }) => {
+        {tabs.map(({ to, id, label, Icon }) => {
           const active = to === activeTo
           const isProfile = to === '/profile'
           return (
@@ -30,7 +31,7 @@ export function KidNav({ activeTo }: { activeTo: string }) {
                 to={to}
                 className="kid-nav-tab kid-tap"
                 aria-current={active ? 'page' : undefined}
-                data-testid={`nav-${label.toLowerCase()}`}
+                data-testid={`nav-${id}`}
                 onClick={(e) => {
                   if (active) e.preventDefault()
                   else haptics.tap()
@@ -38,7 +39,7 @@ export function KidNav({ activeTo }: { activeTo: string }) {
               >
                 <span className="kid-nav-icon">
                   {isProfile ? (
-                    <Avatar config={avatarConfig} size={28} data-testid="nav-avatar" />
+                    <ProfileAvatar config={avatarConfig} name={profile.data?.displayName ?? ''} size={28} data-testid="nav-avatar" />
                   ) : (
                     <Icon className="size-6" strokeWidth={active ? 2.75 : 2.25} aria-hidden />
                   )}
