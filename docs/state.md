@@ -198,6 +198,33 @@ The schema or docs anticipate each of these; no working code exists for any.
 - **Testimonials carousel (2026-10-04, in `d91ee79`).** The testimonials grid became a native scroll-snap carousel (`ui.md`
   "Testimonials carousel"); frontend only. Real touch swipes, vertical-scroll non-hijacking and the layout were checked in
   the browser during the build; the final full sweep (360/390/768/1100/1440 x 0/1/2/3/12 cards) did NOT complete, so it is unconfirmed.
+- **Admin Settings Phase 1 (2026-10-05, uncommitted, branch `feat/settings-phase1`).** Migration 041 APPLIED
+  (`site_config`, audit, `get_public_settings`, `branding` bucket). Branding, colour roles, terminology (kid + admin
+  sweep) and UI-level feature toggles, all verified in the browser; all settings back to `{}` and test files deleted.
+  Open: a real Android check of the cached settings offline and of uploaded favicons in the WebView; the Android app
+  name/icon and the Supabase email templates stay build-time / dashboard items.
+- **Font selection (2026-10-06, uncommitted, same branch).** Colors tab renamed Appearance, gains a Fonts section:
+  an admin picks a heading and a body font (12-face curated catalog + default) for every learner-facing and auth
+  screen, no DB migration (`theme.fonts`, `ui.md` "Settings system > Fonts"). Self-hosted, lazy-loaded (one chunk
+  per font, ~1.58 MB added across the 9 genuinely new packages, none fetched until picked), `font-display: swap`,
+  no Google Fonts/CDN request at any point (network-checked). A real bug was caught and fixed during this task's
+  own verification, not shipped: the first cut named the scoping variables `--font-heading`/`--font-body`, which
+  collided with a pre-existing Tailwind design token of the same name (`index.css`'s `@theme inline`) and made
+  "default" silently render Geist instead of falling through — renamed to `--learner-font-heading`/`-body`
+  (`rules.md`, the hard invariant against reusing the old name). Typecheck/lint/build/`check-settings.mjs` pass;
+  default-mode screenshots at 1280 and 390 are pixel-identical (sha256) to a pre-feature baseline on every page
+  except where the test's own zz-pub-e fixture earned XP/advanced its streak mid-verification (visually confirmed
+  as fixture drift, not a font effect); all 12 catalog fonts swept as both roles across auth/Home/profile/a lesson
+  page at 390 and 1280 with no overflow/clipping, including the heavy-metric cases (Baloo 2, Source Serif 4,
+  Lexend, Poppins); offline-with-warm-cache, throttled-swap, blocked-font-request and unknown-font-id fallback all
+  verified live; keyboard nav and a stale-session Appearance save both verified; `cap sync android` succeeds; all
+  test data cleaned up (`theme` back to `{}`). Open: a real Android device check of offline font loading in the
+  WebView; a screen reader pass on the new Fonts controls.
+- **Lesson pages v2 (2026-10-05, uncommitted).** `LessonLayout` + standard video players (`ui.md` "Lesson pages: one
+  layout"). Needs a real Android device check: YouTube/Vimeo/Loom embeds inside the Capacitor WebView (origin
+  `https://localhost`, YouTube can refuse embeds without a usable referrer), native and provider full screen,
+  and the landscape lock. Demo lessons still carry `min_time_seconds` of 360-780 s on a 12-second sample
+  `movie.mp4`, so a child must replay them many times; fix the data (the editor now refuses this on save).
 - **Rebrand to SkillXP (2026-10-05, uncommitted).** Code, Android name, meta tags and docs done; the live `app_settings.site_name` row still says "Wisdom Hatch Kids" (the admin header and public course page show the DB value once loaded), so an admin must save "SkillXP" in Settings > Site identity. appId/Firebase/domains/storage keys intentionally unchanged (`env-deploy.md`). Logo image `public/logo.png` is in (auth, student sidebar); favicon, app icon, splash and og image still carry the old art.
 - **Auth redesign (2026-10-05, uncommitted).** Login/Register restyled as a standard B2B SaaS screen (Geist, flat
   button, bordered white card, `APP_NAME` mark; `ui.md`), no behaviour change; no password-reset flow exists yet; verified in the browser at 1280 and 375 (states, keyboard flow, login/logout, the Profile forms that

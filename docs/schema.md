@@ -196,18 +196,14 @@ it — cascaded away with its course, or merely ungrouped by losing its topic
 — and the admin UI's confirm copy for each says the correct one explicitly
 rather than a generic "are you sure?" (see `ui.md`).
 
-**`video_url` convention (no separate column marks "embedded"):** stores
-either a direct file/stream URL, unvalidated, or a normalized YouTube/Vimeo
-embed URL (`https://www.youtube.com/embed/<id>` or
-`https://player.vimeo.com/video/<id>`). `src/lib/video.ts` is the single
-place that knows these two shapes — `isEmbedUrl()` distinguishes them,
-`normalizeEmbedUrl()` converts a pasted share link into the canonical form.
-The admin lesson form's Embed-link mode always writes through
-`normalizeEmbedUrl()` and refuses to save if it returns `null`; raw
-`<iframe>`/HTML embed code is never accepted or stored anywhere — only a
-plain URL is ever extracted and persisted. Any future consumer (the
-student-facing player, when it exists) should import from `video.ts` rather
-than re-deriving these patterns.
+**`video_url` convention (no separate column marks "embedded"):** a plain https URL,
+normalised by `parseVideoSource` (`src/lib/video.ts`, 2026-10-05): a direct video file, or a
+provider embed URL (`https://www.youtube-nocookie.com/embed/<id>`,
+`https://player.vimeo.com/video/<id>[?h=]`, `https://www.loom.com/embed/<id>`,
+`https://fast.wistia.net/embed/iframe/<id>`). The admin form refuses to save anything that does not
+parse; pasted `<iframe>` code is reduced to its validated `src` and never stored. Older values
+(`www.youtube.com/embed/...`, unvalidated file URLs) are parsed the same way at render time, so no
+migration was needed. Both the player and the editor import from `video.ts`.
 
 **`games`** — CDN-hosted HTML/CSS/JS bundle registry. `id`, `slug` (unique
 among live rows only — `uq_games_slug_live`), `title`,
@@ -824,6 +820,38 @@ blank title, sorted last.
 - **Not used for**: lesson counts shown as `courses.total_lessons` (it counts drafts too); the page derives
   "Lessons" from this outline only.
 
+## Admin Settings: `site_config` (migration 041)
+
+Settings Phase 1 (branding, theme, terminology, features). A **separate** table from the older `app_settings`
+singleton (section 6), whose locked one-row shape (`rules.md`) is unchanged; `app_settings.site_name` and
+`support_email` are now superseded in the UI by `branding.productName` / `branding.supportEmail` (still read as a
+fallback for the support address).
+
+- **`site_config`**: `key text PK` (CHECK in `branding`, `theme`, `terminology`, `features`), `value jsonb not null
+  default '{}'` (CHECK: an object), `version int not null default 1`, `updated_at timestamptz`, `updated_by uuid ->
+  auth.users`. Seeded with the four keys and `{}` ("use the code defaults").
+- **`site_config_audit`**: `id identity`, `key`, `old_value`, `new_value`, `changed_by`, `changed_at`.
+- **Triggers**: `trg_site_config_stamp` (BEFORE INSERT/UPDATE, `fn_site_config_stamp`): sets `version` (1, or old + 1),
+  `updated_at = now()`, `updated_by = auth.uid()`; a client cannot set any of the three. `trg_site_config_audit`
+  (AFTER, `fn_site_config_audit`, SECURITY DEFINER) writes one audit row per insert/update.
+- **RLS / grants**: `site_config` SELECT, INSERT, UPDATE for `fn_is_admin()` only, no DELETE for anyone; anon has no
+  table privilege at all. `site_config_audit`: admin SELECT only; no client role can write it (no policy, no grant).
+- **`get_public_settings()`**: SECURITY DEFINER, STABLE, executable by anon and authenticated; returns
+  `{ branding|theme|terminology|features: { value, version } }` and nothing else. It is the ONLY read path for learners
+  and visitors; admins edit the table directly under RLS. **Never store a secret in `site_config`**: everything in it
+  is public through this function.
+- **Saves are compare-and-swap**: `update site_config set value = $v where key = $k and version = $loaded` returning the
+  row; zero rows = someone else saved first (the admin UI shows a conflict and keeps the draft).
+- **Storage bucket `branding`**: public read (public URLs), INSERT/UPDATE/DELETE/SELECT on `storage.objects` for
+  `fn_is_admin()` only (`branding_admin_*`). Bucket cap 2 MB; types png, jpeg, webp, svg+xml, x-icon (and
+  vnd.microsoft.icon). The client also enforces 1 MB for a logo and 256 KB for a favicon. Objects are named
+  `<kind>-<timestamp>.<ext>`; SVGs are only ever shown through `<img>`.
+- **Verified** (anon, a learner, an admin, REST and Storage APIs, 27 checks, re-run at the end): anon/learner cannot
+  read, insert or update `site_config` or touch the audit table, both can call the RPC (four keys, `value` + `version`
+  only); admin CAS succeeds and bumps the version, a stale version hits 0 rows, `version`/`updated_by` sent by the
+  client are ignored, admin DELETE refused, audit rows written; uploads by anon/learner refused, admin upload /
+  replace / delete work, a learner delete is a no-op, a non-image type is refused by the bucket.
+
 ## Free-course self-enrollment (migration 040)
 
 `fn_enroll_free_course(p_course_id uuid) returns uuid` (`plpgsql`, `SECURITY DEFINER`, `search_path = ''`; `EXECUTE`
@@ -1329,6 +1357,7 @@ table.
 | 038 | `20261005000100_038_course_page_layout_validator_fix.sql` | 2026-10-01 (via the Supabase MCP `apply_migration`, name `course_page_layout_validator_fix`) | Replaces `course_page_layout_is_valid` so a missing `visible`/`key`/custom `id` is rejected (`IS DISTINCT FROM` instead of `<>`). Re-verified: all 47 role-switched checks pass |
 | 039 | `20261006000000_039_testimonials_source.sql` | 2026-10-02 (live version `20261002053003`, name `testimonials_source`, via the Supabase MCP `apply_migration`) | Testimonials v2: strips the `rating` key from every stored testimonial (idempotent data fix, first), then replaces `course_testimonials_are_valid` with the new key set (`source`, `post_url`; no `rating`) and null-safe comparisons; column comment updated. No RLS change. Verified role-switched (above); all 14 live rows still pass |
 | 040 | `20261007000000_040_enroll_free_course.sql` | 2026-10-02 (via the Supabase MCP `apply_migration`, name `enroll_free_course`) | `fn_enroll_free_course(uuid)`: self-enrollment for free courses (above). No policy or table change. Verified role-switched (21 checks). The `course_not_found` error class was changed from `P0002` (HTTP 500) to `P0001` (HTTP 400) right after applying, by re-running the same `CREATE OR REPLACE`; the file holds the final text |
+| 041 | `20261008000000_041_site_config.sql` | 2026-10-05 (applied through the Supabase CLI over the pooler, statement by statement; history row inserted by hand, name `041_site_config`) | Admin Settings Phase 1: `site_config` + `site_config_audit`, stamp/audit triggers, admin-only RLS, `get_public_settings()` (anon + authenticated), the public `branding` storage bucket with admin-only write policies (section "Admin Settings" above). `database.types.ts` was hand-merged (the CLI type generator could not connect) |
 | 032 | `20260930000000_032_avatar_config_v2.sql` | 2026-09-30 (live version `20260930161331`, name `avatar_config_v2`, via the Supabase MCP `apply_migration`; the filename timestamp differs from the live version, as with earlier migrations) | New immutable `public.avatar_config_is_valid(jsonb)` (`search_path = ''`) and `profiles_avatar_config_shape_check` now calls it. Accepts NULL, the legacy 026 shape unchanged, and the v2 shape (all keys required except `tints`; no other keys; each value from its fixed set; tints only for the four slots with a known swatch; <= 1 KB). The old CHECK rejected any extra key, so the richer config could not be saved: a migration was unavoidable. Checked with 12 direct calls (null, legacy ok, legacy missing key rejected, v2 ok with and without tints, bad value, extra key, bad tint value, bad tint key, v2 missing keys, array) and the one stored row still validates. No table, column, policy or RLS change; `database.types.ts` gained the function |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations

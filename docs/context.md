@@ -112,9 +112,9 @@ src/
                all widths via container queries, scoped under `.cp`, rendered by the student page and the admin preview);
                roadmap/ (RoadmapPath, RoadmapNode,
                RoadmapConnector, ModuleBar, ModuleDivider, PathDecor, LessonPopover, StateScreens,
-               lessonTypeMeta); player/ (LessonPlayerShell,
-               ActiveTimeRing, PausedNotice, PlayerBar, PlayerSkeleton, PlayerScreens,
-               VideoLesson, DocLesson, GameLesson, QuizLesson, QuizQuestion,
+               lessonTypeMeta); player/ (LessonLayout (every lesson page),
+               VideoPlayer (native/provider players only), ActiveTimeRing (dev gallery), PausedNotice, PlayerBar, PlayerSkeleton, PlayerScreens,
+               DocLesson, GameLesson, QuizLesson, QuizQuestion,
                QuizResultView, LessonCompleteSheet) — see ui.md
     admin/     AdminGuard, AdminLayout (shell), AdminShell (the lazily loaded /admin route component: no admin code in the student bundle); one subfolder per domain, each
                holding that domain's table/dialogs/sections: users/ (its import/
@@ -160,8 +160,8 @@ src/
                trash.ts (soft delete/restore), permanentDelete.ts (Trash page only)
   index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,
                shadcn tokens, Geist font; imports styles.css then kid.css
-  styles.css   brand tokens (incl. `--surface`, added this task) + Baloo 2
-               (auth only; see ui.md)
+  styles.css   brand tokens (incl. `--surface`) + `.auth-page`/`.admin-shell`
+               learner-font scoping (`--learner-font-heading`/`-body`; see ui.md)
   kid.css      kid-facing (student route) surface: KidLayout shell, cards,
                candy buttons, the roadmap path — all inside @layer components
                so Tailwind utilities still win (see ui.md)
@@ -322,6 +322,8 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
   escape.
 
 - Gotcha: never pass `data ?? []` (a fresh array each render) to a table whose effect reports rows back into parent state (`UserTable.onRowsChange`); use a module-level empty constant. Table columns and `tableFeatures` stay at module scope / memoised; derive state instead of syncing it with effects
+- Gotcha: `index.css`'s `@theme inline` already owns `--font-heading` as a Tailwind design token (`font-heading` utility -> `--font-sans`/Geist); it's unlayered, so it beats ANY `@layer components` rule setting the same property name regardless of selector specificity or source order. The Settings fonts feature's runtime CSS vars are therefore named `--learner-font-heading`/`--learner-font-body`, not `--font-heading`/`--font-body` — never rename them back (`rules.md`)
+- Settings (migration 041): `lib/settings/{schema,store,terms,termsCore,fonts}.ts`, `lib/theme.ts`, `components/settings/{SettingsProvider,Logo}.tsx`, `hooks/useSettings.ts`, admin tabs in `components/admin/settings/site/` (Appearance = Colors + Fonts). `bootSettings()` runs before React. Never hardcode term words, a fixed text colour on gold/teal, or a kid/auth `font-family` (`ui.md` "Settings system")
 - Cleanup keep-list (looks unused, is not; do not remove): `supabase/migrations`, DB objects with no JS caller (validator/RLS/trigger functions such as `fn_is_admin`, `course_*_is_valid`), the generated `lib/database.types.ts`, shadcn `components/ui/*` exports, installed Capacitor plugins awaiting native polish, the locked design tokens, `scripts/check-*.mjs`, `console.error` logging in hooks and Edge Functions, and `docs/reference/*`
 
 ## HUMAN-ZONE (narrative, for a person skimming to get oriented)

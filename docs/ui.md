@@ -12,7 +12,9 @@ kids-oriented LMS. No formal component-by-component design audit of that site
 has been done; it's a named reference point, not a source to copy pixel-for-pixel.
 
 **Token set** (`src/styles.css`, `:root` — locked; don't add colors outside
-this set without updating this file):
+this set without updating this file). **Override (2026-10-05):** `--gold` and `--teal` are role names whose values an
+admin may change in Settings > Colors; the values below are the defaults, and `--gold-fg` / `--teal-fg` are derived
+foregrounds (see "Settings system" > "Colour roles").
 
 | Token | Hex | Notes |
 |---|---|---|
@@ -38,13 +40,20 @@ provisional, easy to hand-tune later.
   kid-app face.** Nunito (`@fontsource-variable/nunito`, latin variable file only, self-declared
   `@font-face` in `styles.css`, bundled by Vite so it works offline in Capacitor) is allowed for small
   UI text at the desktop shell (`.kid-app[data-shell='side']`, >= 1024px), never on mobile or admin
-  (see "Desktop Home polish" under "Desktop shell and Home").
+  (see "Desktop Home polish" under "Desktop shell and Home"). **Amended 2026-10-06: both faces are
+  now the DEFAULTS of an admin-editable heading/body choice, not fixed facts** — see "Settings system
+  > Fonts" below for the full picker, catalog and scoping mechanism; this bullet's Baloo 2/Nunito
+  pairing is exactly what "default" still renders.
 **Auth screens are a deliberate exception (2026-10-05, B2B direction).** `/login` and `/signup` follow a standard
-SaaS auth pattern, not the kid-facing look: **Geist** (the admin face, no Baloo 2), a white card with a 1px
-`border-ink/15`, 12px radius and `shadow-sm` (no cream surface, no 26px radius, no warm shadow), pure white page,
-and a **flat** primary button: 40px, 8px radius, `--gold` with `--ink` text, `--gold-d` on hover, no candy press, no
-pill. The candy button (`.candy-btn`, 6px lip) and Baloo 2 remain for kid-facing surfaces only. `--gold` is reserved
-for the single primary action per screen; tokens only, no hex.
+SaaS auth pattern, not the kid-facing look: **Geist** (the admin face, no Baloo 2) at the default font choice, a
+white card with a 1px `border-ink/15`, 12px radius and `shadow-sm` (no cream surface, no 26px radius, no warm
+shadow), pure white page, and a **flat** primary button: 40px, 8px radius, `--gold` with `--ink` text, `--gold-d`
+on hover, no candy press, no pill. The candy button (`.candy-btn`, 6px lip) remains for kid-facing surfaces only.
+`--gold` is reserved for the single primary action per screen; tokens only, no hex. **Amended 2026-10-06:** the
+h1 and the submit button (this screen's heading role) now follow the Settings > Appearance > Fonts heading pick
+when the admin sets one — this locked Geist-by-default look is preserved by "default" resolving to no CSS
+override at all (`var(--learner-font-heading, inherit)`, where `inherit` is this chain's own Geist), not by
+excluding auth from the picker. Body text (labels, the muted line) follows the body pick the same way.
 - Product mark above the card: the SkillXP logo image (`public/logo.png`, transparent, cropped from the supplied artwork; also the student sidebar's brand; alt text `APP_NAME` from `src/lib/brand.ts` (the one place to
   change for the rebrand; all code that renders the name imports it).
 - Copy: Login "Log in to your account" / "Enter your details to continue", button "Log in"; Register "Create your
@@ -67,6 +76,137 @@ for the single primary action per screen; tokens only, no hex.
 routes use. The two share the Baloo 2 face and the token set, but the student
 screens sit on `--cream`, not on pure white.
 
+## Settings system (Phase 1, 2026-10-05)
+
+Admins change branding, appearance (colours + fonts), terminology and features at `/admin/settings` (tabs Branding,
+Appearance, Terminology, Features — the URL's `?tab=colors` value is unchanged for backward compatibility; Commerce,
+XP rules and Site Identity follow). Storage and security: `schema.md` "Admin Settings".
+
+- **One model** (`lib/settings/schema.ts`): `DEFAULT_SETTINGS` (the locked values; `APP_NAME` is only the default
+  product name), a `strict` zod schema per section for saving, and a `lenient` one for reading in which every field has
+  `.catch(default)`. Reading = deep-merge the stored value over the defaults, then parse, so a partial, stale or
+  hand-broken row falls back field by field and can never break the app (a colour pair that fails the contrast rules
+  falls back as a pair). All text is plain text (trimmed, control characters stripped, `<` `>` refused, rendered by
+  React); logo / favicon / background URLs must come from this project's `branding` bucket.
+- **Loading** (`lib/settings/store.ts`, `SettingsProvider`): `bootSettings()` in `main.tsx` reads the cached payload
+  (`localStorage['skillxp.settings.v1']`, validated) and applies theme variables, title, favicon and meta before React
+  renders, so a returning visitor (and the offline Capacitor app) sees no flash. Then `get_public_settings()` through
+  react-query (5 min stale time, refetch on focus, 3 s timeout); a new version replaces the snapshot and the cache, a
+  failure keeps what is there. With no cache the defaults render and the logo slot keeps a fixed height (32px nav,
+  40px auth). `refreshSettings()` asks the server directly before a decision that must not rest on the cache (the
+  public course route). Hooks: `useSettings`, `useBranding`, `useThemeSettings`, `useTerms`, `useFeature`;
+  outside React: `getSettingsSnapshot`, `getTerms`.
+- **Admin forms** (`components/admin/settings/site/`): each tab has its own draft (`useSectionDraft`): dirty state,
+  Save (disabled while invalid or saving), Discard, Reset to defaults (confirm). Drafts never touch the live app.
+  Saves are compare-and-swap on `version`; a stale save shows "Settings were changed by someone else. Reload to
+  continue." and keeps the draft. A successful save updates the live settings and cache at once and invalidates the
+  public query. Uploaded files are tracked: the replaced or removed file is deleted after Save, an unsaved upload on
+  Discard. A terminology save reloads the admin page (a few admin label maps are built once per page load).
+- **How to add a setting**: a field in the section's `strict` schema, its `lenient` twin with `.catch(default)`, the
+  default in `DEFAULT_SETTINGS`, a control in the tab, then the consumer reads it through the hooks. Never a secret.
+- **Build-time / dashboard-only, not editable here** (the page says so): the Android app name, icon and splash
+  (`capacitor.config.json`, Android resources) and the Supabase auth email templates.
+
+### Colour roles (deliberate override of the locked tokens)
+
+`--gold` is the **primary** role and `--teal` the **secondary** role. The locked hex values remain the defaults; an
+admin may override these two roles only (`lib/theme.ts`, `deriveTokens`): each gets its `-d` variant (same hue and
+saturation, HSL lightness 15 points lower) and a foreground token, `--gold-fg` / `--teal-fg` (white or ink, whichever
+contrasts more; the default gold keeps ink text). At the default colours the locked `styles.css` values apply
+untouched. Every element that puts text or an icon on a solid `--gold` / `--teal` uses the `-fg` token (candy buttons,
+`.lp-primary`, path nodes, the gold popover, the medallion, the correct quiz answer, the streak calendar's active
+day, desktop CTAs, the auth button, the course page's Enroll button, the admin role badge); dark `-d` fills keep cream
+text. Rules (UI and schema, `checkTheme`): text on the primary must reach 4.5:1 (hard block); the secondary must reach
+3:1 on white (hard block) and gets a warning below 4.5:1 (its text-link threshold; the default teal is 3.06:1).
+Presets: Default, Ocean, Forest, Slate, Sunset (`#C2410C`, the suggested `#EA580C` failed 4.5:1 with either
+foreground), Violet; all pass (`scripts/check-settings.mjs`). Tailwind exposes the roles through `@theme inline`
+(`--color-gold: var(--gold)` ...), so utilities follow the runtime values. No other token is editable.
+
+### Fonts (2026-10-06, Settings > Appearance > Fonts)
+
+An admin picks a **heading** font and a **body** font for every learner-facing and auth screen from a fixed,
+curated catalog — no uploads, no URLs, no free-text names, no Google Fonts links, no custom CSS; only an id is
+ever stored. The admin panel itself never changes font: `.admin-shell` resets both scoping variables to `initial`,
+so even a deliberately wild pick can't reach it.
+
+- **Roles.** HEADING = page/section titles and stat numbers only; BODY = everything else, including buttons, nav
+  labels, chips and badge/reward text. This is a deliberate split from an earlier, more literal reading ("buttons
+  are heading-role") — the pre-existing desktop shell already put its CTA, chip and badge-name text on the BODY
+  face (`--font-ui-desktop`, Nunito), so the mobile split was built to match that existing structure rather than
+  contradict it. "default" renders exactly today's look: Baloo 2 for heading, Nunito-then-Baloo-2 for body on
+  kid-facing screens; Geist (inherited, no override) on auth. The one deliberate exception stays unchanged: the
+  parent-facing course page keeps its own separate preset system (Inter/Source Serif 4/Nunito by `page_theme`,
+  `rules.md`) — this picker does not reach it.
+- **Catalog** (`lib/settings/fonts.ts`, `FONT_CATALOG`/`FONT_IDS`, no `@/` imports so `check-settings.mjs` can run
+  it under plain Node): `default` plus 12 self-hosted faces (`@fontsource[-variable]/<pkg>`, all OFL-1.1) —
+  Baloo 2 and Fredoka (Playful), Nunito (Friendly), Poppins (Geometric), Inter/Geist/DM Sans (Clean), Plus
+  Jakarta Sans/Manrope (Modern), Lexend (Readable), Atkinson Hyperlegible (Accessible), Source Serif 4 (Serif).
+  Poppins and Atkinson Hyperlegible ship no variable build, so their `load()` imports the individual weight
+  files the UI uses (400-800, or just 400/700 for Atkinson) instead of one variable file; every other entry is a
+  single `@fontsource-variable` import. `getFont(id)` (never throws, falls back to `default`), `resolveFamily(id)`
+  (the CSS `font-family` value, or `null` for `default` — nothing to override), `loadFont(id)` (lazy `import()`
+  of the font's CSS, one network chunk per font, memoised so a repeat call is free, `.catch()`-swallowed so a
+  blocked or offline request never throws) are the only exports anything outside this file should call.
+- **Loading.** `font-display: swap` throughout; each face declares only the subsets it actually has (latin,
+  latin-ext, devanagari for Baloo 2 and Poppins), and the browser's own `unicode-range` matching means importing
+  a multi-subset `index.css` does not fetch the subsets a page never renders. `font-synthesis-weight: none` on
+  every scoped root, so a face missing a weight the UI uses (Atkinson Hyperlegible: 400/700 only) falls back to
+  the browser's nearest real `@font-face` instance instead of a synthesized fake bold.
+- **Storage** (`lib/settings/schema.ts`): `theme.fonts: { heading: FontId, body: FontId }`, both `.catch('default')`
+  per field (an unknown or removed id falls back alone, the sibling field keeps working) inside a whole-object
+  `.catch()` (a missing or malformed `fonts` key on an old row falls back as a pair). No migration — it is just
+  another field in the existing `theme` JSON value. The server and `get_public_settings()` carry ids only, never a
+  family string or URL; cached in the existing versioned localStorage snapshot alongside the rest of `theme`.
+- **Scoping** (`lib/settings/store.ts`'s `applyToDocument`, run at boot from cache and on every live refresh):
+  sets `--learner-font-heading`/`--learner-font-body` on `document.documentElement` (never on an element that
+  doesn't exist yet at boot — `.kid-app`/`.auth-page` aren't mounted when the cached snapshot first applies, so
+  the variables have to live above them) and calls `loadFont` for both roles. **Named `--learner-font-*`, not
+  `--font-heading`/`--font-body`** — `index.css`'s `@theme inline` already owns that exact name as a Tailwind
+  token (`font-heading` utility -> Geist), and it's unlayered, so it would always beat a `@layer components` rule
+  of the same name once there's no inline style to out-rank it; reusing it broke "default" silently (`rules.md`).
+  `kid.css`'s `--font-kid`/`--font-ui-desktop` and `styles.css`'s `.auth-page` all read
+  `var(--learner-font-heading/-body, <today's literal chain>)`, so "default" (the variable unset) renders
+  precisely what rendered before this feature, and `.admin-shell { --learner-font-heading: initial;
+  --learner-font-body: initial; }` is a real CSS guarantee that the admin panel can't inherit a customer pick,
+  not just a convention. A handful of elements with no existing class hook (the `Logo` wordmark, the auth `h1`/
+  submit button, the lesson title) set `style={{ fontFamily: 'var(--learner-font-heading, <fallback>)' }}`
+  directly instead.
+- **Admin UI** (`components/admin/settings/site/{AppearanceTab,FontsSection}.tsx`): the Fonts section sits below
+  Colors in the same Appearance tab, one Save/Discard/Reset for the whole tab (unchanged `useSectionDraft`
+  compare-and-swap). Two selects (each option shows the label in the admin's own Geist, with a muted category
+  tag — never preloads every catalog font for the dropdown); 6 pairing chips (Default, Playful, Friendly, Modern,
+  Clean, Editorial) that only fill the two selects, never save by themselves; a scoped live preview (its own
+  `--learner-font-*`, so nothing outside its box changes before Save) with a heading, a paragraph, a button, a
+  stat chip, and a Hindi sample line when the selected face has a devanagari subset; a picked font loads as soon
+  as it's picked, with a small "Loading…" state; a gentle, non-blocking note appears under the selects when a
+  Playful-category face is picked for the body role. The preview's own "default" case can't inherit the real
+  kid-app chain (it isn't inside `.kid-app`), so it hardcodes the same literal fallback `kid.css` uses, purely so
+  the preview stays accurate — this is the one place that literal is allowed to be duplicated.
+
+### Terminology
+
+Display words for course, module, lesson, XP, badge, streak and level come from the settings (admin writes singular
+and plural; 1-24 letters, numbers, spaces, hyphens, apostrophes). **Never hardcode these words in a UI string**: use
+`useTerms()` / `getTerms()` (`term`, `terms`, `formatCount`, `lower`; `lower` keeps acronyms like "XP"). No
+auto-plural, no `noun + 's'`, and no "a" / "an" before a term (rewrite to "Add lesson", "Every lesson ..."). Display
+strings only: routes, URLs, database objects, types, variables, query keys, file names and seed content keep their
+own names. Pure libraries that the Node check scripts load use `lib/settings/termsCore.ts` (no app imports).
+Deliberately not terms: the course page's "Section N", the roadmap banner's "Unit N", admin-authored content (badge
+names and descriptions, course descriptions, XP award reasons) and the dev gallery.
+
+### Feature toggles (UI level)
+
+Gamification is the master switch (off: XP, streaks, badges, levels off); XP off turns levels off; avatars,
+celebrations and public course pages are independent. No leaderboard or sound effects exist, so neither has a
+switch. The server keeps recording XP, streaks and badges, so switching back on shows full history. The per-course
+`courses.gamification_enabled` stays: the effective value is global AND per course. Learner effects: stat bar pills,
+home rail cards, path XP chips, profile stats and streak calendar, the Badges tab and `/badges` (redirects Home),
+completion XP lines; the stat bar keeps its course link and height. Avatars off: an initials disc
+(`ProfileAvatar`), no builder (admin tables unchanged). Celebrations off: no confetti, a still medallion
+(reduced motion always respected). Public course pages off: a signed-out visitor on `/course/<slug>` goes to
+`/login?redirect=/courses/<slug>`. Admin: the "Badges & XP" nav item hides with gamification off; the page stays
+reachable with a "turned off in Settings" banner.
+
 ## Kid-facing app (student routes)
 
 The first real student screen, `/courses/$courseId` (the course roadmap — a
@@ -80,20 +220,32 @@ baseline) → mobile/tablet web → desktop web.
 `styles.css` above — no new brand colors. One token was added there:
 `--surface` (`#FFFEFB`), the off-white card color the auth card already used
 as a literal hex; kid screens reference the token instead of repeating the hex.
-**Font scoping rule for kid-facing surfaces.** Baloo 2 applies to every
-student screen: the roadmap, module banners, lesson sheets, buttons and pills.
-It is scoped by a wrapper class, the same pattern as `.auth-page`: `.kid-app` is
-set on the `KidLayout` root (so everything under a student route inherits it) and
-`.kid-font` is added to portaled UI that renders outside that root, currently the
-lesson sheet's drawer and dialog (both defined in `kid.css`, sharing
-`--font-kid`). shadcn's `DrawerTitle` and `DialogTitle` carry a `font-heading`
-utility that would win over a component-layer rule, so the sheet titles add an
-important `[font-family:var(--font-kid)]!`. Weights: bold (700 to 800) for
-titles, buttons, pills and labels, regular (400) for body copy. **Admin routes
-carry neither class and stay on Geist** (`font-sans`, set on `<html>`); this was
-verified by computing the font of every element on `/admin`, `/admin/courses` and
-`/admin/users` (all Geist) and by confirming no `.kid-app` or `.kid-font` element
-exists there. A new portal that shows kid-facing text needs `.kid-font`.
+**Font scoping rule for kid-facing surfaces.** Baloo 2 (the default heading face)
+and Nunito-then-Baloo-2 (the default body face) apply to every student screen: the
+roadmap, module banners, lesson sheets, buttons and pills — see "Settings system >
+Fonts" above for the admin-editable picker this now flows from; this section is the
+CSS mechanism, unchanged in shape since before that feature. It is scoped by a
+wrapper class, the same pattern as `.auth-page`: `.kid-app` is set on the
+`KidLayout` root (so everything under a student route inherits it) and `.kid-font`
+is added to portaled UI that renders outside that root, currently the lesson
+sheet's drawer and dialog (both defined in `kid.css`). **Base is BODY, not
+heading** (`.kid-app, .kid-font { font-family: var(--learner-font-body,
+var(--font-kid)); }`, changed 2026-10-06 from a flat `--font-kid` default): most
+kid-facing text — nav labels, buttons, chips, badge names — is body copy; a small,
+explicit set of exceptions (the page/section titles and stat numbers:
+`.kid-topbar-title`, `.kp-name`, `.kp-stat-num`, `.rm-modbar-title`, `.khd-title`,
+`.khd-band-title`, the lesson title) opt back into `--font-kid` (the heading
+variable) directly — the same pattern the desktop shell already used for its own
+two exceptions before this change. shadcn's `DrawerTitle` and `DialogTitle` carry a
+`font-heading` utility that would win over a component-layer rule, so the sheet
+titles add an important `[font-family:var(--font-kid)]!`. Weights: bold (700 to
+800) for titles, buttons, pills and labels, regular (400) for body copy — a
+font-weight convention, independent of the heading/body font-family split above.
+**Admin routes carry neither class and stay on Geist** (`font-sans`, set on
+`<html>`); this was verified by computing the font of every element on `/admin`,
+`/admin/courses` and `/admin/users` (all Geist) and by confirming no `.kid-app` or
+`.kid-font` element exists there. A new portal that shows kid-facing text needs
+`.kid-font`.
 
 **`src/kid.css`** (imported after `styles.css` in `index.css`, entirely inside
 `@layer components` so Tailwind utilities like `lg:hidden` still win over it)
@@ -550,9 +702,7 @@ build did not change.
 
 Component tree: `LessonPlayerPage` > `PlayerFrame` (screens: `NotEnrolledScreen`,
 `EnrollmentExpiredScreen`, `LessonUnavailableScreen`, `LessonRetryScreen`,
-`PlayerSkeleton`) or `PlayerLesson` > `LessonPlayerShell` > (`ActiveTimeRing`,
-portalled into the top bar's right slot; `PausedNotice`; type/XP/minimum-time
-chips; a Completed chip in replay; summary; the lesson body: `VideoLesson` |
+`PlayerSkeleton`) or `PlayerLesson` > `LessonLayout` (2026-10-05; see "Lesson pages: one layout") > (`PausedNotice`; the lesson body: `VideoPlayer` |
 `DocLesson` | `GameLesson` | `QuizLesson` > `QuizStepDots` / `QuizQuestion` /
 `QuizFeedbackPanel` / `QuizResultView`; then `PlayerBar` > `PrimaryButton` /
 `PrimaryLink`) and `LessonCompleteSheet` (with `Confetti` and `useCountUp`).
@@ -915,7 +1065,7 @@ the one action that actually calls `fn_submit_quiz`.
 Replaces the earlier "answer everything, get one grade, then review each question" flow. The page
 (`QuizLesson`, shell variant `quiz`) has no hero and no module list; the top bar keeps Back and the quiz
 title. One question is on screen at a time, forward only (no Back between questions), under a slim
-progress bar (`QuizProgress`, the same `.lp-timebar-*` track and fill as the video and doc lessons)
+progress bar (`QuizProgress`, the `.lp-timebar-*` track and fill)
 that advances as each answer is locked in, with "Question 2 of 3" and the prompt above the options.
 
 - **Answer buttons** (`.lp-choice`): full width, 4rem tall, in the candy 3D treatment (a 5px bottom lip
@@ -1879,6 +2029,9 @@ not implemented.**
 
 ### Lesson page layout (simplified 2026-09-24, ages 5 to 7)
 
+**Superseded 2026-10-05** by "Lesson pages: one layout, standard video players" (no hero, activity card,
+module list or shell top-bar title any more); the principles (module-scoped count, one action) still hold.
+
 One obvious thing to do per screen; when in doubt, cut. The page is scoped to the
 lesson's MODULE: the list shows only this module's lessons, the only count is this
 module's ("3 of 5", published lessons only, from `fn_course_lesson_states`), and the
@@ -1920,13 +2073,12 @@ section). Everything below still holds for 768-1023px and for every other kid sc
 The kid app is mobile-first and stays exactly that below **768px** (checked: the Home, video, doc, quiz
 and game pages are pixel-identical at 360, 390 and 430px before and after). From 768px it is a centred
 column, not a redesign: no sidebar, no second column, no moved controls. Single source of truth, in
-`kid.css` (`.kid-app { --kid-col; --kid-col-wide }` and the "desktop widths" block at the end):
+`kid.css` (`.kid-app { --kid-col }` and the "desktop widths" block at the end):
 
 | | Value | Applies to |
 |---|---|---|
 | Breakpoint | `min-width: 768px` (the tiers above already used it) | everything below |
 | `--kid-col` | 40rem (640px) | the roadmap (path, stat bar, module bar, dividers), text, doc blocks, quiz, lesson info, the bottom nav, the top bar's contents |
-| `--kid-col-wide` | 64rem (1024px), capped at the window minus 2rem | the video player and the game frame only, centred over the column |
 | Quiz measure | 34rem (544px) | the quiz flow: answer buttons stay 544x64, not a slab |
 | Callouts | 36rem | doc callout cards |
 
@@ -2673,9 +2825,8 @@ the first data request; see follow-ups.
 ### Game lessons (2026-09-26)
 
 A game lesson hosts a page the admin registered in `games` (`bundle_url`); there is no content to build.
-`LessonPlayerShell` variant `game`: the game fills the screen below the top bar (`.lp-game-bleed`, edge to
-edge, cancelling the page gutter and bottom padding), the top bar carries Back and nothing else (no title),
-there is no hero, module list, Next bar or bottom nav. The old "Play" start card is gone (the game loads on
+In `LessonLayout` (width `game`, 2026-10-05): the frame spans the column, as tall as the screen below the bar
+and title (min 20rem, max 48rem), rounded; there is no hero, module list or bottom nav. The old "Play" start card is gone (the game loads on
 entry). `GameLesson` is the host.
 
 - **Loading and failure.** A `role="status"` overlay ("Getting your game ready.", a teal-d spinner on cream)
@@ -2730,9 +2881,8 @@ entry). `GameLesson` is the host.
 ### Doc lessons with content blocks (2026-09-26)
 
 A `text` lesson whose `lesson_content_blocks` (migration 023, `schema.md`) are not empty gets its own
-single-column page, sharing the video page's title row and progress bar (`LessonStatus`:
-`LessonTitle`, `LessonTimeBar`, `DocInfo`); a doc lesson with no blocks keeps the older hero plus
-sandboxed HTML frame (`content_html`), and a failed blocks fetch counts as no blocks. Top to bottom:
+single-column page in `LessonLayout` (width `doc`, 2026-10-05; the title row and reading-time bar described
+next were removed then); a doc lesson with no blocks shows the sandboxed HTML frame (`content_html`) in the same layout, and a failed blocks fetch counts as no blocks. Top to bottom:
 the back-arrow-only top bar (no title), the title with its inline marker (the XP pill while there is
 XP to earn, the small check badge once done, never both; glued to the title's last word), the slim
 minimum-time bar ("Reading time 0:20 of 1:00", shown only while completable and when the lesson has
@@ -2758,98 +2908,70 @@ image block first). No bottom nav.
   lesson's own (`LessonCompleteSheet`, one "Continue to next lesson" button). A revisit opens in replay:
   the check badge, no XP pill, no time bar, no clock, no sheet, no XP.
 
-### Video lessons (2026-09-26)
+### Lesson pages: one layout, standard video players (2026-10-05)
 
-The first fully built lesson type; it reuses the page above (heartbeat, server completion and
-XP, module list, replay mode) and changes only what a video needs. Nothing about doc, quiz or
-game lessons changed, apart from two shared fixes listed at the end.
+Supersedes the per-type layouts above and below (hero, activity card, module list, `LessonPlayerShell`,
+the custom video player and the minimum-time bars). Completion, XP, quiz grading, game scoring, schema,
+RLS and routes did not change.
 
-- **Layout** (`LessonPlayerShell`, video branch). No hero and no activity card: the player runs
-  edge to edge right under the top bar (`.lp-video-bleed` cancels the page gutter; from md it sits
-  in its column with 20px corners). The top bar carries only Back (no title, since the title is
-  under the player). Simplified 2026-09-26 to a YouTube-style page, top to bottom: the player, the
-  title (`.lp-hero-title`, the app's existing lesson title style) with its status marker on the same
-  line, the description as a normal paragraph (`lessons.summary`; none is shown when it is empty; the
-  module name is no longer on the page), and the minimum-time bar. There is no status row and nothing
-  between the title and the description. **No module list and no Next / Back bar**: the completion
-  sheet's one button is the only next-step action, and Back in the top bar leaves. The marker sits
-  inside the `h1`, glued to the title's last word (`.lp-vtitle-tail`, nowrap), so a title that fills the
-  line wraps that word and the marker together, and it is one of two things, never both: the roadmap's
-  `.rm-chip` XP pill (`+10 XP`) while there is XP to earn, or, for a finished lesson, a small check
-  badge (`.lp-done-mark`, cream on `--teal-d`, 1.75rem, `role="img"` labelled "Done"; a status, not a
-  control). Replaying lives in the player's control strip (below), not in the content. Nothing on the
-  page is floating or positioned, so nothing can sit under the top bar. No bottom nav (the nav only
-  shows on Home, Badges, Courses and Profile).
-- **Player** (`VideoLesson`, `VideoEngines`, `lib/videoPlayback.ts`). A chromeless stage over our
-  own control strip: play or pause, a scrubber that seeks freely in both directions, mute plus a
-  volume slider (the slider hides below 400px, where the strip also shows only the current time; the
-  mute button stays), a **replay** button next to play (rewinds to 0:00 and plays; earns nothing extra,
-  active time still counts only as playing), and full screen. No speed control.
+- **`LessonLayout`** (`components/kid/player/LessonLayout.tsx`) is the only lesson page frame: video, doc,
+  quiz, game, and the player's skeleton and error screens (`PlayerFrame`). One centred column on `--cream`;
+  top to bottom: a slim sticky bar (Back, a 44px target linking to the course roadmap with `replace`, then
+  one muted line "Module · Lesson 2 of 5" from `useModulePath`), the title (Baloo 2, 24px, 28px from md),
+  the media or content, the description (`lessons.summary`, if any), then the action area.
+- **Alignment rule**: every row shares the column's left and right edges; nothing bleeds or is centred
+  narrower. The gutter is `.kid-main`'s (16px, 24px from md); on lesson routes (`.kid-app[data-lesson]`)
+  the shell's own top-bar row is hidden (safe-area padding stays) and its 40rem cap is lifted. Measures:
+  video 55rem (880px), doc and quiz 45rem (720px), game the full width. Verified at 1280 and 390: Back,
+  title, media and actions at the same x, right edges equal, no overflow.
+- **Action area**: one gold action per state, "Previous" (the module's previous lesson) as a quiet text
+  link. In play: no button for auto-completing lessons, only a plain hint ("Watch the whole video to
+  finish this lesson.", "Take your time. This lesson finishes on its own."); "Mark as complete" for
+  Loom/Wistia (muted until the server says the minimum time is met); Try again after a failed finish.
+  Once done: a teal check "Lesson complete" plus gold "Next lesson" (the next lesson in this module, when
+  open) or "Back to roadmap"; the existing `LessonCompleteSheet` is the reward feedback. A quiz keeps its
+  own bar and gets no action area. No XP pill, badges or decoration on the page.
+- **Never build custom video controls.** A file plays in the browser's own `<video controls playsinline
+  preload="metadata">` (`object-contain`); a provider plays in its own player in an iframe (`title`, the
+  standard `allow` list incl. fullscreen, `allowFullScreen`, `referrerPolicy="strict-origin-when-cross-origin"`,
+  `loading="lazy"`). No overlays, no restyling parameters: YouTube gets only `enablejsapi=1&origin=` (needed
+  for its events) on the `youtube-nocookie.com` embed. Container: `aspect-video`, `rounded-2xl`, black,
+  no frame. An empty, unsupported or unsafe value shows "This video can't be shown right now" in the same
+  box. `VideoPlayer` (`components/kid/player/VideoPlayer.tsx`) is the one component, used by the student
+  page and the admin editor's preview. It keeps the screen awake while playing, and Android Back leaves the
+  player's full screen first (landscape lock while full screen, best effort).
+- **`parseVideoSource`** (`lib/video.ts`) is the one parser (student render time and admin save). Accepts a
+  direct file (`.mp4 .m4v .webm .ogv .ogg .mov`, https; http only in dev), an allowlisted provider link
+  (YouTube watch / youtu.be / shorts / embed / live, Vimeo incl. unlisted hash, Loom share/embed, Wistia
+  medias/iframe), or a pasted `<iframe>` snippet: only the single iframe's `src` is read; a script tag, any
+  `on*` attribute, any tag other than iframe/div/p/span/br, `javascript:`, http or a non-allowlisted host
+  rejects the whole input. **Host allowlist**: youtube.com, youtu.be, youtube-nocookie.com, vimeo.com,
+  loom.com, wistia.com/.net, wi.st (the live data only uses w3schools .mp4 files and YouTube). Vimeo's
+  default embed code appends a `<script>` and is therefore refused: paste the link or the iframe alone.
+- **Completion per source** (server rules unchanged, `fn_complete_lesson` still checks enrollment, unlock and
+  minimum time): file, YouTube and Vimeo report play / pause / end (native media events; the providers'
+  postMessage APIs, listened to only, no script loaded); active time counts only while playing and the
+  lesson auto-completes once the time is met AND the video ended. Loom and Wistia report nothing: time
+  counts while the page is open and the child taps "Mark as complete". No usable source: time only.
+  If the video ended but the stored minimum is longer than one viewing, the hint becomes "Watch it once
+  more to finish this lesson." The admin editor refuses a minimum longer than the previewed video's length.
+- **Removed**: the custom control strip, big Play overlay, scrubber, volume, fullscreen button, the
+  "Watch time X of Y" / "Reading time X of Y" bars, `LessonPlayerShell`, `LessonHero`, `ActivityCard`,
+  `ModuleLessonList`, `Reveal`, `VideoLesson`, `VideoEngines`, `VideoInfo`, `LessonStatus`,
+  `lib/videoPlayback.ts` and their styles.
+- **Not verified in automation**: Vimeo playback (the event handshake and `play` reach the page; Vimeo
+  refuses playback under automation, so its `ended` path was not exercised); a real game frame (the test
+  game has no bundle); embeds, full screen and orientation inside the Capacitor WebView on a device.
 
-  **Full screen.** Where the Fullscreen API exists (desktop, Android, iPad) the whole player, strip
-  included, goes fullscreen, and on entering it the page calls `screen.orientation.lock('landscape')`;
-  on leaving (including Esc or the system back gesture, since it is driven by `fullscreenchange`) it
-  calls `unlock()`. Both are wrapped in try/catch and never touch playback: a browser without the API,
-  or one that refuses the lock, just stays as it was. On **iOS** (iPhone, iPad, or an iPad reporting
-  as a Mac) a file goes to the OS's own player through the video element's `webkitEnterFullscreen`,
-  which rotates by itself and never uses the lock; the button shows there even though the iPhone has
-  no Fullscreen API. A YouTube or Vimeo embed on iOS has no native path (its video is in another
-  origin's frame): the button shows only where the Fullscreen API does (iPad), else it is hidden. Cream on `--ink`; the big centre Play is the one gold thing. Three engines report the
-  same state (`ready`, `playing`, `ended`, `current`, `duration`, `volume`, `muted`, `failed`) and
-  register the same controls: a plain https file (`<video>`; dev/test only, see `video.ts`), a
-  YouTube embed (`controls=0`, driven over its postMessage API: the `listening` handshake, then
-  `infoDelivery` and `onStateChange`) and a Vimeo embed (`controls=0`, its postMessage
-  `addEventListener` API). No third-party script is loaded. The iframes have `pointer-events: none`
-  so the provider's own controls are never tappable. A failed engine shows the existing
-  `PlayerError` with Try again.
-- **Active time counts only while the video is actually playing.** `useLessonClock` takes an
-  `active` flag (`ClockPause` gains `idle`): false stops the clock exactly like a backgrounded
-  app, with the same quiet period on resume, so paused time never counts. The page passes
-  "the video is playing" (a stop is reported after 1 s so a buffering blip does not stop the
-  clock; playing is reported at once). When the video stops after counting, the clock sends one
-  final beat so the stretch just played is credited (the server credits the real elapsed seconds,
-  capped); a stop during the quiet period sends nothing, because nothing was being counted and a beat
-  then would credit the paused gap. Backgrounding the app still pauses as before.
-- **Completion needs both**: the server says the minimum time is met AND the video played to its
-  end (`ended`). Seeking to the end satisfies only the second, so it never completes a lesson whose
-  time is not met. The existing auto-finish then calls `fn_complete_lesson` once; XP is awarded
-  once by the server. A video with no usable URL keeps the old rule (time only).
-- **Minimum-time bar** (`.lp-timebar`): a slim `--teal-d` fill on the muted track with "Watch time
-  0:05 of 2:00" under it, separate from the scrubber. It shows only while the lesson can still be
-  completed.
-- **Completion card**: the existing `LessonCompleteSheet` (teal check medallion, "Lesson done!",
-  the `+N XP` count-up, confetti). It now has ONE button: "Continue to next lesson" when the next
-  lesson is open, else "Back to roadmap" (the secondary link is gone for every lesson type).
-- **Revisiting a completed lesson** opens in replay: the check badge instead of the XP pill (no time
-  bar), no clock, no XP, no celebration, however much of the video is played, including after the
-  replay button.
-- **Back** returns to Home at the node the child left from: the player records its lesson
-  (`lib/roadmapReturn.ts`) and the roadmap, on its next mount, scrolls that node to the middle
-  through the same code path as the locked-lesson redirect (`focusLessonId`). If it is the next-up
-  lesson the popover opens as usual; any other lesson (a completed one) is scrolled to with no
-  popover. In-app history stays [Home, lesson] (the list links used by the other lesson types and the
-  sheet's Continue replace the entry), so the Back arrow's `history.back()` lands on Home; with no
-  history it goes to `/`.
-- **Module list**: the list of sibling lessons was built for video lessons on 2026-09-26 and removed
-  the same day; doc, quiz and game lessons still show theirs.
-- **Shared fixes made in the same pass**: the "Done" badge (`.lp-done`) is now cream on `--teal-d`
-  (6.20:1; it was ink on `--teal`, 4.50:1), and the completion sheet has one button for all types.
-- **Known limits**: the resume position of the video itself is not persisted (only accrued time is);
-  Vimeo's `controls=0` hides its own chrome only on plans that allow it, and its playback could
-  not be exercised in automation (the player answers `ready` but Vimeo's edge blocked headless
-  playback with a 401 challenge), so the Vimeo engine is verified to the handshake only; iPhone
-  Safari has no Fullscreen API for elements, so the full screen button is hidden there.
-- **Verified** (Chromium against the live project, real JWTs, fixtures removed): see `changelog.md`.
-
-**Completion is automatic (decided 2026-09-24).** There is no Finish button: once the server
+**Completion is automatic (decided 2026-09-24; Loom/Wistia exception 2026-10-05).** There is no Finish button: once the server
 says the minimum time is met, and for a video or game once the child has tapped Play (a
 reading lesson: time only), the page calls the existing `fn_complete_lesson` itself, once per
 visit; the server still checks enrollment, unlock and time, and the celebration sheet opens
 as before. A failed call shows a single Try again button. Quizzes keep their own flow.
 
-**Gold on screen**: the Play button before completion, the Next button after (Play is then
-not gold), and the "next" row's accent. Never two gold buttons at once, except the
-celebration sheet's own Next while it covers the page.
+**Gold on screen** (2026-10-05): at most the one action-area button (Mark as complete, Try again, Next
+lesson or Back to roadmap). Never two gold buttons at once, except the celebration sheet's own Next while
+it covers the page.
 
 **Removed**: the overview card, breadcrumb, meta pills (type, XP, minutes, Completed), the
 progress strip and bottom sheet, the sidebar with its teal header, the Up next card, the

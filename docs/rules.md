@@ -173,9 +173,9 @@ belongs in `context.md` or `state.md`, not here.
   first-published date, so any new code path that publishes a course has to
   carry the same guard.
 - **`lessons.video_url` never stores raw `<iframe>`/HTML embed code.** The
-  Embed-link input only ever extracts a YouTube/Vimeo video id via regex
-  (`src/lib/video.ts`) and writes back a plain reconstructed URL — never the
-  pasted string itself. Storing raw markup here is a stored-XSS hole the
+  admin video field runs every value through `parseVideoSource`
+  (`src/lib/video.ts`), which reads only an iframe's `src`, validates it and
+  writes back the normalised URL — never the pasted string itself. Storing raw markup here is a stored-XSS hole the
   moment any future renderer uses `dangerouslySetInnerHTML` on this column.
 - **Monetary integer columns store WHOLE RUPEES, not paise.**
   `payments.amount = 1499` means ₹1,499. Neither column documents a unit, so
@@ -357,7 +357,9 @@ belongs in `context.md` or `state.md`, not here.
   (no `allow-scripts`, so nothing in it runs) and a CSP meta that blocks scripts,
   forms, frames and network fetches other than https images and media. It is never
   injected into the app's own DOM (`dangerouslySetInnerHTML`). Video embeds are limited
-  to the normalized YouTube and Vimeo URLs (`lib/video.ts`).
+  to the allowlisted providers `parseVideoSource` (`lib/video.ts`) normalises (YouTube via
+  youtube-nocookie, Vimeo, Loom, Wistia; amended 2026-10-05); an unvalidated URL or snippet is never
+  rendered, and a snippet is never injected as HTML.
 - **The lesson clock only runs while the lesson is on screen, and it never sends a
   beat that would credit time spent away.** `useLessonClock` sends no heartbeat while
   the page is hidden or the device offline, and after any pause it waits until
@@ -593,7 +595,18 @@ belongs in `context.md` or `state.md`, not here.
   Serif 4 or Nunito by preset) and is the only student screen allowed to; everything else in the kid app stays
   Baloo 2 (plus the documented Nunito desktop UI text), and admin stays Geist. A leak either way (page
   fonts or `.kid-app` styles bleeding into the editor's live preview, or the kid font appearing on an admin
-  route) silently restyles screens that were never meant to change.
+  route) silently restyles screens that were never meant to change. **The Settings > Appearance > Fonts
+  picker (below) does not reach this page either** — it keeps its own separate preset system, by design;
+  the admin's heading/body choice is a kid-app-and-auth-only concern.
+- **The learner/auth font variables are `--learner-font-heading` / `--learner-font-body`, never
+  `--font-heading` / `--font-body` — do not rename them back.** `index.css`'s `@theme inline` already
+  defines `--font-heading` as a Tailwind design token (`font-heading` utility, bound to `--font-sans`/Geist),
+  and that definition is unlayered while `kid.css`/`styles.css` sit in `@layer components` — unlayered CSS
+  always wins over layered CSS for the same custom property, with no specificity contest, regardless of
+  selector or source order. Reusing the name made "default" (no inline style set) silently resolve to Geist
+  instead of truly falling through to Baloo 2/Nunito/inherited-Geist, on every kid-facing and auth screen —
+  found during this feature's own verification by a profile-page username that wrapped differently than the
+  pre-feature baseline (`lib/settings/fonts.ts`, `lib/settings/store.ts`, `ui.md` "Settings system > Fonts").
 - **Admin-authored course page text is plain text, never HTML or Markdown.** Every page column
   (`tagline`, `learning_outcomes`, `requirements`, `faqs`, `instructor_*`, and `courses.description` on that
   page) is rendered as React text nodes; never pass any of it to `dangerouslySetInnerHTML` or a Markdown/HTML
@@ -640,3 +653,14 @@ belongs in `context.md` or `state.md`, not here.
   access" inserts a new row, the revoked one survives as the record). The refusal must not create any row.
 - **Free enrollment creates no `payments` row and no XP, badge or celebration**, and its `expires_at` is computed once at
   insert time from the course's own access fields (the same invariant as the admin manual enroll), never read live later.
+- **`site_config` never stores a secret, and `get_public_settings()` returns only the four sections and their
+  versions.** The whole table is public through that function (anon included); a key, token or private address put
+  there is published. Learners and visitors read settings only through the function; the table itself stays
+  admin-only under RLS, with no DELETE path, and `version` / `updated_by` / `updated_at` are stamped by the trigger,
+  never by a client (the compare-and-swap save and the audit trail depend on it).
+- **Only admins can write the `branding` storage bucket, and branding images are shown only through `<img>`.** An
+  uploaded SVG inlined into the DOM could run script; logo / favicon / background URLs are accepted only from this
+  project's own bucket.
+- **Text on a `--gold` or `--teal` background uses `--gold-fg` / `--teal-fg`, never a fixed ink or white.** Both roles
+  are admin-editable; a fixed foreground becomes unreadable on another colour. A saved colour pair must pass the
+  contrast rules (`lib/theme.ts`), which the save path and the reader both enforce.
