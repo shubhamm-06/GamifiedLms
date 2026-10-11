@@ -1535,12 +1535,21 @@
   .kid-stat[data-kind='streak'] svg { color: var(--coral-d); }
   .kid-stat[data-kind='xp'] svg { color: var(--plum-d); }
 
+  /* Course link + notifications bell, grouped so the group (not the course link
+     alone) is what's pushed to the right — the bell still lands at the far
+     right even on a gamification-off course, where the course link is the only
+     other thing here, and even with neither pill rendered. */
+  .kid-statbar-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
   /* The course name is a link, not a stat: no pill, teal-d (6.2:1 on cream),
      underlined, with a chevron. 44px tall hit target inside the 48px bar. */
   .kid-statbar-course {
-    /* Stays on the right whether or not the stat pills are shown (they are
-       hidden for a gamification-off course). */
-    margin-left: auto;
     display: inline-flex;
     align-items: center;
     gap: 0.125rem;
@@ -1560,6 +1569,40 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* The mobile entry point into /notifications (migration 042): a plain icon
+     button, no pill — matches .kid-back's quiet treatment, not a stat pill. */
+  .kid-statbar-bell {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    color: var(--ink);
+  }
+
+  .kid-statbar-bell:active { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+
+  @media (hover: hover) {
+    .kid-statbar-bell:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+  }
+
+  /* Unread indicator (migration 042): a plain coral dot, never a number (locked
+     decision). --kid-dot-ring matches whatever surface the dot sits on, so it
+     reads as a cutout rather than a flat circle on top of the icon. */
+  .kid-dot {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.3rem;
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--coral);
+    box-shadow: 0 0 0 2px var(--kid-dot-ring, var(--cream));
   }
 
   @media (min-width: 768px) {
@@ -1799,6 +1842,122 @@
   }
 
   .kb-card[data-earned='true'] .kb-state { color: var(--ink); }
+
+  /* ------------------------------------------------------------ notifications */
+
+  /* /notifications (migration 042): view-only inbox. A single readable column —
+     narrower than the other screens' full 68.75rem desktop measure on purpose
+     (ui.md "Notifications inbox"), since this is a list of short messages, not
+     a grid or a form. */
+  .kn-page {
+    width: 100%;
+    max-width: 45rem;
+    margin-inline: auto;
+  }
+
+  .kn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .kn-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.875rem;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 1rem 1.125rem;
+    border: 0;
+    text-align: left;
+    color: inherit;
+    font: inherit;
+  }
+
+  /* Only a deep-linked card is a <button> (the whole card tappable, per spec); a
+     plain one (no deep_link) renders as a <div> with the same class and is not
+     interactive, so it gets no cursor/hover/active treatment at all. */
+  button.kn-card {
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+
+  button.kn-card:active { transform: translateY(2px); }
+
+  @media (hover: hover) {
+    button.kn-card:hover { box-shadow: 0 12px 22px -12px color-mix(in srgb, var(--ink) 38%, transparent); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button.kn-card { transition: none; }
+    button.kn-card:active { transform: none; }
+  }
+
+  /* A card newer than the device's last-seen snapshot: a soft coral wash, not a
+     border or a badge count (locked decision: no unread numbers, ever). */
+  .kn-card[data-new='true'] {
+    background: color-mix(in srgb, var(--coral) 7%, var(--surface));
+  }
+
+  .kn-icon {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 999px;
+    background: var(--kid-muted);
+    color: var(--kid-muted-fg);
+  }
+
+  .kn-card[data-new='true'] .kn-icon { color: var(--coral-d); }
+  .kn-icon .kid-dot { --kid-dot-ring: var(--surface); }
+
+  .kn-text {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding-top: 0.125rem;
+  }
+
+  .kn-title {
+    font-size: var(--kid-text-label);
+    line-height: var(--kid-leading-label);
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  /* Full body, no truncation — line breaks from the admin's compose box are preserved. */
+  .kn-body {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+    font-size: var(--kid-text-caption);
+    line-height: var(--kid-leading-caption);
+    color: var(--kid-muted-fg);
+  }
+
+  .kn-time {
+    font-size: var(--kid-text-caption);
+    line-height: var(--kid-leading-caption);
+    font-weight: 600;
+    color: var(--kid-muted-fg);
+  }
+
+  .kn-chevron {
+    flex: none;
+    margin-top: 0.5rem;
+    color: var(--kid-muted-fg);
+  }
+
+  .kn-loadmore {
+    margin: 1.25rem auto 0;
+  }
 
   .kp {
     display: flex;
@@ -2912,12 +3071,15 @@
   }
 
   .kid-side-icon {
+    position: relative;
     display: grid;
     flex: none;
     place-items: center;
     width: 2rem;
     height: 2rem;
   }
+
+  .kid-side-icon .kid-dot { --kid-dot-ring: var(--surface); top: -1px; right: -1px; }
 
   /* ---------------------------------------------------------- desktop Home */
 

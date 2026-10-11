@@ -33,11 +33,15 @@ export function KidLayout({ children }: { children?: ReactNode }) {
   const desktop = useMediaQuery(LG_UP)
   // A lesson page draws its own slim bar inside its column (LessonLayout), so this one keeps only its safe-area padding.
   const lesson = useRouterState({ select: (st) => /^\/courses\/[^/]+\/lessons\/[^/]+\/?$/.test(st.location.pathname) })
+  // /notifications (migration 042): not a KID_TABS destination (no bottom-nav tab), but it still
+  // gets the desktop sidebar from 1024px — KidSidebar's own hardcoded Notifications item decides
+  // its active state independently, so none of the four regular tabs need to fake-highlight here.
+  const notifications = useRouterState({ select: (st) => st.location.pathname.replace(/\/+$/, '') === '/notifications' })
   // Lesson pages get the same sidebar as the four nav screens from 1024px (ui.md "Lesson
   // pages redesign"): the mobile bottom nav never existed there (the lesson player has
   // always drawn its own bottom edge), so `side` only needs to also reserve the sidebar's
   // space on this one non-tab route.
-  const side = (!!tab || lesson) && desktop
+  const side = (!!tab || lesson || notifications) && desktop
   const [title, setTitle] = useState('')
   const [fallbackPath, setFallbackPath] = useState('/')
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null)
@@ -79,6 +83,8 @@ export function KidLayout({ children }: { children?: ReactNode }) {
           <KidSidebar activeTo={tab.to} />
         ) : lesson && side ? (
           <KidSidebar activeTo="/" forceNavigable />
+        ) : notifications && side ? (
+          <KidSidebar activeTo="/notifications" />
         ) : null}
         <header className="kid-topbar">
           <div className="kid-topbar-row">

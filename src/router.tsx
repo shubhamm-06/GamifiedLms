@@ -14,6 +14,7 @@ import { KidBadgesPage } from '@/pages/KidBadgesPage'
 import { KidCoursesPage } from '@/pages/KidCoursesPage'
 import { KidHomePage } from '@/pages/KidHomePage'
 import { KidProfilePage } from '@/pages/KidProfilePage'
+import { NotificationsPage } from '@/pages/NotificationsPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { PublicCoursePage } from '@/pages/PublicCoursePage'
 import { SignupPage } from '@/pages/SignupPage'
@@ -141,6 +142,13 @@ const lessonRoute = createRoute({
   getParentRoute: () => studentRoute,
   path: 'courses/$courseId/lessons/$lessonId',
   component: LessonPlayerPage,
+})
+
+/** Not a KID_TABS destination on purpose (ui.md "Notifications inbox"): no bottom-nav tab, a sidebar-only entry at >= 1024px. */
+const notificationsRoute = createRoute({
+  getParentRoute: () => studentRoute,
+  path: 'notifications',
+  component: NotificationsPage,
 })
 
 /**
@@ -307,7 +315,7 @@ const routeTree = rootRoute.addChildren([
   signupRoute,
   publicCourseRoute,
   ...devRoutes,
-  studentRoute.addChildren([indexRoute, badgesRoute, coursesRoute, profileRoute, courseRoute, lessonRoute]),
+  studentRoute.addChildren([indexRoute, badgesRoute, coursesRoute, profileRoute, courseRoute, lessonRoute, notificationsRoute]),
   adminRoute.addChildren([
     adminIndexRoute,
     adminUsersRoute,

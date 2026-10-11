@@ -1,8 +1,9 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { ChevronRight, Flame, Sparkles } from 'lucide-react'
+import { Bell, ChevronRight, Flame, Sparkles } from 'lucide-react'
 import { courseContentKey } from '@/hooks/useCourseRoadmap'
 import { useKidProfile } from '@/hooks/useKidProfile'
+import { useNotificationsDot } from '@/hooks/useNotifications'
 import { useFeature, useTerms } from '@/hooks/useSettings'
 import type { CourseContent } from '@/lib/roadmap'
 
@@ -39,6 +40,7 @@ export function StatBar({ courseId }: { courseId: string | null }) {
   const showPills = showStreak || showXp
   const { lower } = useTerms()
   const value = (n: number | undefined) => (n === undefined ? '–' : n)
+  const notificationsDot = useNotificationsDot()
 
   return (
     <div className="kid-statbar" data-testid="stat-bar">
@@ -60,12 +62,23 @@ export function StatBar({ courseId }: { courseId: string | null }) {
           ) : null}
         </ul>
       ) : null}
-      {courseId && title ? (
-        <Link to="/courses" className="kid-statbar-course kid-tap" data-testid="stat-bar-course">
-          <span className="kid-statbar-course-name">{title}</span>
-          <ChevronRight className="size-5 flex-none" aria-hidden />
+      <div className="kid-statbar-right">
+        {courseId && title ? (
+          <Link to="/courses" className="kid-statbar-course kid-tap" data-testid="stat-bar-course">
+            <span className="kid-statbar-course-name">{title}</span>
+            <ChevronRight className="size-5 flex-none" aria-hidden />
+          </Link>
+        ) : null}
+        <Link
+          to="/notifications"
+          className="kid-statbar-bell kid-tap"
+          aria-label={notificationsDot ? 'Notifications, new' : 'Notifications'}
+          data-testid="stat-bar-bell"
+        >
+          <Bell className="size-5" aria-hidden />
+          {notificationsDot ? <span className="kid-dot" aria-hidden /> : null}
         </Link>
-      ) : null}
+      </div>
     </div>
   )
 }

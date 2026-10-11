@@ -1,7 +1,10 @@
-import { Link } from '@tanstack/react-router'
+import { Fragment } from 'react'
+import { Link, useRouterState } from '@tanstack/react-router'
+import { Bell } from 'lucide-react'
 import { Logo } from '@/components/settings/Logo'
 import { useBranding } from '@/hooks/useSettings'
 import { DEFAULT_AVATAR, useKidProfile } from '@/hooks/useKidProfile'
+import { useNotificationsDot } from '@/hooks/useNotifications'
 import * as haptics from '@/lib/haptics'
 import { ProfileAvatar } from './ProfileAvatar'
 import { useKidTabs } from './useKidTabs'
@@ -20,6 +23,11 @@ export function KidSidebar({ activeTo, forceNavigable }: { activeTo: string; for
   const { productName } = useBranding()
   const avatarConfig = profile.data?.avatarConfig ?? DEFAULT_AVATAR
   const tabs = useKidTabs()
+  const notificationsDot = useNotificationsDot()
+  // Not a KID_TABS entry (ui.md "Notifications inbox"): no bottom-nav tab, so it can't ride the
+  // same activeTo mechanism the four regular tabs use (which a lesson page deliberately fakes to
+  // "/"). Its own active state always reflects the real route.
+  const notificationsActive = useRouterState({ select: (st) => st.location.pathname.replace(/\/+$/, '') === '/notifications' })
   return (
     <div className="kid-side" data-testid="kid-sidebar">
       <Link
@@ -38,28 +46,56 @@ export function KidSidebar({ activeTo, forceNavigable }: { activeTo: string; for
             const active = to === activeTo
             const isProfile = to === '/profile'
             return (
-              <li key={to}>
-                <Link
-                  to={to}
-                  activeOptions={{ exact: true }}
-                  className="kid-side-item kid-tap"
-                  aria-current={active ? 'page' : undefined}
-                  data-testid={`nav-${id}`}
-                  onClick={(e) => {
-                    if (active && !forceNavigable) e.preventDefault()
-                    else haptics.tap()
-                  }}
-                >
-                  <span className="kid-side-icon">
-                    {isProfile ? (
-                      <ProfileAvatar config={avatarConfig} name={profile.data?.displayName ?? ''} size={28} data-testid="nav-avatar" />
-                    ) : (
-                      <Icon className="size-6" strokeWidth={active ? 2.75 : 2.25} aria-hidden />
-                    )}
-                  </span>
-                  <span className="kid-side-label">{label}</span>
-                </Link>
-              </li>
+              <Fragment key={to}>
+                <li>
+                  <Link
+                    to={to}
+                    activeOptions={{ exact: true }}
+                    className="kid-side-item kid-tap"
+                    aria-current={active ? 'page' : undefined}
+                    data-testid={`nav-${id}`}
+                    onClick={(e) => {
+                      if (active && !forceNavigable) e.preventDefault()
+                      else haptics.tap()
+                    }}
+                  >
+                    <span className="kid-side-icon">
+                      {isProfile ? (
+                        <ProfileAvatar config={avatarConfig} name={profile.data?.displayName ?? ''} size={28} data-testid="nav-avatar" />
+                      ) : (
+                        <Icon className="size-6" strokeWidth={active ? 2.75 : 2.25} aria-hidden />
+                      )}
+                    </span>
+                    <span className="kid-side-label">{label}</span>
+                  </Link>
+                </li>
+                {/* Sidebar-only (migration 042): the bottom nav stays at exactly four tabs, so this
+                    hangs off the Courses item instead of living in KID_TABS. */}
+                {to === '/courses' ? (
+                  <li>
+                    <Link
+                      to="/notifications"
+                      activeOptions={{ exact: true }}
+                      className="kid-side-item kid-tap"
+                      aria-current={notificationsActive ? 'page' : undefined}
+                      data-testid="nav-notifications"
+                      onClick={(e) => {
+                        if (notificationsActive) e.preventDefault()
+                        else haptics.tap()
+                      }}
+                    >
+                      <span className="kid-side-icon">
+                        <Bell className="size-6" strokeWidth={notificationsActive ? 2.75 : 2.25} aria-hidden />
+                        {notificationsDot ? <span className="kid-dot" aria-hidden /> : null}
+                      </span>
+                      <span className="kid-side-label">
+                        Notifications
+                        {notificationsDot ? <span className="sr-only"> (new)</span> : null}
+                      </span>
+                    </Link>
+                  </li>
+                ) : null}
+              </Fragment>
             )
           })}
         </ul>

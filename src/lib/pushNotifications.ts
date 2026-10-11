@@ -1,5 +1,8 @@
 import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
 import { PushNotifications, type PermissionStatus } from '@capacitor/push-notifications'
+import { router } from '@/router'
+import { queryClient } from './queryClient'
+import { notificationsNewestKey } from './notificationsQueryKeys'
 import { supabase } from './supabase'
 
 /**
@@ -112,15 +115,29 @@ export async function unregisterPushToken(): Promise<void> {
 }
 
 /**
- * A tapped notification (app was backgrounded or fully killed): opens to
- * whatever screen was already showing when it resumes. No deep-linking to a
- * specific lesson/screen in this pass (spec, section 3) — this listener only
- * has to exist so a tap never crashes or leaves the app on a blank screen.
+ * A tapped notification (migration 042): opens the payload's `deep_link` if
+ * present and internal (an external URL or a malformed value falls back to
+ * the inbox itself — never trusted blindly, even though the Edge Function
+ * already validated it server-side), otherwise `/notifications`.
+ *
+ * `router.tsx` statically imports `KidLayout`, which imports this module (for
+ * `registerPushNotifications`) — a cycle back to this static import of
+ * `router`. Safe here because `router` is only read inside a listener
+ * callback, never during this module's own top-level evaluation: by the time
+ * a tap can fire, the whole module graph (router included) has long finished
+ * initializing.
  */
 export function listenForNotificationTaps(): void {
   if (!Capacitor.isNativePlatform()) return
-  void PushNotifications.addListener('pushNotificationActionPerformed', () => {
-    // Intentionally a no-op: the OS already brings the app to the foreground
-    // on its own activity stack, landing wherever it was.
+  void PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+    const data = action.notification.data as Record<string, unknown> | undefined
+    const deepLink = typeof data?.deepLink === 'string' ? data.deepLink : null
+    const target = deepLink && deepLink.startsWith('/') ? deepLink : '/notifications'
+    router.history.push(target)
+  })
+  // A push that arrives while the app is already open: the dot's "newest" half
+  // may now be stale, so refetch it. No toast/banner here (out of scope).
+  void PushNotifications.addListener('pushNotificationReceived', () => {
+    void queryClient.invalidateQueries({ queryKey: notificationsNewestKey })
   })
 }
