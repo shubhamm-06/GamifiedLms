@@ -17,6 +17,9 @@ import { tabForPath } from './kidTabs'
  * the sticky roadmap banners behave. On the four top-level screens (Home, Badges,
  * Courses, Profile) it also shows the bottom nav (`KidNav`) and reports its height
  * through `--kid-bottom-inset` (`data-nav`, kid.css), so the page never sits under it.
+ * `/notifications` (migration 042 follow-up) gets the same bottom nav below 1024px, with
+ * no tab highlighted — it isn't a `KID_TABS` destination, it just borrows `KidNav` with an
+ * `activeTo` that matches none of the four. Its Back button and top-bar title are unaffected.
  * On Home (`data-home`) the bar's row collapses, leaving only the safe-area padding: Home's own
  * stat bar is the first thing on screen and everything sticky measures from what remains.
  */
@@ -69,7 +72,7 @@ export function KidLayout({ children }: { children?: ReactNode }) {
     <KidHeaderContext.Provider value={value}>
       <div
         className="kid-app"
-        data-nav={tab ? 'true' : undefined}
+        data-nav={tab || notifications ? 'true' : undefined}
         data-home={tab?.to === '/' ? 'true' : undefined}
         data-lesson={lesson ? 'true' : undefined}
         data-shell={side ? 'side' : undefined}
@@ -102,7 +105,11 @@ export function KidLayout({ children }: { children?: ReactNode }) {
           </div>
         </header>
         <main className="kid-main">{children ?? <Outlet />}</main>
-        {tab && !side ? <KidNav activeTo={tab.to} /> : null}
+        {/* /notifications (migration 042 follow-up): the same bottom nav as the four tabs, below
+            1024px, but with no tab highlighted — '/notifications' matches none of KID_TABS' `to`
+            values on purpose. At >= 1024px `side` is already true here (above), so this never
+            double-mounts alongside the sidebar. */}
+        {(tab || notifications) && !side ? <KidNav activeTo={tab?.to ?? '/notifications'} /> : null}
         <OfflineBanner />
       </div>
     </KidHeaderContext.Provider>

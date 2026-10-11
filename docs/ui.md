@@ -3161,8 +3161,17 @@ screen reader.
 
 A new view-only student screen (migration 042; `rules.md` "no read-tracking of any kind").
 **Not a `KID_TABS` destination** — the bottom nav stays at exactly four tabs (Home, Badges,
-Courses, Profile), so this is reached only through its two entry points below, never a fifth
-bottom-nav icon.
+Courses, Profile); this screen never adds a fifth icon to it. It is first reached through its
+two entry points below.
+
+**The bottom nav still shows while on `/notifications` itself, below 1024px (2026-10-12
+follow-up)** — the same `KidNav` the four tabs use, mounted with no tab highlighted (its
+`activeTo` is `'/notifications'`, which matches none of `KID_TABS`' four `to` values on
+purpose), so a student can jump straight to Home/Badges/Courses/Profile from the inbox without
+Back. `KidLayout.tsx`'s nav-mount condition became `(tab || notifications) && !side` (was
+`tab && !side`) and `data-nav` follows the same `tab || notifications` test, so the page's
+existing `--kid-bottom-inset` bottom padding (`kid.css`) applies here too — no new CSS. At
+>= 1024px `side` is already true for this route (below), so only the sidebar shows, never both.
 
 **The dot is a single boolean, never a count.** `useNotificationsDot()` (`hooks/useNotifications.ts`)
 compares the newest visible `sent_at` against a device-local last-seen value and renders nothing

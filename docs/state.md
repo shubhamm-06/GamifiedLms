@@ -45,11 +45,12 @@ nav entry is a real route):
   list and a Next button once done; completion now happens automatically after Play
   and the minimum time (`ui.md`). Verified in Chromium against the live project; not yet on
   a device or in the Capacitor webview.
-- `/notifications` (migration 042, 2026-10-11) — the view-only notifications
-  inbox: not a `KID_TABS` tab, reached via a bell+dot in the mobile Home stat
-  bar or a sidebar-only item at >= 1024px (`routes-permissions.md`, `ui.md`
-  "Notifications inbox"). Code review only this round, not live-verified —
-  see "Designed but not built" below.
+- `/notifications` (migration 042, 2026-10-11; bottom-nav follow-up 2026-10-12) — the
+  view-only notifications inbox: not a `KID_TABS` tab, reached via a bell+dot in the
+  mobile Home stat bar or a sidebar-only item at >= 1024px (`routes-permissions.md`,
+  `ui.md` "Notifications inbox"). Below 1024px it now also shows the same bottom nav
+  as the four tabs, with none of them highlighted. Code review only this round
+  (both passes), not live-verified — see "Designed but not built" below.
 - A pathless student layout route (`KidLayout`) gates both on a signed-in
   session only — no role check; RLS and the engine decide what a signed-in
   user may see.
@@ -344,6 +345,16 @@ The schema or docs anticipate each of these; no working code exists for any.
   deployed); and no browser or device was available to check the
   360/390/768/1280 breakpoints by eye. All three are next steps before this
   can be called done, not merely polish.
+- **Follow-up (2026-10-12): `/notifications` now shows the bottom nav below 1024px.**
+  It launched with no bottom nav at all on mobile — a real gap, not a design choice, since
+  every other student screen has one. `KidLayout.tsx`'s nav-mount condition is now
+  `(tab || notifications) && !side` (was `tab && !side`) and `data-nav` follows the same
+  test, so `KidNav` mounts with `activeTo="/notifications"` (matches none of `KID_TABS`,
+  so nothing lights up) and the existing `--kid-bottom-inset` bottom padding applies — no
+  new CSS, no change to Home/Badges/Courses/Profile/the lesson player (all still gated on
+  the unchanged `tab`/`lesson` flags alone). Typecheck/lint/build pass. **Not verified**:
+  no browser or device was available to check 360/390/768px (nav visible, nothing active,
+  last card and Load more clear of the nav) or 1280px (sidebar only) by eye.
 - **Manual push notifications: built, deployed and sent for real** (migration
   031, deployed 2026-09-29, `ui.md` "Push notifications", `schema.md` "Edge
   Functions", `env-deploy.md`). `device_push_tokens`/`notifications_sent`
