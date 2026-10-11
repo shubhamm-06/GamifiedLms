@@ -107,6 +107,7 @@ export async function sendFcmMessage(
   projectId: string,
   target: { topic: string } | { token: string },
   notification: { title: string; body: string },
+  data?: Record<string, string>,
 ): Promise<FcmResult> {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
@@ -115,6 +116,7 @@ export async function sendFcmMessage(
       message: {
         ...target,
         notification,
+        ...(data ? { data } : {}),
         android: { notification: { icon: NOTIFICATION_ICON, color: NOTIFICATION_COLOR } },
       },
     }),
