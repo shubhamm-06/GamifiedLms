@@ -45,6 +45,11 @@ nav entry is a real route):
   list and a Next button once done; completion now happens automatically after Play
   and the minimum time (`ui.md`). Verified in Chromium against the live project; not yet on
   a device or in the Capacitor webview.
+- `/notifications` (migration 042, 2026-10-11) — the view-only notifications
+  inbox: not a `KID_TABS` tab, reached via a bell+dot in the mobile Home stat
+  bar or a sidebar-only item at >= 1024px (`routes-permissions.md`, `ui.md`
+  "Notifications inbox"). Code review only this round, not live-verified —
+  see "Designed but not built" below.
 - A pathless student layout route (`KidLayout`) gates both on a signed-in
   session only — no role check; RLS and the engine decide what a signed-in
   user may see.
@@ -309,6 +314,36 @@ The schema or docs anticipate each of these; no working code exists for any.
   (the builder simply stays open, as before); a cream backdrop is near-invisible; Android WebView not
   exercised (no device; `color-mix()` in SVG `style` and the `useId` gradient ids are the things to watch);
   the mascot fills ~68% of its box, a little smaller than the old emblem (76%), at the same rendered size.
+- **Notifications inbox: schema applied, Edge Function deployed, student UI
+  built and committed — none of it live-verified this round** (migration 042,
+  2026-10-11, `schema.md` section 8b, `routes-permissions.md`, `ui.md`
+  "Notifications inbox", `rules.md`). `notifications_sent` gained
+  `kind`/`show_in_inbox`/`push_sent`/`deep_link`/`deleted_at`/`deleted_by`, a
+  feed index, `v_my_notifications` (new view) and the admin guard
+  trigger/trash-first policies; the original 11 rows confirmed unchanged
+  right after. `send-push-notification` extended (new optional `send_push`/
+  `show_in_inbox`/`deep_link` fields, insert-before-push ordering so a push
+  failure never loses the row) and redeployed as version 4, ACTIVE. The
+  student screen (`/notifications`, a bell+dot in the Home stat bar and the
+  desktop sidebar, `useNotificationsDot`/`useNotificationsFeed`,
+  device-local last-seen via `@capacitor/preferences`/`localStorage`) is
+  written, typechecks, lints and builds clean, and is committed on
+  `feat/notifications-inbox`. **What is NOT verified, and why:** the view's
+  row-visibility logic (join-date gating, enrollment status/expiry,
+  archived/trashed course, user-target isolation), the admin guard trigger
+  and the trash-first delete policy were checked by code review only — a
+  role-switched SQL fixture script (the same shape every other migration in
+  this schema used successfully) was declined this session, and the user
+  chose to verify independently rather than retry; the Edge Function's new
+  optional-field behavior (`send_push=false`, both-false 400, bad
+  `deep_link` 400, omitted-fields backward-compat) was not exercised with a
+  real HTTP call either, since no service-role key or admin bearer token was
+  obtainable without either emailing the real admin account or leaving a
+  temporary test-harness function deployed in a project that holds demo data
+  for a platform video (no tool exists here to delete an Edge Function once
+  deployed); and no browser or device was available to check the
+  360/390/768/1280 breakpoints by eye. All three are next steps before this
+  can be called done, not merely polish.
 - **Manual push notifications: built, deployed and sent for real** (migration
   031, deployed 2026-09-29, `ui.md` "Push notifications", `schema.md` "Edge
   Functions", `env-deploy.md`). `device_push_tokens`/`notifications_sent`
@@ -475,6 +510,11 @@ None.
    roadmap currently has no entry point.
 5. Decide enrollment expiry (below) before any student is expected to lose access.
 6. Run the Android Back and haptics checks on a real device (`env-deploy.md`), then a Capacitor session audit.
+7. Verify the notifications inbox live: role-switched SQL against `v_my_notifications` (all-target
+   join-date gating, course-target enrollment/expiry/archived/trashed branches, user-target
+   isolation), a real HTTP call to the extended `send-push-notification` (the four new-field
+   scenarios), and the `/notifications` screen + bell/dot at 360/390/768/1280px in a real browser
+   or device.
 
 ## Open decisions & on the horizon
 

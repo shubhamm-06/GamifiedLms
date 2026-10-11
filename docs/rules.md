@@ -674,3 +674,23 @@ belongs in `context.md` or `state.md`, not here.
   hardware-back fallback (`lib/backButton.ts`'s `fallbackFor`) alike (`routes-permissions.md`, `ui.md` "Lesson pages
   redesign") — a future lesson-player screen that adds its own exit action must follow the same target, not
   re-introduce a roadmap-bound link the rest of the shell has deliberately moved away from.
+- **No read-tracking of any kind for the notifications inbox lives in the database, ever (migration 042, locked
+  product decision).** No `notification_reads` table, no mark-read/mark-all-read mutation, no unread-count RPC or
+  column. "Unread" is a plain coral dot, never a number, computed entirely on the device from a locally-stored
+  last-seen timestamp (`notificationsLastSeen.ts`) — never written to `notifications_sent` or any new table. A
+  future feature wanting per-student read state is a product conversation first, not an additive migration.
+- **`public.v_my_notifications` must stay airtight on its own** — it is a `SECURITY DEFINER` view and bypasses RLS
+  on `notifications_sent`/`enrollments`/`profiles` entirely, the same shape as `profiles_public` and
+  `quiz_questions_public`. Any change to its `where` clause must keep covering all three target types
+  (`all`/`course`/`user`), the join-date gate, `show_in_inbox`, `deleted_at`, and the stricter-than-`fn_is_enrolled`
+  `expires_at` check — and must never add `sent_by` or any other admin-audit column to its SELECT list.
+- **Students can only view the notifications inbox — no delete, no dismiss, no mark-read, ever, by any client
+  role.** `notifications_sent` has no client write policy at all beyond the admin-only, column-guarded
+  UPDATE/DELETE (migration 042, same shape as `payments`' guard + trash-first delete). A soft-deleted
+  (`deleted_at` set) notification disappears from every student's inbox at once — there is no per-student
+  dismiss state to reconcile.
+- **The kid app's bottom nav (`KidNav`/`KID_TABS`) stays at exactly four destinations — Home, Badges, Courses,
+  Profile.** Notifications (migration 042) is deliberately NOT a `KID_TABS` entry: it is a sidebar-only item at
+  >= 1024px (`KidSidebar`, hand-inserted after Courses, not derived from the shared tabs array) and a bell icon
+  in the mobile Home stat bar — never a fifth bottom-nav tab. A future screen reaching for "just add it to
+  `KID_TABS`" breaks this.

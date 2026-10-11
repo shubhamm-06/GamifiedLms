@@ -3156,3 +3156,75 @@ all confirmed by reading the DOM/computed styles, not just a screenshot. A real 
 same pass, confirming XP/completion are unaffected. Not independently re-verified this round
 (unchanged from the 2026-10-08 redesign, still true): a real device/the Capacitor webview, a
 screen reader.
+
+### Notifications inbox (2026-10-11): `/notifications`, bell + coral dot
+
+A new view-only student screen (migration 042; `rules.md` "no read-tracking of any kind").
+**Not a `KID_TABS` destination** — the bottom nav stays at exactly four tabs (Home, Badges,
+Courses, Profile), so this is reached only through its two entry points below, never a fifth
+bottom-nav icon.
+
+**The dot is a single boolean, never a count.** `useNotificationsDot()` (`hooks/useNotifications.ts`)
+compares the newest visible `sent_at` against a device-local last-seen value and renders nothing
+at all while either half is loading or failed — never a dot that flashes on then off. It
+refetches on window focus, on Capacitor `appStateChange` resume, and when a foreground push
+invalidates it (`lib/pushNotifications.ts`'s `pushNotificationReceived` listener); otherwise a
+60s `staleTime`, no polling.
+
+**Entry points**, both a plain icon button/link with the dot as a small absolutely-positioned
+coral circle at its top-right corner, a ring in the surface behind it (`--kid-dot-ring`, `kid.css`)
+so it reads as a cutout rather than a flat circle on top of the icon:
+- **Mobile**: a bell in `StatBar.tsx`'s right-hand group (`.kid-statbar-right`, which now owns
+  the `margin-left: auto` that used to sit directly on the course-name link, so the bell still
+  lands at the far right even when the course link isn't rendered). `aria-label` says "Notifications,
+  new" when the dot is on.
+- **Desktop (>= 1024px)**: a fifth, hand-inserted `<li>` in `KidSidebar.tsx`'s list, right after
+  Courses — NOT part of the `KID_TABS`-driven `.map()` (that array stays four long), with its own
+  active-state check (`useRouterState` matching `/notifications` exactly) independent of the
+  `activeTo` prop the four regular tabs use. `KidLayout.tsx`'s `side` boolean gained a third
+  disjunct (`notifications`, alongside `tab` and `lesson`) so the sidebar and its
+  `.kid-app[data-shell='side']` 68.75rem shell still mount on this non-tab route — but unlike the
+  lesson-route case, nothing forces a fake "Home" highlight: none of the four regular tabs show
+  active here, only the sidebar's own Notifications item does.
+
+**The page** (`NotificationsPage.tsx`) is a single, narrower column than the other desktop
+screens on purpose — `.kn-page`, `max-width: 45rem` (~720px), centred, inside the existing
+68.75rem shell — since this is a list of short messages, not a grid or a form. Mobile: the
+ordinary top bar with Back (this route isn't a `KID_TABS` tab, so `KidLayout` shows Back for it
+automatically, the same as any other non-tab student route) and the title "Notifications"
+(`useKidHeader`). Cards (`.kn-card`, built on the shared `.kid-card` — 26px radius, `--surface`,
+`var(--kid-shadow)`): a kind icon (Megaphone for `announcement`, Bell for `system`) in a muted
+circle, bold title, the full body with line breaks preserved (`white-space: pre-line`, never
+truncated), a relative time (`lib/notificationTime.ts` — "2h ago" within six days, a short date
+beyond that) and a chevron only when `deep_link` is set. Only a deep-linked card is an actual
+`<button>` (whole card tappable, in-app `router.history.push`); a card with no `deep_link` renders
+as a plain, non-interactive `<div>` with the same classes. A card newer than the frozen last-seen
+snapshot (below) gets a small coral dot on its icon plus a soft coral-tinted background
+(`[data-new='true']`) — never a border, never a number. Infinite query, page size 50, a manual
+"Load more" button — no auto-scroll, no realtime (locked decisions). Loading: four skeleton
+cards. Empty: the shared `Screen` component, Bell icon, "No notifications yet" / "Messages from
+your teachers will show up here." Error: the shared `RetryScreen`.
+
+**"New" highlighting is a frozen snapshot, not a live comparison.** `useNotificationsFeed()`
+reads the device's last-seen value once, before it advances it — so a card a student is still
+reading doesn't lose its highlight mid-read when the hook turns around and marks everything seen.
+Last-seen itself (`lib/notificationsLastSeen.ts`): Capacitor Preferences on native, `localStorage`
+on web, one helper, keyed `notif_last_seen:<userId>` (a shared device never leaks one student's
+seen-state into another's). No stored value means "never seen anything" — every row counts as
+new, once. Nothing here is ever written to the database (`rules.md`).
+
+**Push tap handling is real now** (`lib/pushNotifications.ts`'s `listenForNotificationTaps`,
+previously a deliberate no-op): a tap opens the payload's `deep_link` if it's present and starts
+with `/` (an external URL or malformed value falls back to the inbox itself — never trusted
+blindly even though the Edge Function validated it server-side), otherwise `/notifications`. A
+new `pushNotificationReceived` listener invalidates the dot query when a push arrives in the
+foreground. `router`/`queryClient` are the same module-level singleton imports `main.tsx` itself
+uses — safe here despite `router.tsx` statically importing `KidLayout` which imports this very
+module (a real cycle) because both are only read inside listener callbacks, long after the whole
+module graph has finished initializing.
+
+Not independently verified this round: no browser/device was available in this session to check
+the three stated breakpoints (360/390/768/1280) by eye, or the real Capacitor webview and a
+screen reader — typecheck, lint and a production build all pass, and the component/CSS structure
+mirrors the already-verified Badges/Courses screens' conventions (`Screen`/`RetryScreen`, skeleton
+shape, `.kid-card`).

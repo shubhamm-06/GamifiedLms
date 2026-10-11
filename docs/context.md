@@ -13,7 +13,8 @@ build phase: admin-facing tooling only, no student-facing UI.
   `@capacitor/haptics` 8.0.2 (`lib/haptics.ts`), `@capacitor/filesystem`, `@capacitor/screen-orientation`,
   `@capacitor/keyboard` 8.0.5 + `lib/nativeShell.ts` (`html[data-native]`, `html[data-keyboard='open']`),
   `@capacitor/network` 8.0.1 (`hooks/useOnline.ts`), `@capacitor-community/keep-awake` 8.0.1 (`hooks/useKeepAwake.ts`),
-  `@capacitor/push-notifications` 8.1.2 (`lib/pushNotifications.ts`; FCM, migration 031; both Edge Functions deployed and exercised against real FCM 2026-09-29)
+  `@capacitor/push-notifications` 8.1.2 (`lib/pushNotifications.ts`; FCM, migration 031; both Edge Functions deployed and exercised against real FCM 2026-09-29),
+  `@capacitor/preferences` 8.0.1 (device-local, per-user key-value storage; `lib/notificationsLastSeen.ts`, migration 042 — native only, `localStorage` is the web fallback)
 - Native shell: `initNativeShell()` in `main.tsx` runs before render (no-op on web); native-only CSS is gated
   on `html[data-native]`. Safe-area insets = `--sa-top/right/bottom/left` tokens (`styles.css`):
   `var(--safe-area-inset-X, env(safe-area-inset-X, 0px))`; Capacitor 8 SystemBars injects the vars
@@ -123,7 +124,8 @@ src/
                games/, orders/, settings/, gamification/; plus selection/
                (the shared multi-select kit) and trash/ (Trash page table + dialogs)
   pages/       route-level components: KidHomePage (`/`, the kid Home), KidCoursesPage, KidBadgesPage,
-               KidProfilePage (the other three bottom-nav screens), LoginPage, SignupPage,
+               KidProfilePage (the other three bottom-nav screens), NotificationsPage (`/notifications`,
+               not a bottom-nav tab), LoginPage, SignupPage,
                CoursePage (the kid-facing course roadmap), PublicCoursePage (the signed-out parent-facing course page, `/course/$id`), LessonPlayerPage
                (the kid-facing lesson player);
                admin/ (Dashboard, Users, UserDetail, Courses, CourseCreate,
@@ -136,7 +138,8 @@ src/
                useCourseRoadmap (merges course content + engine states into the
                roadmap the course page renders), useCourseRef (course slug or id from the URL to the course id), useCourseInfo (course row +
                fn_course_outline + own enrollment history, for the not-enrolled page), useEnrollFreeCourse (the free-course
-               Enroll button: fn_enroll_free_course + cache refresh; pure wording/links in lib/freeEnrollment.ts), useMediaQuery; admin/ has
+               Enroll button: fn_enroll_free_course + cache refresh; pure wording/links in lib/freeEnrollment.ts), useMediaQuery,
+               useNotifications (the infinite feed + the bell-dot query, both over v_my_notifications; migration 042); admin/ has
                one file per domain (useUsers, useUserMutations, useUserDetail,
                useCourses, useCoursePage (the Course page tab's save), useCurriculum, useGames, usePayments,
                useManualOrderProviders, useCurrencies, useBadges,
@@ -157,7 +160,8 @@ src/
                one schema and limit set for those columns, mirrors the DB CHECKs) and coursePageForm.ts (the admin form's values,
                validation, row mapping),
                slug.ts, video.ts, utils.ts,
-               trash.ts (soft delete/restore), permanentDelete.ts (Trash page only)
+               trash.ts (soft delete/restore), permanentDelete.ts (Trash page only),
+               notificationsLastSeen.ts, notificationTime.ts, notificationsQueryKeys.ts (migration 042)
   index.css    Tailwind entry: `@theme inline` exposes the tokens as utilities,
                shadcn tokens, Geist font; imports styles.css then kid.css
   styles.css   brand tokens (incl. `--surface`) + `.auth-page`/`.admin-shell`
@@ -325,6 +329,8 @@ migrations `<timestamp>_<NNN>_<description>.sql` in `supabase/migrations/`.
 - Gotcha: `index.css`'s `@theme inline` already owns `--font-heading` as a Tailwind design token (`font-heading` utility -> `--font-sans`/Geist); it's unlayered, so it beats ANY `@layer components` rule setting the same property name regardless of selector specificity or source order. The Settings fonts feature's runtime CSS vars are therefore named `--learner-font-heading`/`--learner-font-body`, not `--font-heading`/`--font-body` — never rename them back (`rules.md`)
 - Gotcha: TanStack Router's `<Link>` auto-sets `aria-current="page"` by fuzzy/prefix route matching unless `activeOptions={{ exact: true }}` is passed — `KidNav`/`KidSidebar` need it on every item (`rules.md`); `AdminLayout.tsx` already needed the same fix once before
 - Settings (migration 041): `lib/settings/{schema,store,terms,termsCore,fonts}.ts`, `lib/theme.ts`, `components/settings/{SettingsProvider,Logo}.tsx`, `hooks/useSettings.ts`, admin tabs in `components/admin/settings/site/` (Appearance = Colors + Fonts). `bootSettings()` runs before React. Never hardcode term words, a fixed text colour on gold/teal, or a kid/auth `font-family` (`ui.md` "Settings system")
+- Notifications inbox (migration 042): read-time feed, no per-student rows — a notification is stored once in `notifications_sent` and a student's inbox is computed at query time by `v_my_notifications` (target type + join-date/enrollment-expiry gating; `schema.md` 8b). No read-tracking anywhere, ever (`rules.md`); "unread" is one boolean dot, never a count, from a device-local last-seen timestamp (`lib/notificationsLastSeen.ts`) compared against a shared query key (`lib/notificationsQueryKeys.ts`) — not a context, so the Home stat bar bell, the desktop sidebar item and the inbox page itself all read/invalidate the same cache entry. `hooks/useNotifications.ts` has both the infinite feed and the dot hook. Not a `KID_TABS` entry — `KidSidebar.tsx` hand-inserts it after Courses; `KidLayout.tsx`'s `side` boolean gained a third disjunct for this one non-tab route
+- Cross-module circular import, deliberate and safe: `router.tsx` statically imports `KidLayout` which imports `lib/pushNotifications.ts` (for `registerPushNotifications`), which itself statically imports `router` back from `@/router` (for push-tap navigation). Safe only because `router` is read inside a listener callback, never at this module's own top-level evaluation — the whole graph has finished initializing by the time a tap can fire. Don't add a NEW module-top-level use of a value from the other side of a cycle like this without re-checking that ordering
 - Cleanup keep-list (looks unused, is not; do not remove): `supabase/migrations`, DB objects with no JS caller (validator/RLS/trigger functions such as `fn_is_admin`, `course_*_is_valid`), the generated `lib/database.types.ts`, shadcn `components/ui/*` exports, installed Capacitor plugins awaiting native polish, the locked design tokens, `scripts/check-*.mjs`, `console.error` logging in hooks and Edge Functions, and `docs/reference/*`
 
 ## HUMAN-ZONE (narrative, for a person skimming to get oriented)

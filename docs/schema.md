@@ -649,16 +649,18 @@ service account secret and Edge Function deploy are still pending
   raw token through RLS; the only cross-user read is the
   `send-push-notification` Edge Function's service-role client, which
   bypasses RLS entirely. `rules.md` has this as a standing invariant.
-- **`notifications_sent`** — an append-only audit log: `id`, `sent_by` (→
+- **`notifications_sent`** — now both an append-only audit log **and** the
+  notifications-inbox store (migration 042, below): `id`, `sent_by` (→
   `profiles(id)`, the admin), `title`, `body`, `target_type` (`'all' |
   'course' | 'user'`, `check`), `target_course_id` / `target_user_id`
   (nullable FKs, a `check` constraint enforces exactly one is set per
   `target_type`, or neither for `'all'`), `recipient_count` (nullable —
   `null` for a topic send, since FCM does not report topic subscriber
-  counts, never guessed), `sent_at`. RLS: admin SELECT only
-  (`fn_is_admin()`); **no INSERT/UPDATE/DELETE policy for any client role**
-  — only the Edge Function's service-role client writes it, same "permanent
-  record" shape as `deletion_requests` (migration 027).
+  counts, never guessed), `sent_at`, plus migration 042's `kind`,
+  `show_in_inbox`, `push_sent`, `deep_link`, `deleted_at`, `deleted_by`
+  (below). RLS: admin SELECT only (`fn_is_admin()`), plus 042's admin
+  UPDATE/DELETE (below); **still no INSERT policy for any client role** —
+  only the Edge Function's service-role client inserts it.
 
 Verified by role-switched SQL (fixtures `zz-push-a`/`zz-push-b@example.test`,
 removed after, `changelog.md`): a user can insert/select/update/delete only
@@ -667,6 +669,61 @@ blocked by RLS (not just refused by a client-side check); reading, updating
 or deleting another user's row silently affects zero rows; a non-admin
 selecting or inserting into `notifications_sent` is blocked; the primary
 admin can select it.
+
+### 8b. Notifications inbox (migration 042)
+
+Turns `notifications_sent` into the student inbox's source of truth too —
+read-time feed, no per-student rows, **no read-tracking in the database at
+all** (`rules.md`; "unread" is computed entirely on the device from a
+locally-stored last-seen timestamp). Admin compose/trash UI for this is a
+later task; this migration is schema + the Edge Function + the read-only
+student screen only.
+
+- New `notifications_sent` columns: `kind` (`'announcement' | 'system'`,
+  default `'announcement'` — `'system'` is reserved for a future automatic
+  notification; 042 sends none), `show_in_inbox boolean not null default
+  true` (false hides a row from every student's inbox without touching
+  push — a push-only reminder with nothing worth keeping in history),
+  `push_sent boolean` (set by the Edge Function after it attempts push;
+  always `true`/`false` once the function has run — `true` on success,
+  `false` on outright failure or when `send_push` was false, never left
+  `null` after the request completes), `deep_link text` (must start with
+  `/` and be ≤ 200 chars, or null — an in-app path only, never an external
+  URL), `deleted_at` / `deleted_by` (admin soft delete, below).
+- **`public.v_my_notifications`** (new view, migration-003-pattern
+  `SECURITY DEFINER`, locked down the migration-016 way): the signed-in
+  student's own feed, exposing only `id, title, body, kind, deep_link,
+  sent_at` — **never `sent_by` or any other audit column**. A row is visible
+  only when `deleted_at is null and show_in_inbox`, and one of: `target_type
+  = 'all'` and `sent_at >= profiles.created_at` (joined after the student
+  signed up only); `target_type = 'user'` and `target_user_id = auth.uid()`;
+  or `target_type = 'course'` and the course is reachable
+  (`fn_course_is_reachable` — published, not trashed) and the caller has an
+  **active** enrollment in it with `enrolled_at <= sent_at` and (`expires_at
+  is null or expires_at > now()`). That last `expires_at` check is
+  deliberately stricter than `fn_is_enrolled`, which does not read
+  `expires_at` at all (see the "Finding, not changed" note below) — a
+  notification for a course a student's access has since expired on should
+  not keep showing, even though nothing else in the engine enforces that
+  yet. `revoke all … grant select to authenticated` (016's lesson).
+- Admin soft delete (schema only — the admin UI is a later task):
+  `fn_guard_notifications_sent_admin_update()` (payments-guard shape,
+  migration 009) blocks every column but `deleted_at`/`deleted_by` from
+  changing outside `service_role`; `notifications_sent_admin_update`
+  (`fn_is_admin()`) and `notifications_sent_admin_delete` (`fn_is_admin()
+  and deleted_at is not null` — permanent delete only from trash, same
+  shape as `payments_admin_delete_from_trash`).
+- `send-push-notification` (below) now accepts optional `send_push` /
+  `show_in_inbox` / `deep_link` fields and writes the row **before**
+  attempting FCM, so a push failure never loses the inbox entry.
+- **Not verified by live role-switched SQL this time** (declined this
+  session — see `changelog.md` 2026-10-11): the view's visibility logic
+  (join-date gating, enrollment status/expiry, archived/trashed course,
+  user-target isolation), the admin guard trigger, and the trash-first
+  delete policy were checked by code review only, mirroring the already-
+  verified `fn_guard_payment_admin_update` / `payments_admin_delete_from_trash`
+  shapes line-for-line. The 11 pre-existing rows were confirmed unchanged
+  (`total_rows: 11, deleted: 0`) right after the migration applied.
 
 ---
 
@@ -1022,6 +1079,16 @@ authenticated` and grant only `SELECT` (`rules.md`).
   A preview lesson's questions (and its `lessons` row) are readable by any
   signed-in user, a trashed one included — that is what the existing `lessons`
   policy does for previews, and the views mirror it.
+- **`v_my_notifications`** (`id`, `title`, `body`, `kind`, `deep_link`,
+  `sent_at` — migration 042, section 8b above) — definer because
+  `notifications_sent` RLS is admin-only and a student must read their own
+  targeted subset of it without ever seeing `sent_by` or other admin audit
+  columns. Its own `where` clause is the only "row security" (it bypasses
+  RLS on `notifications_sent`/`enrollments`/`profiles` the same way
+  `profiles_public` and `quiz_questions_public` do), so every branch of that
+  clause has to be airtight on its own — see 8b for exactly what it checks.
+  `SELECT` to `authenticated` only (016's lesson, applied from the start
+  this time rather than fixed after the fact).
 
 ---
 
@@ -1045,6 +1112,7 @@ Live as of migration 014 (introduced across migrations 002–014).
 | `trg_courses_updated_at` | `BEFORE UPDATE courses` | `fn_set_updated_at` (generic `updated_at` setter) | Sets `updated_at = now()` |
 | `trg_profiles_prevent_role_change` | `BEFORE UPDATE profiles` | `fn_prevent_role_change` | Blocks `role` changes unless `service_role` or `fn_is_admin()` |
 | `trg_payments_guard_admin_update` | `BEFORE UPDATE payments` | `fn_guard_payment_admin_update` | Blocks any column but `reconciliation_status`/`reconciliation_note`/`deleted_at` (migration 009) from changing outside `service_role` |
+| `trg_notifications_sent_guard_admin_update` | `BEFORE UPDATE notifications_sent` | `fn_guard_notifications_sent_admin_update` (migration 042) | Same shape as the payments guard: blocks any column but `deleted_at`/`deleted_by` from changing outside `service_role` |
 
 **`fn_compute_level(total_xp)`** (rewritten in migration 012) — `select
 coalesce(max(level), 1) from level_thresholds where xp_required <=
@@ -1160,7 +1228,7 @@ explicitly; don't lean on this.
 | `level_thresholds` | any authenticated (not `anon`) | admin | admin | admin |
 | `deletion_requests` | self (not trashed) or admin | self (own `user_id`, not trashed) | — | — |
 | `device_push_tokens` | self (own `user_id`, not trashed) only — **no admin policy** | self (own `user_id`, not trashed) | self (own `user_id`, not trashed) | self (own `user_id`, not trashed) |
-| `notifications_sent` | admin only | — (`service_role` only, no policy) | — | — |
+| `notifications_sent` | admin (base table) only — students read through `v_my_notifications` instead | — (`service_role` only, no policy) | admin, column-guarded to `deleted_at`/`deleted_by` only (migration 042) | admin, only when `deleted_at IS NOT NULL` (migration 042) |
 
 Blank cells mean no policy exists — RLS defaults to deny, so that operation
 is impossible for `anon`/`authenticated`. The `user_stats_select_public` and
@@ -1176,6 +1244,11 @@ Two `SELECT` layers on `quiz_questions`: the base table's policy is
 admin-only. Students must always read through `quiz_questions_public`
 instead, which strips `correct_option` **and `explanation`** (migration 017) and only
 shows the questions of a lesson the student has unlocked (or a preview lesson).
+
+Same shape on `notifications_sent` (migration 042): its own SELECT policy
+stays admin-only, and a student reads their own targeted subset only
+through `v_my_notifications`, which strips `sent_by` and every other audit
+column.
 
 ---
 
@@ -1268,9 +1341,32 @@ FCM does not report topic subscriber counts). `'course'` looks up
 course; `'user'` looks up that one user's tokens (a student can have more
 than one device). Per-token sends run through `_shared/fcm.ts`'s
 `mapWithConcurrency` (limit 10); one bad or stale token is recorded as a
-failure and never aborts the rest. Always logs one `notifications_sent` row
-at the end, with the real count of successful sends (never a guess) — even a
-zero-recipient send is logged, so the history table reflects every attempt.
+failure and never aborts the rest, and still counts as `push_sent: true`
+with the successful-only `recipientCount`.
+
+**Extended 2026-10-11 (migration 042, deployed as version 4) for the
+notifications inbox.** Three new optional body fields: `send_push` (default
+`true`), `show_in_inbox` (default `true`), `deep_link` (optional, must start
+with `/` and be ≤ 200 chars — a 400 if not). A 400 if both `send_push` and
+`show_in_inbox` are false (nothing would come of the call). Omitting all
+three behaves exactly as before. **Order changed:** the `notifications_sent`
+row is now inserted **first** (admin check → validate → insert), *then* push
+is attempted (only if `send_push`) and `push_sent`/`recipient_count` are
+updated on the row afterward — so a push failure can never lose the inbox
+entry; the row stays, and the response says the push failed but the
+notification was saved. `push_sent` is `true` on success, `false` on an
+outright push failure (topic rejected, token/enrollment lookup or FCM auth
+threw) or when `send_push` was false — never left `null` once the function
+has returned. `deep_link` and the new row's `id` ride along in the FCM
+`data` payload (`_shared/fcm.ts`'s `sendFcmMessage` gained an optional
+`data` parameter) so a tapped notification can deep-link client-side.
+**Not exercised against a live HTTP call this session** (no service-role
+key or admin bearer token obtainable without either emailing the real admin
+account or leaving a temporary test harness function deployed in a project
+that holds demo data for a platform video — declined both; see
+`changelog.md` 2026-10-11): verified by code review and by the dependent
+migration-042 schema already confirming the insert/update/guard-trigger
+mechanics independently.
 
 ### `register-push-token` — **deployed, ACTIVE**
 
@@ -1359,6 +1455,8 @@ table.
 | 040 | `20261007000000_040_enroll_free_course.sql` | 2026-10-02 (via the Supabase MCP `apply_migration`, name `enroll_free_course`) | `fn_enroll_free_course(uuid)`: self-enrollment for free courses (above). No policy or table change. Verified role-switched (21 checks). The `course_not_found` error class was changed from `P0002` (HTTP 500) to `P0001` (HTTP 400) right after applying, by re-running the same `CREATE OR REPLACE`; the file holds the final text |
 | 041 | `20261008000000_041_site_config.sql` | 2026-10-05 (applied through the Supabase CLI over the pooler, statement by statement; history row inserted by hand, name `041_site_config`) | Admin Settings Phase 1: `site_config` + `site_config_audit`, stamp/audit triggers, admin-only RLS, `get_public_settings()` (anon + authenticated), the public `branding` storage bucket with admin-only write policies (section "Admin Settings" above). `database.types.ts` was hand-merged (the CLI type generator could not connect) |
 | 032 | `20260930000000_032_avatar_config_v2.sql` | 2026-09-30 (live version `20260930161331`, name `avatar_config_v2`, via the Supabase MCP `apply_migration`; the filename timestamp differs from the live version, as with earlier migrations) | New immutable `public.avatar_config_is_valid(jsonb)` (`search_path = ''`) and `profiles_avatar_config_shape_check` now calls it. Accepts NULL, the legacy 026 shape unchanged, and the v2 shape (all keys required except `tints`; no other keys; each value from its fixed set; tints only for the four slots with a known swatch; <= 1 KB). The old CHECK rejected any extra key, so the richer config could not be saved: a migration was unavoidable. Checked with 12 direct calls (null, legacy ok, legacy missing key rejected, v2 ok with and without tints, bad value, extra key, bad tint value, bad tint key, v2 missing keys, array) and the one stored row still validates. No table, column, policy or RLS change; `database.types.ts` gained the function |
+| 042 | `20261011000000_042_notifications_inbox.sql` | 2026-10-11 (live version `20261011171650`, via the Supabase MCP `apply_migration`) | Notifications inbox (section 8b above): `notifications_sent` gains `kind`/`show_in_inbox`/`push_sent`/`deep_link`/`deleted_at`/`deleted_by`, the feed index, `v_my_notifications` (new view), the admin guard trigger and trash-first UPDATE/DELETE policies. The pre-existing 11 rows confirmed unchanged right after (`total_rows: 11, deleted: 0`). Visibility logic verified by code review only this time, not live role-switched SQL (declined — `changelog.md`) |
+| 043 | `20261011171650_043_notifications_push_sent_comment_fix.sql` | 2026-10-11 (live version `20261011171650`, via the Supabase MCP `apply_migration`; file written after the fact, matching the applied content exactly) | Comment-only fix: 042's own `push_sent` column comment said it stays `null` for a never-attempted push; the Edge Function (section above) actually always resolves it to `true`/`false`. No schema, data or type change |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named
