@@ -12,6 +12,7 @@ const TAB_LABEL: Record<TrashEntity, string> = {
   games: 'Games',
   badges: `${tw().terms('badge')}`,
   users: 'Users',
+  notifications: 'Notifications',
 }
 
 /**

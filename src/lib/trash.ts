@@ -13,7 +13,7 @@ import { getTerms as tw } from '@/lib/settings/terms'
  * not, so one failure never aborts the rest ("8 moved, 2 failed").
  */
 
-export type TrashEntity = 'courses' | 'modules' | 'lessons' | 'games' | 'badges' | 'users'
+export type TrashEntity = 'courses' | 'modules' | 'lessons' | 'games' | 'badges' | 'users' | 'notifications'
 
 export interface TrashItem {
   id: string
@@ -41,6 +41,7 @@ export const ENTITY_NOUN: Record<TrashEntity, { one: string; many: string }> = {
   games: { one: 'game', many: 'games' },
   badges: { get one() { return tw().lower('badge') }, get many() { return tw().lower('badge', true) } },
   users: { one: 'user', many: 'users' },
+  notifications: { one: 'notification', many: 'notifications' },
 }
 
 /** Parents before children, so restoring a mixed set never trips over its own parent. */
@@ -49,11 +50,15 @@ export const RESTORE_RANK: Record<TrashEntity, number> = {
   games: 0,
   badges: 0,
   users: 0,
+  notifications: 0,
   modules: 1,
   lessons: 2,
 }
 
-type ContentTable = Exclude<TrashEntity, 'users'>
+type ContentTable = Exclude<TrashEntity, 'users' | 'notifications'>
+
+/** `notifications`' real table is `notifications_sent` — every other entity's key is already its table name. */
+const NOTIFICATIONS_TABLE = 'notifications_sent'
 
 /** Runs `fn` over `items` with at most `limit` in flight; results keep input order. */
 export async function mapLimit<T, R>(
@@ -109,11 +114,17 @@ async function trashOne(entity: TrashEntity, item: TrashItem): Promise<string | 
     }
   }
 
+  // `notifications_sent` has its own guard trigger (migration 042, column-locked
+  // to deleted_at/deleted_by) and its own `fn_stamp_deleted_by` trigger (045) —
+  // same shape as every other content table below, just a different table name
+  // than its entity key.
+  const table = entity === 'notifications' ? NOTIFICATIONS_TABLE : (entity as ContentTable as 'courses')
+
   // `.select('id')` + the row-count check is the point: a write that RLS
   // filters to zero rows returns NO error, and the old delete hooks that only
   // looked at `error` reported success for a delete that never happened.
   const { data, error } = await supabase
-    .from(entity as ContentTable as 'courses')
+    .from(table)
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', item.id)
     .is('deleted_at', null)
@@ -157,8 +168,9 @@ async function restoreOne(entity: TrashEntity, item: TrashItem): Promise<string 
   const blocked = await restoreBlocker(entity, item)
   if (blocked) return blocked
 
+  const table = entity === 'notifications' ? NOTIFICATIONS_TABLE : (entity as ContentTable as 'courses')
   const { data, error } = await supabase
-    .from(entity as ContentTable as 'courses')
+    .from(table)
     .update({ deleted_at: null })
     .eq('id', item.id)
     .not('deleted_at', 'is', null)

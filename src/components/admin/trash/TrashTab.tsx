@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTableSelection } from '@/components/admin/selection/useTableSelection'
@@ -7,7 +8,7 @@ import { PermanentDeleteDialog } from '@/components/admin/trash/PermanentDeleteD
 import { RestoreConfirmDialog } from '@/components/admin/trash/RestoreConfirmDialog'
 import { TrashTable } from '@/components/admin/trash/TrashTable'
 import { useTrashedRows, type TrashRow } from '@/hooks/admin/useTrash'
-import { useTrashActions } from '@/hooks/admin/useTrashActions'
+import { describeFailures, useTrashActions } from '@/hooks/admin/useTrashActions'
 import { ENTITY_NOUN, type TrashEntity, type TrashItem } from '@/lib/trash'
 import { getTerms as tw } from '@/lib/settings/terms'
 
@@ -18,6 +19,7 @@ const NAME_HEADER: Record<TrashEntity, string> = {
   games: 'Game',
   badges: `${tw().term('badge')}`,
   users: 'User',
+  notifications: 'Notification',
 }
 
 const toItem = (row: TrashRow): TrashItem => ({ id: row.id, name: row.name, slug: row.slug })
@@ -44,6 +46,31 @@ export function TrashTab({ entity }: { entity: TrashEntity }) {
   const selectedRows = rows.filter((r) => selection.rowSelection[r.id])
 
   async function doRestore(target: TrashRow[]) {
+    // Notifications get their own toast wording ("visible in student inboxes
+    // again" — the consequence that matters here, not a generic item count):
+    // announce: false suppresses the shared hook's own toast so this one
+    // doesn't double up.
+    if (entity === 'notifications') {
+      const result = await restore([{ entity, items: target.map(toItem) }], { announce: false })
+      selection.removeIds(result.succeeded.map((item) => item.id))
+      setRestoreTargets([])
+      const n = result.succeeded.length
+      const f = result.failed.length
+      if (n > 0 && f === 0) {
+        toast.success(
+          n === 1
+            ? 'Restored. It is visible in student inboxes again.'
+            : `Restored ${n} notifications. They are visible in student inboxes again.`,
+        )
+      } else if (n > 0) {
+        toast.warning(`${n} restored, ${f} failed`, { description: describeFailures(result.failed) })
+      } else if (f > 0) {
+        toast.error(f === 1 ? result.failed[0].reason : `${f} could not be restored`, {
+          description: f === 1 ? undefined : describeFailures(result.failed),
+        })
+      }
+      return
+    }
     const result = await restore([{ entity, items: target.map(toItem) }])
     selection.removeIds(result.succeeded.map((item) => item.id))
     setRestoreTargets([])

@@ -61,7 +61,7 @@ function describeCourseBlockers(row: {
 }
 
 /** A DELETE that RLS filtered to zero rows returns no error, so the row count is checked. */
-async function deleteRow(table: 'courses' | 'lessons' | 'games' | 'badges', id: string): Promise<Attempt> {
+async function deleteRow(table: 'courses' | 'lessons' | 'games' | 'badges' | 'notifications_sent', id: string): Promise<Attempt> {
   const { data, error } = await supabase.from(table).delete().eq('id', id).select('id')
   if (error) {
     if (error.code === FK_VIOLATION) {
@@ -143,6 +143,13 @@ async function attempt(entity: TrashEntity, item: TrashItem): Promise<Attempt> {
         }
       }
       return deleteRow('badges', item.id)
+    }
+
+    case 'notifications': {
+      // Admin-only DELETE policy already requires deleted_at IS NOT NULL (migration
+      // 042) — this is only ever reachable from Trash, same as everything else here.
+      // Nothing references a notification row, so there is no "blocked" case.
+      return deleteRow('notifications_sent', item.id)
     }
 
     case 'users': {

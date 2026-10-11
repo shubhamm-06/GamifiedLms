@@ -235,7 +235,7 @@ const adminOrdersRoute = createRoute({
  * Same `?tab=`-as-real-search-param convention as Course Builder, Orders and
  * Settings. Defaults to `courses`, the first tab.
  */
-const TRASH_TABS = ['courses', 'modules', 'lessons', 'games', 'badges', 'users'] as const
+const TRASH_TABS = ['courses', 'modules', 'lessons', 'games', 'badges', 'users', 'notifications'] as const
 type TrashTab = (typeof TRASH_TABS)[number]
 
 function validateTrashTab(search: Record<string, unknown>): { tab: TrashTab } {

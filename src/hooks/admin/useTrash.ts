@@ -14,17 +14,18 @@ const trashKeys = {
   moduleLessons: (ids: string[]) => ['admin', 'trash', 'moduleLessons', [...ids].sort().join(',')] as const,
 }
 
-export const TRASH_ENTITIES: TrashEntity[] = ['courses', 'modules', 'lessons', 'games', 'badges', 'users']
+export const TRASH_ENTITIES: TrashEntity[] = ['courses', 'modules', 'lessons', 'games', 'badges', 'users', 'notifications']
 
 type TrashCounts = Record<TrashEntity, number> & { total: number }
 
-const TABLE_OF: Record<TrashEntity, 'courses' | 'modules' | 'lessons' | 'games' | 'badges' | 'profiles'> = {
+const TABLE_OF: Record<TrashEntity, 'courses' | 'modules' | 'lessons' | 'games' | 'badges' | 'profiles' | 'notifications_sent'> = {
   courses: 'courses',
   modules: 'modules',
   lessons: 'lessons',
   games: 'games',
   badges: 'badges',
   users: 'profiles',
+  notifications: 'notifications_sent',
 }
 
 /** How many rows are in the trash, per tab and in total (the sidebar badge). Rows hidden only through a trashed parent are not counted — they were never trashed themselves. */
@@ -171,6 +172,43 @@ async function fetchRows(entity: TrashEntity): Promise<TrashRow[]> {
         detail: r.slug,
         slug: r.slug,
         wasIn: '—',
+        deletedAt: r.deleted_at,
+        deletedBy: deleterName(r),
+        restoreBlockedBy: null,
+      }))
+    }
+    case 'notifications': {
+      const { data, error } = await supabase
+        .from('notifications_sent')
+        .select(
+          `id, title, body, target_type, deleted_at,
+          target_course:courses!notifications_sent_target_course_id_fkey(title),
+          target_user:profiles!notifications_sent_target_user_id_fkey(display_name),
+          deleter:profiles!notifications_sent_deleted_by_fkey(display_name)`,
+        )
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', NOT_TRASHED_YET)
+      if (error) throw new Error(error.message)
+      return (
+        (data ?? []) as unknown as (Deleter & {
+          id: string
+          title: string
+          body: string
+          target_type: string
+          deleted_at: string
+          target_course: { title: string } | null
+          target_user: { display_name: string } | null
+        })[]
+      ).map((r) => ({
+        id: r.id,
+        name: r.title,
+        detail: r.body.length > 80 ? `${r.body.slice(0, 80)}…` : r.body,
+        wasIn:
+          r.target_type === 'course'
+            ? (r.target_course?.title ?? `${tw().term('course')}`)
+            : r.target_type === 'user'
+              ? (r.target_user?.display_name ?? 'A student')
+              : 'Everyone',
         deletedAt: r.deleted_at,
         deletedBy: deleterName(r),
         restoreBlockedBy: null,

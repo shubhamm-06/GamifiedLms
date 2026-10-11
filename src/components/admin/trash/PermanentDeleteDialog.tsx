@@ -45,6 +45,7 @@ const SKIP_NOTE: Record<TrashEntity, string> = {
   badges: `${tw().term('badge')} that any student has unlocked is skipped and stays in Trash.`,
   users:
     `A user with activity history (enrollments, payments, progress, ${tw().term('xp')} …) is skipped and stays in Trash.`,
+  notifications: 'This also removes it from the send history — it cannot be recovered.',
 }
 
 /**
