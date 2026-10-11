@@ -27,15 +27,24 @@
 // Per-token sends run with bounded concurrency (mapWithConcurrency, limit
 // 10); one bad/stale token is recorded as a failure and never aborts the
 // rest — a partial per-token failure still counts as push_sent=true,
-// recipient_count is the successful-only count. push_sent is only false
-// when the whole push attempt failed outright (topic send rejected, token
-// fetch/auth threw) or when the caller asked to skip push (send_push=false).
+// recipient_count is the successful-only count. push_sent is false only for
+// a wholesale push failure (topic send rejected, token fetch/auth threw);
+// it is null, not false, when the caller asked to skip push entirely
+// (send_push=false) — see the tri-state note below.
 //
 // Insert-then-push ordering (migration 042's locked decision): the
 // notifications_sent row — the inbox's source of truth — is written FIRST,
 // before any FCM call. If the push then fails, the row already exists and
 // is never lost; only push_sent/recipient_count get updated afterward. The
 // stored row is what a student sees; push is one delivery channel on top.
+//
+// push_sent is a TRUE TRI-STATE (migration 044 corrected this back from an
+// always-boolean reading): null means push was never attempted at all
+// (send_push=false, a deliberate inbox-only send); true/false means it was
+// attempted and succeeded/failed. The admin history table (routes-
+// permissions.md) depends on telling "didn't ask for push" apart from
+// "asked and it failed" — collapsing null into false would make the two
+// indistinguishable from the stored row alone.
 // =====================================================================
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { getFcmAccessToken, mapWithConcurrency, sendFcmMessage } from '../_shared/fcm.ts'
@@ -192,12 +201,15 @@ Deno.serve(async (req: Request) => {
 
   // ---------------------------------------------------------------
   // 4. Attempt push (if asked), then update push_sent/recipient_count.
-  //    pushSent is false only for a wholesale failure (topic rejected,
-  //    token/enrollment lookup or FCM auth threw) or send_push=false —
-  //    never for a handful of stale per-token failures, which still
-  //    count as a sent push with a smaller recipientCount.
+  //    pushSent stays null (its initial value) when send_push is false —
+  //    "never asked" is a different fact from "asked and failed" for the
+  //    admin history table, so this is never collapsed into false. It is
+  //    false only for a wholesale failure (topic rejected, token/enrollment
+  //    lookup or FCM auth threw) — never for a handful of stale per-token
+  //    failures, which still count as a sent push with a smaller
+  //    recipientCount.
   // ---------------------------------------------------------------
-  let pushSent = false
+  let pushSent: boolean | null = null
   let recipientCount: number | null = null
 
   if (sendPush) {
