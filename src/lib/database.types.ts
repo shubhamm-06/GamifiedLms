@@ -859,10 +859,16 @@ export type Database = {
       notifications_sent: {
         Row: {
           body: string
+          deep_link: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           id: string
+          kind: string
+          push_sent: boolean | null
           recipient_count: number | null
           sent_at: string
           sent_by: string
+          show_in_inbox: boolean
           target_course_id: string | null
           target_type: string
           target_user_id: string | null
@@ -870,10 +876,16 @@ export type Database = {
         }
         Insert: {
           body: string
+          deep_link?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
+          kind?: string
+          push_sent?: boolean | null
           recipient_count?: number | null
           sent_at?: string
           sent_by: string
+          show_in_inbox?: boolean
           target_course_id?: string | null
           target_type: string
           target_user_id?: string | null
@@ -881,16 +893,36 @@ export type Database = {
         }
         Update: {
           body?: string
+          deep_link?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           id?: string
+          kind?: string
+          push_sent?: boolean | null
           recipient_count?: number | null
           sent_at?: string
           sent_by?: string
+          show_in_inbox?: boolean
           target_course_id?: string | null
           target_type?: string
           target_user_id?: string | null
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "notifications_sent_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_sent_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "notifications_sent_sent_by_fkey"
             columns: ["sent_by"]
@@ -1397,6 +1429,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_my_notifications: {
+        Row: {
+          body: string | null
+          deep_link: string | null
+          id: string | null
+          kind: string | null
+          sent_at: string | null
+          title: string | null
+        }
+        Insert: {
+          body?: string | null
+          deep_link?: string | null
+          id?: string | null
+          kind?: string | null
+          sent_at?: string | null
+          title?: string | null
+        }
+        Update: {
+          body?: string | null
+          deep_link?: string | null
+          id?: string | null
+          kind?: string | null
+          sent_at?: string | null
+          title?: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
