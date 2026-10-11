@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import { createColumnHelper, tableFeatures } from '@tanstack/table-core'
-import { useTable } from '@tanstack/react-table'
-import { Send } from 'lucide-react'
+import { Search, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,19 +10,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { UserPicker } from '@/components/admin/UserPicker'
+import { NotificationsHistoryTable } from '@/components/admin/notifications/NotificationsHistoryTable'
+import { TrashNotificationDialog } from '@/components/admin/notifications/TrashNotificationDialog'
+import { useTableSelection } from '@/components/admin/selection/useTableSelection'
 import { useCourses } from '@/hooks/admin/useCourses'
-import { useNotificationsHistory, useSendNotification, type NotificationHistoryRow } from '@/hooks/admin/useNotifications'
+import {
+  targetLabel,
+  useNotificationsHistory,
+  useSendNotification,
+  type NotificationHistoryRow,
+} from '@/hooks/admin/useNotifications'
+import { useTrashActions } from '@/hooks/admin/useTrashActions'
 import { type AdminUserRow } from '@/hooks/admin/useUsers'
 import { type NotificationTarget } from '@/lib/adminNotificationsApi'
 import { getTerms as tw } from '@/lib/settings/terms'
@@ -41,23 +40,17 @@ const TARGET_LABEL: Record<TargetKind, string> = {
 }
 
 /**
- * The compose form and send history for manual push notifications
- * (migration 031, `send-push-notification`). Send-only, log-only: there is
- * no editing or resending from the history table in this pass.
- *
- * NOT YET DEPLOYED (`env-deploy.md` "Push notifications"): Send will fail
- * until `send-push-notification` is deployed and `FCM_SERVICE_ACCOUNT_JSON`
- * is set. The failure surfaces through the same error toast every other
- * admin action uses (`useSendNotification`), not a special-cased message —
- * intentionally not stubbed or mocked.
+ * The compose form and send history for manual push/inbox notifications
+ * (migration 031, extended migration 042 for the student notifications
+ * inbox; `send-push-notification` deployed, ACTIVE, version 5).
  */
 export function NotificationsPage() {
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
       <header>
         <h1 className="text-lg font-semibold tracking-tight">Notifications</h1>
         <p className="text-muted-foreground text-sm">
-          Send a push notification to Android devices. Web and iOS are not covered.
+          Send a push notification, a student-inbox message, or both. Push reaches Android devices only.
         </p>
       </header>
       <ComposeSection />
@@ -72,10 +65,16 @@ function ComposeSection() {
   const [targetKind, setTargetKind] = useState<TargetKind>('all')
   const [courseId, setCourseId] = useState('')
   const [user, setUser] = useState<AdminUserRow | null>(null)
+  const [sendPush, setSendPush] = useState(true)
+  const [showInInbox, setShowInInbox] = useState(true)
+  const [linkCourseId, setLinkCourseId] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const { data: courses } = useCourses()
+  const linkableCourses = (courses ?? []).filter((c) => c.status === 'published')
   const sendNotification = useSendNotification()
+
+  const bothOff = !sendPush && !showInInbox
 
   function handleTargetKindChange(next: TargetKind) {
     setTargetKind(next)
@@ -99,23 +98,44 @@ function ComposeSection() {
     const target = buildTarget()
     if (targetKind === 'course' && !courseId) next.target = `Pick ${tw().lower('course')}.`
     if (targetKind === 'user' && !user) next.target = 'Pick a student.'
+    if (bothOff) next.delivery = 'Turn on push, the inbox, or both before sending.'
 
     setErrors(next)
     if (Object.keys(next).length > 0 || !target) return
 
     sendNotification.mutate(
-      { title: title.trim(), body: body.trim(), target },
+      {
+        title: title.trim(),
+        body: body.trim(),
+        target,
+        sendPush,
+        showInInbox,
+        deepLink: linkCourseId ? `/courses/${linkCourseId}` : null,
+      },
       {
         onSuccess: () => {
           setTitle('')
           setBody('')
+          setLinkCourseId('')
+          setTargetKind('all')
+          setCourseId('')
+          setUser(null)
+          setSendPush(true)
+          setShowInInbox(true)
+          setErrors({})
         },
       },
     )
   }
 
+  const previewCourse = linkableCoursesFind(courses ?? [], courseId)
+  const audience =
+    targetKind === 'course'
+      ? `Students in ${targetLabel({ target_type: 'course', target_course_title: previewCourse?.title ?? null, target_user_name: null })}`
+      : targetLabel({ target_type: targetKind, target_course_title: null, target_user_name: user?.display_name ?? null })
+
   return (
-    <section className="rounded-lg border p-4">
+    <section className="max-w-2xl rounded-lg border p-4">
       <div className="mb-3">
         <h2 className="text-sm font-semibold">Compose</h2>
       </div>
@@ -183,7 +203,55 @@ function ComposeSection() {
             {errors.target ? <p className="text-coral-d text-sm">{errors.target}</p> : null}
           </div>
         ) : null}
-        <Button onClick={handleSubmit} disabled={sendNotification.isPending}>
+
+        <div className="space-y-3 rounded-md border p-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label htmlFor="notif-send-push">Send as push notification</Label>
+            </div>
+            <Switch id="notif-send-push" checked={sendPush} onCheckedChange={setSendPush} />
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <Label htmlFor="notif-show-inbox">Show in student inbox</Label>
+            </div>
+            <Switch id="notif-show-inbox" checked={showInInbox} onCheckedChange={setShowInInbox} />
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Push buzzes phones right away; the inbox keeps the message visible for students who miss it or use the
+            web.
+          </p>
+          {errors.delivery ? <p className="text-coral-d text-sm">{errors.delivery}</p> : null}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>{`Link to a ${tw().lower('course')} (optional)`}</Label>
+          <Select
+            value={linkCourseId || 'none'}
+            onValueChange={(v) => setLinkCourseId(v === 'none' ? '' : v)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="No link" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No link</SelectItem>
+              {linkableCourses.map((course) => (
+                <SelectItem key={course.id} value={course.id}>
+                  {course.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground text-xs">
+            {`Tapping the notification opens that ${tw().lower('course')}. Only published ${tw().lower('course', true)} can be linked.`}
+          </p>
+        </div>
+
+        <p className="text-muted-foreground text-sm">
+          <span className="font-medium text-foreground">Who sees this:</span> {audience}
+        </p>
+
+        <Button onClick={handleSubmit} disabled={sendNotification.isPending || bothOff}>
           <Send />
           {sendNotification.isPending ? 'Sending…' : 'Send'}
         </Button>
@@ -192,121 +260,66 @@ function ComposeSection() {
   )
 }
 
-const relativeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
-const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ['year', 365 * 24 * 60 * 60 * 1000],
-  ['month', 30 * 24 * 60 * 60 * 1000],
-  ['day', 24 * 60 * 60 * 1000],
-  ['hour', 60 * 60 * 1000],
-  ['minute', 60 * 1000],
-]
-
-function formatRelativeTime(iso: string): string {
-  const elapsed = Date.now() - new Date(iso).getTime()
-  for (const [unit, ms] of RELATIVE_UNITS) {
-    if (Math.abs(elapsed) >= ms) {
-      return relativeFormatter.format(-Math.round(elapsed / ms), unit)
-    }
-  }
-  return 'just now'
+function linkableCoursesFind(courses: { id: string; title: string }[], id: string) {
+  return courses.find((c) => c.id === id)
 }
-
-function targetLabel(row: NotificationHistoryRow): string {
-  if (row.target_type === 'course') return row.target_course_title ?? `${tw().term('course')}`
-  if (row.target_type === 'user') return row.target_user_name ?? 'A student'
-  return 'Everyone'
-}
-
-// Read-only report table, no records anyone can act on here (rules.md /
-// ui.md's documented exception, same as the Dashboard's recent-activity
-// feed) — TanStack Table v9 shape, but no row-selection feature.
-const historyFeatures = tableFeatures({})
-const columnHelper = createColumnHelper<typeof historyFeatures, NotificationHistoryRow>()
-const historyColumns = columnHelper.columns([
-  columnHelper.accessor('sent_at', {
-    id: 'when',
-    header: 'Sent',
-    cell: (info) => <span className="text-muted-foreground whitespace-nowrap">{formatRelativeTime(info.getValue())}</span>,
-  }),
-  columnHelper.accessor('title', {
-    id: 'title',
-    header: 'Title',
-    cell: (info) => <span className="font-medium">{info.getValue()}</span>,
-  }),
-  columnHelper.accessor('body', {
-    id: 'body',
-    header: 'Body',
-    cell: (info) => <span className="text-muted-foreground line-clamp-1">{info.getValue()}</span>,
-  }),
-  columnHelper.display({
-    id: 'target',
-    header: 'Target',
-    cell: (info) => targetLabel(info.row.original),
-  }),
-  columnHelper.accessor('recipient_count', {
-    id: 'recipients',
-    header: 'Recipients',
-    cell: (info) => {
-      const count = info.getValue()
-      return count === null ? <span className="text-muted-foreground">Unknown (topic)</span> : count
-    },
-  }),
-  columnHelper.accessor('sent_by_name', {
-    id: 'sent_by',
-    header: 'Sent by',
-    cell: (info) => info.getValue() ?? 'Unknown',
-  }),
-])
 
 function HistorySection() {
   const { data, isPending, isError } = useNotificationsHistory()
-  const table = useTable({
-    features: historyFeatures,
-    columns: historyColumns,
-    data: data ?? [],
-  })
+  const rows = data ?? []
+  const [search, setSearch] = useState('')
+  const selection = useTableSelection([search])
+  const { trash, isPending: trashing } = useTrashActions()
+  const [trashTargets, setTrashTargets] = useState<NotificationHistoryRow[]>([])
+
+  const selectedRows = rows.filter((r) => selection.rowSelection[r.id])
+
+  async function doTrash(target: NotificationHistoryRow[]) {
+    const result = await trash([
+      { entity: 'notifications', items: target.map((r) => ({ id: r.id, name: r.title })) },
+    ])
+    selection.removeIds(result.succeeded.map((item) => item.id))
+    setTrashTargets([])
+  }
 
   return (
     <section className="rounded-lg border">
-      <header className="border-b px-4 py-3">
+      <header className="flex flex-col gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-sm font-semibold">History</h2>
-      </header>
-      {isPending ? (
-        <div className="space-y-2 p-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-8 w-full" />
-          ))}
+        <div className="relative max-w-sm flex-1 sm:flex-none">
+          <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+          <Input
+            className="pl-8"
+            placeholder="Search title or body…"
+            aria-label="Search notification history"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
-      ) : isError ? (
-        <p className="text-coral-d p-4 text-sm">Couldn&rsquo;t load notification history.</p>
-      ) : (data?.length ?? 0) === 0 ? (
-        <p className="text-muted-foreground p-4 text-sm">No notifications sent yet.</p>
-      ) : (
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    <table.FlexRender header={header} />
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getAllCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    <table.FlexRender cell={cell} />
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      </header>
+      <div className="p-4">
+        <NotificationsHistoryTable
+          rows={rows}
+          isPending={isPending}
+          isError={isError}
+          search={search}
+          onTrash={(row) => setTrashTargets([row])}
+          selection={selection}
+          bulkActions={
+            <Button variant="destructive" size="sm" onClick={() => setTrashTargets(selectedRows)}>
+              Move to trash
+            </Button>
+          }
+        />
+      </div>
+
+      <TrashNotificationDialog
+        count={trashTargets.length}
+        open={trashTargets.length > 0}
+        pending={trashing}
+        onOpenChange={(open) => !open && setTrashTargets([])}
+        onConfirm={() => void doTrash(trashTargets)}
+      />
     </section>
   )
 }
