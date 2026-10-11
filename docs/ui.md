@@ -1302,6 +1302,52 @@ touches the enrollment.
   when a course is free; duration appears only for fixed access. A disabled
   field still reads as "something I might need to fill in".
 
+### Admin notifications (2026-10-12): compose toggles, history table, Trash
+
+`/admin/notifications` (`NotificationsPage.tsx`): Compose and History, same page, Geist/shadcn, desktop first —
+no Baloo 2, no kid styling, same as every other admin screen.
+
+**Compose** gained two `Switch` rows (the `CourseForm.tsx` label-left/switch-right pattern): "Send as push
+notification" and "Show in student inbox", both default on. At least one must stay on — the Send button
+disables and an inline message appears under the switches otherwise, not just a toast on submit. A helper line
+under both explains the difference in plain words: push buzzes phones right away, the inbox keeps the message
+visible for students who miss it or use the web. An optional "Link to a `course` (published only)" select sets
+`deep_link` to `/courses/<id>` (a sentinel `"none"` `SelectItem` clears it, same trick `PageEditors.tsx`'s
+testimonial-source picker already uses) — filtered to `status: 'published'` only, unlike the existing "Send to
+a specific course" target picker above it, which still lists every non-trashed course regardless of status
+(unchanged, not this task's scope). A "Who sees this" preview line under the form reads the live target state
+back in plain words (`targetLabel()`, `hooks/admin/useNotifications.ts`, shared with the history table so the
+two can't describe the same row differently). Response handling is three distinct toasts, not one generic
+"sent" message, read off `pushSent` (the tri-state, below) and an optional `warning` string the Edge Function
+returns when the row saved but the push itself failed: "Sent." / "Saved to the student inbox (no push sent)." /
+a warning toast saying the push didn't go out but the notification was saved. The form resets (title, body,
+target, switches, link) only on success.
+
+**History** replaced a bare read-only report table with the same TanStack Table v9 pattern as `TrashTable`
+(`components/admin/notifications/NotificationsHistoryTable.tsx`): search (title + body), sortable Sent at,
+pagination, the shared multi-select (`SelectionCheckboxes`, `TableSelectionBar`). New **Delivery** column —
+"Push sent" / "Push failed" / "Inbox only" / "Push only" (`deliveryLabel()`, same file as `targetLabel()`) —
+reads `notifications_sent.push_sent` as a genuine tri-state (migration 044/045, `rules.md`): `null` means push
+was never requested (an inbox-only send), never collapsed into "failed". `recipient_count` is shown as a small
+second line under Delivery only when it is not null (a topic send or a deliberately-skipped push both leave it
+null) — never a guessed or placeholder number.
+
+**Row/bulk "Move to trash" always confirms first**, via a new `TrashNotificationDialog` — a deliberate
+exception to this page's own "Archive and Move to trash are both reversible... neither needs a confirmation
+dialog" convention (above), because a notification's push half genuinely is not reversible: once FCM has
+delivered it to a phone, trashing the row only stops it from being a fresh "sent" entry and hides it from
+`v_my_notifications` going forward — it cannot recall what already buzzed. The dialog says this in plain words
+before the admin confirms. The actual trash action afterward is the ordinary `useTrashActions().trash(...)` —
+same Undo-toast, same cache invalidation as every other entity; only the extra confirm step before it differs.
+
+**Trash integration**: `notifications` is a sixth `TrashEntity` (`lib/trash.ts`), not a parallel table/page —
+the existing Trash tab, counts, `TrashTable`, `PermanentDeleteDialog` (its own skip note: "This also removes it
+from the send history — it cannot be recovered") all cover it for free. Restore gets its own toast wording
+("Restored. It is visible in student inboxes again.") instead of the shared hook's generic "Restored N items",
+via `announce: false` plus a local toast in `TrashTab.tsx` — the only per-entity toast override that exists
+today. `notifications_sent` also gained the same `fn_stamp_deleted_by` trigger every other trash-first table
+has (migration 045), so the client only ever sends `deleted_at`, never `deleted_by`.
+
 ### Course Builder (tabbed editor)
 
 - **Tabs, with the dependent tab locked until the parent row exists.**

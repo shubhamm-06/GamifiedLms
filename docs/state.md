@@ -355,6 +355,38 @@ The schema or docs anticipate each of these; no working code exists for any.
   the unchanged `tab`/`lesson` flags alone). Typecheck/lint/build pass. **Not verified**:
   no browser or device was available to check 360/390/768px (nav visible, nothing active,
   last card and Load more clear of the nav) or 1280px (sidebar only) by eye.
+- **Admin notifications (compose toggles, history table, Trash): built and
+  committed, none of it live-verified this round either** (2026-10-12,
+  `schema.md` section 8b, `routes-permissions.md`, `ui.md` "Admin
+  notifications", `rules.md`, `context.md`). Compose gained `send_push`/
+  `show_in_inbox` switches (at least one required) and a published-course
+  "link a course" select (`deep_link`); the read-only history table was
+  replaced with the shared TanStack Table v9 pattern (search/sort/
+  pagination/multi-select) plus a Delivery column; `notifications` became a
+  sixth `TrashEntity` (Trash tab, restore, permanent delete, all via the
+  existing shared components) with its own trash-confirmation dialog (the
+  one admin list where trashing isn't immediate, since a delivered push
+  can't be recalled). Along the way, `push_sent` was corrected from an
+  always-boolean reading (043, built the previous task) back to a genuine
+  tri-state (migrations 044/045) — the history table needed to tell "push
+  never requested" apart from "push requested and failed," which the
+  boolean-only version couldn't — and `notifications_sent` gained the same
+  `fn_stamp_deleted_by` trigger every other trash-first table has (045), so
+  the admin UI never has to send `deleted_by` itself. Edge Function
+  redeployed as version 5. Typecheck/lint/build all pass. **What is NOT
+  verified, and why:** a second role-switched SQL verification attempt
+  (smaller and more surgical than the first — reusing existing rows instead
+  of fabricating many fixtures) was declined again; per this task's own
+  instruction it was not retried or narrowed. No service-role key or admin
+  bearer token was available to exercise the Edge Function over real HTTP
+  (same constraint as before). No browser was available to check the
+  compose/history screens at 1280/1024px. The student side (a trashed
+  notification disappearing from `/notifications`, restore bringing it
+  back) was confirmed by re-reading `v_my_notifications`'s `deleted_at is
+  null` filter only — no student-side code changed and none was needed, but
+  this wasn't exercised live either. A 12th `notifications_sent` row exists
+  now (real admin activity between the two notifications tasks, confirmed
+  not test data) — the original 11 remain untouched by either task.
 - **Manual push notifications: built, deployed and sent for real** (migration
   031, deployed 2026-09-29, `ui.md` "Push notifications", `schema.md` "Edge
   Functions", `env-deploy.md`). `device_push_tokens`/`notifications_sent`
@@ -521,11 +553,15 @@ None.
    roadmap currently has no entry point.
 5. Decide enrollment expiry (below) before any student is expected to lose access.
 6. Run the Android Back and haptics checks on a real device (`env-deploy.md`), then a Capacitor session audit.
-7. Verify the notifications inbox live: role-switched SQL against `v_my_notifications` (all-target
-   join-date gating, course-target enrollment/expiry/archived/trashed branches, user-target
-   isolation), a real HTTP call to the extended `send-push-notification` (the four new-field
-   scenarios), and the `/notifications` screen + bell/dot at 360/390/768/1280px in a real browser
-   or device.
+7. Verify the notifications inbox live — student AND admin sides, neither has been exercised
+   live yet: role-switched SQL against `v_my_notifications` and the admin guard/stamp triggers
+   (all-target join-date gating, course-target enrollment/expiry/archived/trashed branches,
+   user-target isolation, admin set/can't-edit, student can't touch the base table, trash/restore
+   round-trip), a real HTTP call to `send-push-notification` version 5 (the `send_push=false`/
+   both-false-400/bad-deep_link-400/omitted-fields scenarios), the `/notifications` screen +
+   bell/dot at 360/390/768/1280px, and the admin compose/history/Trash screens at 1280/1024px —
+   all in a real browser or device. Two separate role-switched SQL attempts (2026-10-11,
+   2026-10-12) were both declined and, per instruction, not retried or narrowed.
 
 ## Open decisions & on the horizon
 

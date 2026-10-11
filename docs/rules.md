@@ -694,3 +694,15 @@ belongs in `context.md` or `state.md`, not here.
   >= 1024px (`KidSidebar`, hand-inserted after Courses, not derived from the shared tabs array) and a bell icon
   in the mobile Home stat bar — never a fifth bottom-nav tab. A future screen reaching for "just add it to
   `KID_TABS`" breaks this.
+- **A sent notification's `title`, `body` and target can never be edited — only `deleted_at`/`deleted_by`.**
+  `fn_guard_notifications_sent_admin_update` (migration 042) enforces this in the database, not just in the
+  admin UI omitting an edit form: any other column change from a non-`service_role` caller raises. There is no
+  "edit and resend" feature, and there must not be one without first changing this trigger — a silently-edited
+  history row would misrepresent what a student actually received.
+- **A push notification that has already reached a phone cannot be recalled by trashing it.** Moving a
+  notification to trash (`deleted_at` set) removes it from `v_my_notifications` for every student from that
+  point on and hides it from the admin history list — it does **not** un-send, recall or edit the push FCM
+  already delivered. The admin-notifications UI's trash confirmation (`TrashNotificationDialog`) says this in
+  plain words before the admin commits, unlike every other admin list's immediate-with-Undo trash (reversible
+  there; the push half of this one specifically is not) — don't soften that copy or make this trash action
+  immediate like the others.

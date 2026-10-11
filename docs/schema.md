@@ -684,12 +684,13 @@ student screen only.
   notification; 042 sends none), `show_in_inbox boolean not null default
   true` (false hides a row from every student's inbox without touching
   push — a push-only reminder with nothing worth keeping in history),
-  `push_sent boolean` (set by the Edge Function after it attempts push;
-  always `true`/`false` once the function has run — `true` on success,
-  `false` on outright failure or when `send_push` was false, never left
-  `null` after the request completes), `deep_link text` (must start with
-  `/` and be ≤ 200 chars, or null — an in-app path only, never an external
-  URL), `deleted_at` / `deleted_by` (admin soft delete, below).
+  `push_sent boolean` (a genuine **tri-state**, corrected by migrations
+  044/045 after the admin-notifications task needed to tell the two apart:
+  `null` means push was never requested at all — `send_push: false`, a
+  deliberate inbox-only send; `true`/`false` means it was attempted and
+  succeeded/failed), `deep_link text` (must start with `/` and be ≤ 200
+  chars, or null — an in-app path only, never an external URL), `deleted_at`
+  / `deleted_by` (admin soft delete, below).
 - **`public.v_my_notifications`** (new view, migration-003-pattern
   `SECURITY DEFINER`, locked down the migration-016 way): the signed-in
   student's own feed, exposing only `id, title, body, kind, deep_link,
@@ -706,24 +707,35 @@ student screen only.
   notification for a course a student's access has since expired on should
   not keep showing, even though nothing else in the engine enforces that
   yet. `revoke all … grant select to authenticated` (016's lesson).
-- Admin soft delete (schema only — the admin UI is a later task):
+- Admin soft delete, now built (admin-notifications task, 2026-10-12;
+  `routes-permissions.md`, `ui.md` "Admin notifications"):
   `fn_guard_notifications_sent_admin_update()` (payments-guard shape,
   migration 009) blocks every column but `deleted_at`/`deleted_by` from
   changing outside `service_role`; `notifications_sent_admin_update`
   (`fn_is_admin()`) and `notifications_sent_admin_delete` (`fn_is_admin()
   and deleted_at is not null` — permanent delete only from trash, same
-  shape as `payments_admin_delete_from_trash`).
+  shape as `payments_admin_delete_from_trash`). Migration 045 added
+  `fn_stamp_deleted_by` (migration 013's generic trigger function) to this
+  table too, so the admin UI sends only `deleted_at` — `deleted_by` is
+  stamped/cleared from `auth.uid()` server-side, same as every other
+  trash-first table, and can't be forged by the client.
 - `send-push-notification` (below) now accepts optional `send_push` /
   `show_in_inbox` / `deep_link` fields and writes the row **before**
   attempting FCM, so a push failure never loses the inbox entry.
-- **Not verified by live role-switched SQL this time** (declined this
-  session — see `changelog.md` 2026-10-11): the view's visibility logic
+- **Not verified by live role-switched SQL** (declined twice now — once
+  while building this, again while building the admin UI on top of it; see
+  `changelog.md` 2026-10-11 and 2026-10-12, not retried or narrowed either
+  time per the second task's own instruction): the view's visibility logic
   (join-date gating, enrollment status/expiry, archived/trashed course,
-  user-target isolation), the admin guard trigger, and the trash-first
-  delete policy were checked by code review only, mirroring the already-
-  verified `fn_guard_payment_admin_update` / `payments_admin_delete_from_trash`
-  shapes line-for-line. The 11 pre-existing rows were confirmed unchanged
-  (`total_rows: 11, deleted: 0`) right after the migration applied.
+  user-target isolation), the admin guard trigger, the `fn_stamp_deleted_by`
+  wiring, and the trash-first delete policy were checked by code review
+  only, mirroring the already-verified `fn_guard_payment_admin_update` /
+  `payments_admin_delete_from_trash` shapes line-for-line. The 11
+  pre-existing rows were confirmed unchanged right after migration 042
+  applied; a 12th row (real admin activity between the two tasks, not test
+  data) existed by the time the second task started — noted, not touched
+  beyond what role-switched test fixtures would have exercised transiently
+  inside a rolled-back transaction, which never ran.
 
 ---
 
@@ -1113,6 +1125,7 @@ Live as of migration 014 (introduced across migrations 002–014).
 | `trg_profiles_prevent_role_change` | `BEFORE UPDATE profiles` | `fn_prevent_role_change` | Blocks `role` changes unless `service_role` or `fn_is_admin()` |
 | `trg_payments_guard_admin_update` | `BEFORE UPDATE payments` | `fn_guard_payment_admin_update` | Blocks any column but `reconciliation_status`/`reconciliation_note`/`deleted_at` (migration 009) from changing outside `service_role` |
 | `trg_notifications_sent_guard_admin_update` | `BEFORE UPDATE notifications_sent` | `fn_guard_notifications_sent_admin_update` (migration 042) | Same shape as the payments guard: blocks any column but `deleted_at`/`deleted_by` from changing outside `service_role` |
+| `trg_notifications_sent_stamp_deleted_by` | `BEFORE INSERT OR UPDATE notifications_sent` | `fn_stamp_deleted_by` (migration 045 — the same generic function every other trash-first table already uses) | Stamps `deleted_by` from `auth.uid()` on trash, clears it on restore; a client never supplies it directly |
 
 **`fn_compute_level(total_xp)`** (rewritten in migration 012) — `select
 coalesce(max(level), 1) from level_thresholds where xp_required <=
@@ -1354,19 +1367,27 @@ row is now inserted **first** (admin check → validate → insert), *then* push
 is attempted (only if `send_push`) and `push_sent`/`recipient_count` are
 updated on the row afterward — so a push failure can never lose the inbox
 entry; the row stays, and the response says the push failed but the
-notification was saved. `push_sent` is `true` on success, `false` on an
-outright push failure (topic rejected, token/enrollment lookup or FCM auth
-threw) or when `send_push` was false — never left `null` once the function
-has returned. `deep_link` and the new row's `id` ride along in the FCM
-`data` payload (`_shared/fcm.ts`'s `sendFcmMessage` gained an optional
+notification was saved. `deep_link` and the new row's `id` ride along in the
+FCM `data` payload (`_shared/fcm.ts`'s `sendFcmMessage` gained an optional
 `data` parameter) so a tapped notification can deep-link client-side.
-**Not exercised against a live HTTP call this session** (no service-role
-key or admin bearer token obtainable without either emailing the real admin
-account or leaving a temporary test harness function deployed in a project
-that holds demo data for a platform video — declined both; see
-`changelog.md` 2026-10-11): verified by code review and by the dependent
-migration-042 schema already confirming the insert/update/guard-trigger
-mechanics independently.
+
+**`push_sent` is a genuine tri-state, corrected 2026-10-12 (migrations
+044/045, deployed as version 5)** after the admin-notifications history
+table needed to tell two cases apart that had collapsed into the same
+value: `null` means push was never requested at all (`send_push: false`, a
+deliberate inbox-only send — the first cut of this left `pushSent` at `false`
+here too, indistinguishable from an outright failure); `true`/`false` means
+it was attempted and succeeded/failed (topic rejected, token/enrollment
+lookup or FCM auth threw → `false`; a handful of stale per-token failures
+still counts as `true`, with the successful-only `recipientCount`).
+
+**Not exercised against a live HTTP call in either session that touched
+it** (no service-role key or admin bearer token obtainable without either
+emailing the real admin account or leaving a temporary test harness
+function deployed in a project that holds demo data for a platform video —
+declined every time it came up; see `changelog.md` 2026-10-11 and
+2026-10-12): verified by code review and by the dependent schema (insert →
+guard-trigger → update mechanics) already confirmed independently.
 
 ### `register-push-token` — **deployed, ACTIVE**
 
@@ -1457,6 +1478,8 @@ table.
 | 032 | `20260930000000_032_avatar_config_v2.sql` | 2026-09-30 (live version `20260930161331`, name `avatar_config_v2`, via the Supabase MCP `apply_migration`; the filename timestamp differs from the live version, as with earlier migrations) | New immutable `public.avatar_config_is_valid(jsonb)` (`search_path = ''`) and `profiles_avatar_config_shape_check` now calls it. Accepts NULL, the legacy 026 shape unchanged, and the v2 shape (all keys required except `tints`; no other keys; each value from its fixed set; tints only for the four slots with a known swatch; <= 1 KB). The old CHECK rejected any extra key, so the richer config could not be saved: a migration was unavoidable. Checked with 12 direct calls (null, legacy ok, legacy missing key rejected, v2 ok with and without tints, bad value, extra key, bad tint value, bad tint key, v2 missing keys, array) and the one stored row still validates. No table, column, policy or RLS change; `database.types.ts` gained the function |
 | 042 | `20261011000000_042_notifications_inbox.sql` | 2026-10-11 (live version `20261011171650`, via the Supabase MCP `apply_migration`) | Notifications inbox (section 8b above): `notifications_sent` gains `kind`/`show_in_inbox`/`push_sent`/`deep_link`/`deleted_at`/`deleted_by`, the feed index, `v_my_notifications` (new view), the admin guard trigger and trash-first UPDATE/DELETE policies. The pre-existing 11 rows confirmed unchanged right after (`total_rows: 11, deleted: 0`). Visibility logic verified by code review only this time, not live role-switched SQL (declined — `changelog.md`) |
 | 043 | `20261011171650_043_notifications_push_sent_comment_fix.sql` | 2026-10-11 (live version `20261011171650`, via the Supabase MCP `apply_migration`; file written after the fact, matching the applied content exactly) | Comment-only fix: 042's own `push_sent` column comment said it stays `null` for a never-attempted push; the Edge Function (section above) actually always resolves it to `true`/`false`. No schema, data or type change |
+| 044 | `20261011183933_044_notifications_push_sent_tri_state.sql` | 2026-10-12 (live version `20261011183933`, via the Supabase MCP `apply_migration`) | Reverts 043's comment: `push_sent` is corrected back to a real tri-state (null = never requested, true/false = attempted). Comment-only; the Edge Function's code changed alongside it (above), redeployed as version 5. No schema, data or type change |
+| 045 | `20261011184315_045_notifications_sent_stamp_deleted_by.sql` | 2026-10-12 (live version `20261011184315`, via the Supabase MCP `apply_migration`) | Adds `fn_stamp_deleted_by` (migration 013's generic function) to `notifications_sent`, so the admin trash/restore UI sends only `deleted_at` — `deleted_by` is stamped/cleared server-side like every other trash-first table, never client-supplied. No column, policy or type change |
 
 **Filename ≠ live version for 006–012 (known drift, not fixed).** Migrations
 001–005 match `list_migrations` exactly, and so do 013–019 (their files were named
