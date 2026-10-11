@@ -3,7 +3,6 @@ import { Link } from '@tanstack/react-router'
 import {
   Check,
   ChevronRight,
-  Flame,
   Lock,
   LockOpen,
   PartyPopper,
@@ -20,11 +19,10 @@ import {
   RetryScreen,
   UnavailableScreen,
 } from '@/components/kid/roadmap/StateScreens'
+import { StatTiles } from '@/components/kid/StatTiles'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCourseRoadmap } from '@/hooks/useCourseRoadmap'
 import { useHomeCourse, useTouchEnrollment } from '@/hooks/useHomeCourse'
-import { useFeature, useTerms } from '@/hooks/useSettings'
-import { useKidProfile } from '@/hooks/useKidProfile'
 import { prefersReducedMotion } from '@/hooks/useMediaQuery'
 import type { Roadmap, RoadmapLesson, RoadmapSection } from '@/lib/roadmap'
 import { clearLessonLeft } from '@/lib/roadmapReturn'
@@ -357,42 +355,9 @@ function LessonRow({ lesson, courseId, next }: { lesson: RoadmapLesson; courseId
 /* ---------------------------------------------------------------- right rail */
 
 function Rail({ roadmap }: { roadmap: Roadmap }) {
-  const profile = useKidProfile()
-  // `roadmap.gamified` already includes the global gamification switch; each card also needs its own.
-  const streaksOn = useFeature('streaks')
-  const showStreak = roadmap.gamified && streaksOn
-  const xpOn = useFeature('xp')
-  const showXp = roadmap.gamified && xpOn
-  const { lower } = useTerms()
-  const value = (n: number | undefined) => (n === undefined ? '–' : n)
   return (
     <aside className="khd-rail" aria-label="Your progress" data-testid="home-rail">
-      {showStreak || showXp ? (
-        <>
-          {showStreak ? (
-          <div className="khd-card" data-kind="streak" data-testid="rail-streak">
-            <span className="khd-card-icon" aria-hidden>
-              <Flame className="size-6" />
-            </span>
-            <div>
-              <p className="khd-card-value kid-num">{value(profile.data?.currentStreak)}</p>
-              <p className="khd-card-label">day {lower('streak')}</p>
-            </div>
-          </div>
-          ) : null}
-          {showXp ? (
-          <div className="khd-card" data-kind="xp" data-testid="rail-xp">
-            <span className="khd-card-icon" aria-hidden>
-              <Sparkles className="size-6" />
-            </span>
-            <div>
-              <p className="khd-card-value kid-num">{value(profile.data?.totalXp)}</p>
-              <p className="khd-card-label">total {lower('xp')}</p>
-            </div>
-          </div>
-          ) : null}
-        </>
-      ) : null}
+      <StatTiles gamified={roadmap.gamified} />
       <div className="khd-card khd-card-progress" data-kind="progress" data-testid="rail-progress">
         <span className="khd-card-icon" aria-hidden>
           <Target className="size-6" />

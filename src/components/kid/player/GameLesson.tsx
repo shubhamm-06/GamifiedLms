@@ -14,7 +14,6 @@ const LOAD_TIMEOUT_MS = 10_000
 
 interface Props {
   game: GameInfo | null
-  courseId: string
   /** A game reported it was finished (a valid message from the game's own frame). The page decides what that means. */
   onComplete: (score: number) => void
   /** A light acknowledgment to show over the game (a replay of a finished lesson), or null. */
@@ -38,7 +37,7 @@ interface Props {
  * failure with Try again. Known limit: a cross-origin frame fires `load` for an
  * error page too, so a broken URL that still answers cannot be told from a game.
  */
-export function GameLesson({ game, courseId, onComplete, ack }: Props) {
+export function GameLesson({ game, onComplete, ack }: Props) {
   const portrait = useMediaQuery('(orientation: portrait)')
   const handheld = useMediaQuery('(pointer: coarse)')
   const src = game ? safeMediaUrl(game.bundleUrl, import.meta.env.DEV) : null
@@ -104,7 +103,7 @@ export function GameLesson({ game, courseId, onComplete, ack }: Props) {
         heading={playerCopy.game.unavailable.heading}
         body={playerCopy.game.unavailable.body}
         icon={<Gamepad2 className="size-7" />}
-        action={{ kind: 'back', courseId }}
+        action={{ kind: 'back' }}
         testId="game-unavailable"
       />
     )

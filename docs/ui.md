@@ -702,7 +702,9 @@ build did not change.
 
 Component tree: `LessonPlayerPage` > `PlayerFrame` (screens: `NotEnrolledScreen`,
 `EnrollmentExpiredScreen`, `LessonUnavailableScreen`, `LessonRetryScreen`,
-`PlayerSkeleton`) or `PlayerLesson` > `LessonLayout` (2026-10-05; see "Lesson pages: one layout") > (`PausedNotice`; the lesson body: `VideoPlayer` |
+`PlayerSkeleton`) or `PlayerLesson` > `LessonLayout` (see "Lesson pages redesign (2026-10-08)"
+below — the shell; renders `LessonRail` on its own desktop column, and `LessonStatusCard` for
+the chips row's neighbour) > (`PausedNotice`; the lesson body: `VideoPlayer` |
 `DocLesson` | `GameLesson` | `QuizLesson` > `QuizStepDots` / `QuizQuestion` /
 `QuizFeedbackPanel` / `QuizResultView`; then `PlayerBar` > `PrimaryButton` /
 `PrimaryLink`) and `LessonCompleteSheet` (with `Confetti` and `useCountUp`).
@@ -2910,6 +2912,97 @@ image block first). No bottom nav.
 
 ### Lesson pages: one layout, standard video players (2026-10-05)
 
+Supersedes the per-type layouts above (hero, activity card, module list, `LessonPlayerShell`,
+the custom video player and the minimum-time bars) with one `LessonLayout` shell shared by
+every lesson type and the browser's own `<video controls>` / a provider's own embed player in
+place of the custom one. Completion, XP, quiz grading, game scoring, schema and the server
+contracts are untouched — visual and layout only. **Superseded again, in turn, 2026-10-08** by
+"Lesson pages redesign" below, which keeps this same shared-shell principle but rebuilds the
+shell itself (a desktop sidebar + rail, chips, a status card, one Next button) and fixes Back
+to always reach Home; nothing in this paragraph's scope note stopped applying.
+
+### Lesson pages redesign (2026-10-08): desktop shell, Back-to-Home, one Next button
+
+Matches an approved design (desktop and mobile) closely; visual and layout only — the same
+rule as the 2026-10-05 pass above, and for the same reason: heartbeat, min-time, completion
+triggers, XP awards, quiz grading, the game `postMessage` contract, unlock rules, RLS and
+schema are all untouched. `LessonLayout.tsx` (the shell), `LessonRail.tsx` (the desktop rail
+and its row component), `LessonStatusCard.tsx`, and `useModulePath.ts` (the module/next-lesson
+data both of those read) are new; `LessonPlayerPage.tsx` composes them exactly the way it
+already composed the old `notice`/`description`/`actions` props — the shell still "decides
+nothing about completion".
+
+**Back always goes Home, on every width** (`routes-permissions.md` has the full routing
+picture): the shell's own Back control, every in-player "exit" link (error screens, a quiz's
+practice/fail exits, the completion sheet's end-of-course fallback) and the Android hardware
+Back fallback all target `/` directly now, replacing the old `/courses/$courseId` target. This
+is a deliberate, width-independent simplification — not "mobile keeps the roadmap, desktop goes
+Home" — because the redesigned shell has no "back to the path" concept left anywhere in its own
+chrome. Separately, anything that still lands on the bare roadmap route via another path (a
+notification, a stale link, typing the URL) is redirected from 1024px by `CourseRoadmapView`
+itself (`routes-permissions.md`), so the two mechanisms together mean the roadmap is never
+reached from inside the lesson player at any width, and never reached at all from 1024px up.
+
+**Desktop (>= 1024px):** the same left sidebar as Home mounts here too (`KidLayout` extends its
+existing `side` check — `(!!tab || lesson) && desktop` — to this one non-tab route, rather than
+LessonLayout mounting a second copy). It always shows **Home** as the highlighted item, since
+there is no "lesson" destination of its own to highlight; `KidSidebar` gained a `forceNavigable`
+prop for exactly this spot, so the highlighted-but-not-actually-current Home link still
+navigates on click (its normal active-tab behaviour is "do nothing", which would otherwise trap
+the student). Fixing this exposed a real, previously-latent bug: TanStack Router's `<Link>`
+auto-sets `aria-current="page"` by fuzzy (prefix) route matching unless told otherwise, and nothing
+before this task had ever mounted `KidNav`/`KidSidebar` on a route nested under one of their own
+four targets — visiting a lesson page lit up "Courses" as active too, alongside the real "Home"
+highlight. Both `KidNav` and `KidSidebar`'s `<Link>`s now pass `activeOptions={{ exact: true }}`
+(the same fix `AdminLayout.tsx` already needed once, for the same reason).
+
+A "Back to Home" pill (not the admin-style arrow-only button) sits above a two-column grid
+reusing Home's own desktop classes (`.khd`, `.khd-rail`, `.khd-card`, kid.css "desktop Home"):
+the content column, and a rail with the shared `StatTiles` (`components/kid/StatTiles.tsx`, now
+extracted out of `DesktopHome.tsx`'s own rail so Home and the lesson shell can't drift) plus one
+static card for the CURRENT module only — `.khd-band`/`.khd-list`/`.khd-row` again, with one new
+row state `current` (white, a teal outline, a filled teal play circle) alongside the three
+Home's own rows already have (`completed`, `next` — gold, the next-up one — and `locked`).
+
+**Mobile (< 1024px):** a circular Back button, the course name, "Lesson n of N", then a
+segmented bar — one pill per lesson in this module, teal for done-or-current, neutral for the
+rest — replacing the old slim bar. No rail; the same per-module data feeds both.
+
+**Content order is identical at both widths** (only the surrounding chrome differs): an eyebrow
+(desktop: "<module> · Lesson n of N"; mobile: "Section n · <module>", the roadmap's own
+caption convention), the title, a chip row (type, minutes if any, XP if the course is gamified
+and the lesson awards any — `.rm-chip`, reusing the roadmap node's own pill), the lesson content,
+a status card (`LessonStatusCard`: neutral until done, then the same teal tint `.khd-complete`
+already uses, with a "+N XP earned" chip only on a FRESH completion this visit, never on a
+replay), "About this lesson", then the Next action. A quiz keeps its own flow entirely (its own
+Continue/Try again/Finish buttons already lived inside its content area) and gets neither a
+status card nor a shell-level Next button — unchanged from before this task.
+
+**The Next button** (`PrimaryButton`/`PrimaryLink`, reused as-is — only the composed children
+changed): not completed shows a disabled, grey, lock-icon button previewing the literal next
+lesson's title (`useModulePath`'s `next` field now carries this regardless of lock state,
+specifically so the locked preview has something to show); completed shows the gold candy-press
+version with an arrow, linking to that same next lesson once the engine has actually unlocked it
+(`next.locked === false`) or "Back to Home" at the very last lesson of the course. A manual-video
+lesson (Loom/Wistia; "Mark as complete") keeps its own dedicated action in this same slot,
+since the generic locked placeholder has nothing to click and that lesson type still needs one.
+
+**Design tokens**: no new ones were needed — `--teal`/`--teal-d`/`--gold`/`--kid-muted*` and the
+existing `color-mix` tint recipes (`.khd-row[data-state='next']`'s gold tint, `.khd-complete`'s
+teal tint) covered every new tint this redesign uses, reused at the new call sites rather than
+duplicated as literals.
+
+Verified live (real JWTs, a disposable fixture course + two disposable test accounts, all
+removed after): every lesson type end to end, including a real heartbeat-and-completion
+walkthrough across a module boundary (quiz pass → the next module's first lesson, eyebrow and
+rail both updating correctly) and to the literal last lesson of the course (status card +
+"Back to Home", confirmed by a direct `lesson_progress` fixture row rather than finishing the
+one game lesson, whose placeholder `bundle_url` can't really be completed — a known, pre-existing
+limit, `state.md`); a gamification-off course (no XP chip, wording or rail tile, anywhere);
+keyboard focus reaching the Back pill, the rail rows and the Next button with a visible ring;
+zero console errors across the whole walkthrough; admin stays on Geist throughout. **Not
+exercised:** a real device or the Capacitor webview, a screen reader.
+
 Supersedes the per-type layouts above and below (hero, activity card, module list, `LessonPlayerShell`,
 the custom video player and the minimum-time bars). Completion, XP, quiz grading, game scoring, schema,
 RLS and routes did not change.
@@ -2990,3 +3083,76 @@ sheet after Play plus the time, the Next bar pinned to the viewport's bottom at 
 desktop card. The blank game area seen before is the database's two games having placeholder
 `https://example.com/...` bundle URLs: a cross-origin frame fires `load` for such a page, so it
 cannot be detected as broken (`state.md`).
+
+### Lesson pages redesign, follow-up (2026-10-09): video fit, its own Next/Previous style, a Previous button
+
+Three changes on top of "Lesson pages redesign (2026-10-08)" above, same scope rule: visual and
+navigation only, nothing about heartbeat, min-time, completion, XP, quiz grading, the game
+contract, unlock rules, RLS or schema changed.
+
+**No more black bars around a file video (`VideoPlayer.tsx`).** The container used to be a fixed
+16:9 box with the `<video>` inside it set to `object-fit: contain` — a clip that isn't 16:9
+pillarboxed inside its own rounded frame. Now `onLoadedMetadata` reads the clip's real
+`videoWidth`/`videoHeight`, and the CONTAINER'S aspect ratio (a plain inline `style={{
+aspectRatio }}`, not the `aspect-video` Tailwind class) adopts the clip's own ratio, clamped to
+4:3-16:9 (`MIN_RATIO`/`MAX_RATIO` in the file) — before metadata arrives it stays 16:9
+(`aspect-video`'s old default), so nothing jumps once it does. `object-fit` is `cover` for every
+clip in that clamped range (it always fully fills the frame, since the frame now matches it), and
+only falls back to `contain` on an ink (`bg-ink`) letterbox for a clip NARROWER than 4:3
+(portrait or square) — those would lose too much of the picture if cropped to fill. An iframe
+embed (YouTube/Vimeo/Loom/Wistia) is unaffected: the container stays a fixed 16:9 always (the
+`ratio` variable only reads `frame` — the file-only state — when `source.provider === 'file'`),
+and the iframe itself already filled that box completely (`size-full`) before this change.
+
+**The lesson shell's own Next/Previous style — not the app-wide gold `candy` button
+(`PrimaryButton.tsx`, kid.css).** Two new `PrimaryButton`/`PrimaryLink` variants,
+`lesson-next` and `lesson-previous`, alongside the existing `candy`/`muted`/`secondary`: content-
+width (not the single-action pill's `width: 100%; max-width: 26rem`) and 20px radius (not the
+pill's 999px), both reusing the shared `.lp-primary` base (sizing, the spinner, focus styles) so
+nothing one-off was written. `lesson-next`: `--teal-d` fill, cream text, a candy bottom edge
+`color-mix(in srgb, var(--teal-d), black 25%)` (no new hardcoded colour; `--gold-d` is a real
+sibling token but `--teal-d` has no "darker still" one of its own, so this is it), press
+translates 2px and the edge shrinks by the same 2px (never collapses flat the way the gold
+candy's 6px-to-0 press does — a deliberately gentler press for a secondary-but-still-primary
+action). `lesson-previous`: `--surface` fill, a 2px `--teal` ring, ink text — a new look, not the
+existing `secondary` variant (transparent + an ink ring), which reads too close to "no fill at
+all" next to Next's solid colour. **Gold now appears nowhere in the lesson player** — it stays
+exactly where it already was outside it, the rail's next-up row (`.khd-row[data-state='next']`).
+A locked/disabled Next is unchanged: still the old `muted` variant (grey pill, lock icon,
+`"Next: <title>"`) — the brief for this value was "stays as is", not "gets the new shape" too.
+
+**A Previous button (`LessonLayout.tsx`'s new `NavRow`, `useModulePath.ts`'s new `previous`
+field).** Mirrors `next`'s existing literal-lookup-by-sort-index pattern exactly, minus the lock
+check: the previous lesson in COURSE order (any module), or `null` at the very first lesson —
+and under linear unlock everything before the lesson you're on is already open by definition, so
+there is no "locked but previewed" state to handle the way `next` has one. Shown wherever Next
+already is (done, or the generic locked placeholder) — never for a quiz (still its own whole
+flow) or alongside the finishError/manual-video-complete single-action overrides, which replace
+the row entirely rather than sitting beside it (`actions`, still a separate, mutually exclusive
+prop from the new `nav`). **Desktop**: a labelled `lesson-previous` button, left of Next, in a
+`justify-between` row (falls back to `justify-end` — Next alone — at the first lesson of the
+course). **Mobile**: a 56x56 icon-only square (`PrimaryLink`'s new `square` prop, which a new
+`.lp-primary[data-square]` CSS rule sizes regardless of variant) with `aria-label="Previous
+lesson: <title>"` since it carries no visible text, and Next fills the rest of the row
+(`.lp-primary-label`, a new class for a label span that can actually shrink — `children` are
+no longer wrapped in an extra, non-flex `<span>` in `PrimaryButton`/`PrimaryLink`, so this label
+and an icon can sit as true, independently-sized siblings inside `.lp-primary`'s own
+`inline-flex`). Clicking Previous into the previous module updates the eyebrow and rail to that
+module exactly as arriving there any other way would — nothing special was needed for that, it
+falls out of the existing "whichever module the open lesson belongs to" logic.
+
+Verified live (a disposable fixture course with two modules + two disposable test accounts, all
+removed after): a 16:9, a 4:3 and a portrait (9:16) clip (`videoWidth`/`videoHeight` overridden
+and a synthetic `loadedmetadata` dispatched, for a deterministic check independent of whichever
+real file happens to be in a fixture) each got the right `object-fit`/background/clamped ratio,
+and an embed stayed fixed 16:9; the first lesson of the course (no Previous, locked Next),
+a middle lesson (both buttons, Previous correctly returning to the prior lesson), a quiz (still
+no row at all, before or after it completes), crossing a module boundary both directions
+(finishing the quiz exposes "Next: <first lesson of module 2>"; that lesson's own Previous
+targets the quiz, back across the boundary), the real teal fill rendering on an unlocked Next
+(not gold), and the mobile 56x56 Previous square sizing/labelling/Next-fills-the-rest layout —
+all confirmed by reading the DOM/computed styles, not just a screenshot. A real heartbeat +
+`fn_complete_lesson` walkthrough (play → end a video) was exercised end to end as part of the
+same pass, confirming XP/completion are unaffected. Not independently re-verified this round
+(unchanged from the 2026-10-08 redesign, still true): a real device/the Capacitor webview, a
+screen reader.

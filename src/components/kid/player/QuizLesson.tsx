@@ -100,7 +100,7 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
         heading={playerCopy.quiz.empty.heading}
         body={playerCopy.quiz.empty.body}
         icon={<ClipboardList className="size-7" />}
-        action={{ kind: 'back', courseId }}
+        action={{ kind: 'back' }}
         testId="quiz-empty"
       />
     )
@@ -231,8 +231,8 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
           ) : null}
           {mode === 'done' ? null : practice ? (
             <PlayerBar hint={playerCopy.replay.quizPracticeNote}>
-              <PrimaryLink variant="candy" to="/courses/$courseId" params={{ courseId }} data-testid="back-to-path">
-                {playerCopy.button.backToRoadmap}
+              <PrimaryLink variant="candy" to="/" data-testid="back-to-path">
+                {playerCopy.button.backToHome}
               </PrimaryLink>
               <button type="button" className="candy-btn-quiet kid-tap" onClick={tryAgain}>
                 {playerCopy.button.tryAgain}
@@ -243,8 +243,8 @@ export function QuizLesson({ lesson, courseId, mode, clock, onFinish, finishing,
               <PrimaryButton variant="candy" testId="quiz-retry" onClick={tryAgain}>
                 {playerCopy.button.tryAgain}
               </PrimaryButton>
-              <Link to="/courses/$courseId" params={{ courseId }} className="lp-bar-hint underline kid-tap">
-                {playerCopy.button.backToRoadmap}
+              <Link to="/" className="lp-bar-hint underline kid-tap">
+                {playerCopy.button.backToHome}
               </Link>
             </PlayerBar>
           ) : (

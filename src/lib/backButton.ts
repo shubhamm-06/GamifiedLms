@@ -65,11 +65,11 @@ function normalize(pathname: string): string {
   return pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
 }
 
-/** Where Back goes when there is no in-app history: one level up, never a loop. */
+/** Where Back goes when there is no in-app history: one level up, never a loop.
+ * A lesson page's "one level up" is Home now, not the roadmap (ui.md "Lesson pages
+ * redesign"), so it needs no special case here any more. */
 export function fallbackFor(pathname: string): string {
   const p = normalize(pathname)
-  const lesson = /^\/courses\/([^/]+)\/lessons\/[^/]+$/.exec(p)
-  if (lesson) return `/courses/${lesson[1]}`
   if (isAdminPath(p)) return '/admin'
   return '/'
 }

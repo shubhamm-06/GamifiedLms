@@ -664,3 +664,13 @@ belongs in `context.md` or `state.md`, not here.
 - **Text on a `--gold` or `--teal` background uses `--gold-fg` / `--teal-fg`, never a fixed ink or white.** Both roles
   are admin-editable; a fixed foreground becomes unreadable on another colour. A saved colour pair must pass the
   contrast rules (`lib/theme.ts`), which the save path and the reader both enforce.
+- **Any `KidNav`/`KidSidebar` `<Link>` must pass `activeOptions={{ exact: true }}`.** TanStack Router's `<Link>`
+  auto-sets `aria-current="page"` by fuzzy (prefix) route matching unless told otherwise — found 2026-10-08 when the
+  lesson shell first mounted the sidebar on a route nested under `/courses` (`ui.md` "Lesson pages redesign") and
+  "Courses" lit up as active alongside the real "Home" highlight. Dropping this prop on a future nav `<Link>` silently
+  reintroduces the same false-active-tab bug the moment that link's route ever gains a child route of its own.
+- **Back inside the lesson player always targets `/` (Home) directly, never `router.history.back()` and never
+  `/courses/$courseId`.** This applies to the shell's own Back control, every in-player "exit" link, and the Android
+  hardware-back fallback (`lib/backButton.ts`'s `fallbackFor`) alike (`routes-permissions.md`, `ui.md` "Lesson pages
+  redesign") — a future lesson-player screen that adds its own exit action must follow the same target, not
+  re-introduce a roadmap-bound link the rest of the shell has deliberately moved away from.

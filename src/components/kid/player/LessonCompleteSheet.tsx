@@ -74,14 +74,8 @@ function Body({
             {playerCopy.button.nextLesson}
           </Link>
         ) : (
-          <Link
-            to="/courses/$courseId"
-            params={{ courseId }}
-            className="lp-primary kid-tap w-full"
-            data-variant="candy"
-            data-testid="back-to-path"
-          >
-            {playerCopy.button.backToRoadmap}
+          <Link to="/" className="lp-primary kid-tap w-full" data-variant="candy" data-testid="back-to-path">
+            {playerCopy.button.backToHome}
           </Link>
         )}
       </div>

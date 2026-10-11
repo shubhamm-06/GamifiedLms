@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import { Navigate, useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { useKidHeader } from '@/components/kid/kidHeader'
 import { CourseGate } from '@/components/kid/courses/CourseInfoPage'
 import { RoadmapPath } from '@/components/kid/roadmap/RoadmapPath'
@@ -7,6 +7,7 @@ import { EmptyCourseScreen, RetryScreen, RoadmapSkeleton, UnavailableScreen } fr
 import { useCourseRef } from '@/hooks/useCourseRef'
 import { useCourseRoadmap } from '@/hooks/useCourseRoadmap'
 import { useTouchEnrollment } from '@/hooks/useHomeCourse'
+import { LG_UP, useMediaQuery } from '@/hooks/useMediaQuery'
 import type { Roadmap } from '@/lib/roadmap'
 
 /**
@@ -41,6 +42,11 @@ export function CourseRoadmapView({
   showTitle?: boolean
 }) {
   const screen = useCourseRoadmap(courseId)
+  // The winding path is a mobile design, discarded for desktop (ui.md "Desktop shell and
+  // Home"); this deep link stayed on it at every width until now. An enrolled student
+  // landing here at >= 1024px (any link, a notification, or typing the URL) is sent to
+  // Home instead, which shows the same course as a list. Below 1024px nothing changes.
+  const desktop = useMediaQuery(LG_UP)
   useKidHeader(showTitle && (screen.kind === 'ready' || screen.kind === 'empty') ? screen.title : '')
   useTouchEnrollment(courseId, screen.kind === 'ready' || screen.kind === 'empty')
 
@@ -54,6 +60,7 @@ export function CourseRoadmapView({
       // the course row directly, which RLS already lets any student do for a
       // published course, and shows the info page or the same "not available"
       // screen a draft/archived course gets — never a third, more revealing state.
+      // This is the course info/enroll page, not the roadmap, so it stays at every width.
       return <CourseGate courseId={courseId} />
     case 'unavailable':
       return <UnavailableScreen />
@@ -62,6 +69,7 @@ export function CourseRoadmapView({
     case 'empty':
       return <EmptyCourseScreen />
     case 'ready':
+      if (desktop) return <Navigate to="/" replace />
       return (
         <ReadyRoadmap courseId={courseId} roadmap={screen.roadmap} openLessonId={openLessonId} />
       )

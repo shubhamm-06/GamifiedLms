@@ -15,7 +15,7 @@ import { useKidTabs } from './useKidTabs'
  * stays with "the next action". `KidLayout` mounts exactly one of this and
  * `KidNav`, so the bottom nav does not exist in the DOM at this width.
  */
-export function KidSidebar({ activeTo }: { activeTo: string }) {
+export function KidSidebar({ activeTo, forceNavigable }: { activeTo: string; forceNavigable?: boolean }) {
   const profile = useKidProfile()
   const { productName } = useBranding()
   const avatarConfig = profile.data?.avatarConfig ?? DEFAULT_AVATAR
@@ -27,7 +27,7 @@ export function KidSidebar({ activeTo }: { activeTo: string }) {
         className="kid-side-brand kid-tap"
         aria-label={`${productName}, home`}
         onClick={(e) => {
-          if (activeTo === '/') e.preventDefault()
+          if (activeTo === '/' && !forceNavigable) e.preventDefault()
         }}
       >
         <Logo decorative />
@@ -41,11 +41,12 @@ export function KidSidebar({ activeTo }: { activeTo: string }) {
               <li key={to}>
                 <Link
                   to={to}
+                  activeOptions={{ exact: true }}
                   className="kid-side-item kid-tap"
                   aria-current={active ? 'page' : undefined}
                   data-testid={`nav-${id}`}
                   onClick={(e) => {
-                    if (active) e.preventDefault()
+                    if (active && !forceNavigable) e.preventDefault()
                     else haptics.tap()
                   }}
                 >

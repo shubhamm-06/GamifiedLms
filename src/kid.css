@@ -1071,6 +1071,53 @@
     max-width: 28rem;
   }
 
+  /* --------------------------------------------------------------- status card */
+
+  /* The shell's one-line "what happens next" card (LessonStatusCard.tsx, ui.md
+     "Lesson pages redesign"): a neutral card until the lesson is done, then teal —
+     the same tint `.khd-complete` (Home's own finished-course note) already uses. */
+  .lp-status {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    padding: 1rem 1.25rem;
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: var(--kid-shadow);
+  }
+
+  .lp-status[data-done='true'] { background: color-mix(in srgb, var(--teal) 16%, var(--surface)); }
+
+  .lp-status-icon {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    background: var(--kid-muted);
+    color: var(--ink);
+  }
+
+  .lp-status[data-done='true'] .lp-status-icon {
+    background: var(--teal-d);
+    color: var(--cream);
+  }
+
+  .lp-status-text { min-width: 0; }
+
+  .lp-status-heading {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .lp-status-sub {
+    margin: 0.125rem 0 0;
+    color: var(--ink);
+    opacity: 0.75;
+    font-size: 0.875rem;
+  }
+
   /* -------------------------------------------------------------- bottom bar */
 
   .lp-bar {
@@ -1139,6 +1186,69 @@
   @media (hover: hover) {
     .lp-primary[data-variant='candy']:hover { filter: brightness(1.04); }
     .lp-primary[data-variant='secondary']:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+  }
+
+  /* The lesson shell's own Next/Previous row (ui.md "Lesson pages redesign" follow-up):
+     deliberately not the app-wide gold `candy` button, so lesson navigation never reads as
+     "the" primary action the way Home's CTAs do — gold stays only on the rail's next-up row.
+     Content-width, not the 26rem-capped full-width pill the single-action variants are. */
+  .lp-primary[data-variant='lesson-next'],
+  .lp-primary[data-variant='lesson-previous'] {
+    /* Mobile: fills whatever wrapper LessonLayout gives it (the whole bar alone, or the
+       space left of the Previous square) — desktop overrides to content-width below,
+       since there it sits in a plain Previous-left/Next-right row with room to spare. */
+    width: 100%;
+    max-width: none;
+    padding: 0 1.5rem;
+    border-radius: 20px;
+  }
+
+  .kid-app[data-shell='side'] .lp-primary[data-variant='lesson-next'],
+  .kid-app[data-shell='side'] .lp-primary[data-variant='lesson-previous'] {
+    width: auto;
+  }
+
+  .lp-primary[data-variant='lesson-next'] {
+    color: var(--cream);
+    background: var(--teal-d);
+    box-shadow: 0 6px 0 color-mix(in srgb, var(--teal-d), black 25%);
+  }
+
+  .lp-primary[data-variant='lesson-next']:active {
+    transform: translateY(2px);
+    box-shadow: 0 4px 0 color-mix(in srgb, var(--teal-d), black 25%);
+  }
+
+  .lp-primary[data-variant='lesson-previous'] {
+    color: var(--ink);
+    background: var(--surface);
+    box-shadow: inset 0 0 0 2px var(--teal);
+  }
+
+  .lp-primary[data-variant='lesson-previous']:active { background: color-mix(in srgb, var(--teal) 10%, var(--surface)); }
+
+  @media (hover: hover) {
+    .lp-primary[data-variant='lesson-next']:not(:active):hover { filter: brightness(1.08); }
+    .lp-primary[data-variant='lesson-previous']:hover { background: color-mix(in srgb, var(--teal) 8%, var(--surface)); }
+  }
+
+  /* The mobile icon-only Previous button: a 56x56 square, any variant. */
+  .lp-primary[data-square] {
+    width: 3.5rem;
+    min-width: 3.5rem;
+    max-width: 3.5rem;
+    padding: 0;
+    flex: none;
+  }
+
+  /* A label that must truncate instead of wrapping — the mobile Next button's title
+     preview, which shares its row with the fixed-width Previous square. A direct flex
+     item of `.lp-primary` (not wrapped further), so it can actually shrink. */
+  .lp-primary-label {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .lp-primary-spinner {
@@ -2593,6 +2703,27 @@
   .kid-app[data-lesson] .kid-main { max-width: none; padding-top: 0; }
   .lsn-bar { top: var(--sa-top); }
 
+  /* Mobile top bar's segmented progress: one pill per lesson in this module. */
+  .lsn-segment {
+    height: 0.375rem;
+    flex: 1;
+    border-radius: 999px;
+    background: var(--kid-muted);
+  }
+
+  .lsn-segment[data-state='done'] { background: var(--teal-d); }
+
+  /* The eyebrow line above the title, shared by both widths (different text per width,
+     ui.md "Lesson pages redesign"): small caps, teal-d, like the roadmap's own module caption. */
+  .lsn-eyebrow {
+    margin: 0;
+    color: var(--teal-d);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
   /* A game is as wide as the column allows and as tall as the screen below the bar
      and the title, never less than a usable 20rem. */
   [data-width='game'] .lp-game-stage {
@@ -2678,6 +2809,43 @@
   .kid-app[data-shell='side'] .kid-main {
     max-width: 68.75rem;
     padding: 2rem 2rem 3rem;
+  }
+
+  /* The desktop lesson shell's own top row (LessonLayout.tsx "Lesson pages redesign"):
+     a Back-to-Home pill on the left, the course name on the right. Sits directly in
+     .kid-main, so it shares the same 68.75rem measure as the grid below it. */
+  .lsn-dbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .lsn-home-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 1.125rem;
+    border-radius: 999px;
+    background: var(--surface);
+    box-shadow: var(--kid-shadow);
+    color: var(--ink);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-md);
+    font-weight: 700;
+  }
+
+  .lsn-dcourse {
+    margin: 0;
+    overflow: hidden;
+    color: var(--kid-muted-fg);
+    font-family: var(--font-ui-desktop);
+    font-size: var(--kd-text-md);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .kid-side {
@@ -2851,6 +3019,11 @@
     color: var(--ink);
   }
 
+  /* The lesson shell's rail header (LessonRail.tsx) is a plain div, not the collapsible
+     toggle button Home's own band is — it has nothing to expand or collapse, just this
+     one module's lessons underneath. */
+  .khd-band[data-static] { cursor: default; }
+
   .khd-band-text {
     display: flex;
     flex-direction: column;
@@ -3004,6 +3177,23 @@
     box-shadow:
       inset 0 0 0 2px var(--gold),
       0 8px 18px -12px color-mix(in srgb, var(--gold-d) 60%, transparent);
+  }
+
+  /* The lesson shell's own rail (LessonRail.tsx) reuses this row system for its module
+     list and adds the one state Home's rows don't need: the lesson a student is on right
+     now, mid-way between "next up" (gold, not yet started) and "completed". White with a
+     teal outline and a teal, filled play circle, never gold (gold stays "the next action"). */
+  .khd-row[data-state='current'] {
+    background: var(--surface);
+    box-shadow:
+      inset 0 0 0 2px var(--teal),
+      0 8px 18px -12px color-mix(in srgb, var(--teal-d) 50%, transparent);
+    cursor: default;
+  }
+
+  .khd-row[data-state='current'] .khd-status {
+    background: var(--teal-d);
+    color: var(--cream);
   }
 
   /* Locked: muted and inert. No pointer, no shadow. */

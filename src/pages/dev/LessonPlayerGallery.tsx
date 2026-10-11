@@ -106,7 +106,7 @@ export function LessonPlayerGallery() {
             heading={playerCopy.quiz.empty.heading}
             body={playerCopy.quiz.empty.body}
             icon={<ClipboardList className="size-7" />}
-            action={{ kind: 'back', courseId: 'demo' }}
+            action={{ kind: 'back' }}
           />
         </Row>
       </Section>
@@ -165,10 +165,10 @@ export function LessonPlayerGallery() {
           <EnrollmentExpiredScreen />
         </Row>
         <Row label="lesson unavailable (initial)">
-          <LessonUnavailableScreen courseId="demo" variant="initial" />
+          <LessonUnavailableScreen variant="initial" />
         </Row>
         <Row label="lesson unavailable (mid-session / unpublished)">
-          <LessonUnavailableScreen courseId="demo" variant="mid-session" />
+          <LessonUnavailableScreen variant="mid-session" />
         </Row>
         <Row label="retry (network)">
           <LessonRetryScreen onRetry={() => {}} />

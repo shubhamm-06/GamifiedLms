@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, Navigate, useParams } from '@tanstack/react-router'
-import { Check } from 'lucide-react'
+import { Navigate, useParams } from '@tanstack/react-router'
+import { Check, Clock, Sparkles } from 'lucide-react'
+import { LESSON_TYPE_META } from '@/components/kid/roadmap/lessonTypeMeta'
 import { DocLesson } from '@/components/kid/player/DocLesson'
 import { GameLesson } from '@/components/kid/player/GameLesson'
 import { LessonCompleteSheet } from '@/components/kid/player/LessonCompleteSheet'
-import { LessonLayout, type LessonWidth } from '@/components/kid/player/LessonLayout'
+import { LessonLayout, type LessonNav, type LessonWidth } from '@/components/kid/player/LessonLayout'
+import type { LessonRailInfo } from '@/components/kid/player/LessonRail'
+import { LessonStatusCard } from '@/components/kid/player/LessonStatusCard'
 import { PausedNotice } from '@/components/kid/player/PausedNotice'
-import { PrimaryButton, PrimaryLink } from '@/components/kid/player/PrimaryButton'
+import { PrimaryButton } from '@/components/kid/player/PrimaryButton'
 import {
   EnrollmentExpiredScreen,
   LessonRetryScreen,
@@ -25,13 +28,14 @@ import { useLessonClock } from '@/hooks/useLessonClock'
 import { useEnrollmentStatus, useLessonContent, type LoadedLesson } from '@/hooks/useLessonContent'
 import { useLessonBlocks } from '@/hooks/useLessonBlocks'
 import { useModulePath } from '@/hooks/useModulePath'
+import { useFeature, useTerms } from '@/hooks/useSettings'
 import {
   LessonEngineError,
   describeEngineError,
   type LessonEngineErrorCode,
   type LessonStateRow,
 } from '@/lib/lessonEngine'
-import { nextOpenLesson, type PlayerMode } from '@/lib/lessonPlayer'
+import type { PlayerMode } from '@/lib/lessonPlayer'
 import { playerCopy } from '@/lib/playerCopy'
 import { rememberLessonLeft } from '@/lib/roadmapReturn'
 import { parseVideoSource, tracksPlayback } from '@/lib/video'
@@ -42,7 +46,7 @@ import { parseVideoSource, tracksPlayback } from '@/lib/video'
  * row) and never from anything the client could forge: a locked lesson is sent back
  * to the path before its content is even requested; not enrolled, expired or
  * unpublished lessons get a plain screen. The lesson itself lives in PlayerLesson,
- * keyed by lesson id so "Next lesson" starts with a clean slate.
+ * keyed by lesson id so "Next lesson" starts clean.
  */
 export function LessonPlayerPage() {
   const { courseId, lessonId } = useParams({ strict: false }) as { courseId: string; lessonId: string }
@@ -62,7 +66,7 @@ export function LessonPlayerPage() {
     if (enrollment.data === 'expired') return frame(<EnrollmentExpiredScreen />)
     return frame(<NotEnrolledScreen />)
   }
-  if (states.error?.code === 'lesson_unavailable') return frame(<LessonUnavailableScreen courseId={courseId} />)
+  if (states.error?.code === 'lesson_unavailable') return frame(<LessonUnavailableScreen />)
   // A failed background refetch must not tear down a lesson that is already on screen.
   if ((states.isError && !states.data) || (content.isError && !content.data)) {
     return frame(
@@ -75,13 +79,16 @@ export function LessonPlayerPage() {
     )
   }
   if (!states.data) return frame(showSkeleton ? <PlayerSkeleton /> : null)
-  if (!row) return frame(<LessonUnavailableScreen courseId={courseId} />)
+  if (!row) return frame(<LessonUnavailableScreen />)
   if (row.state === 'locked') {
+    // Below 1024px this lands on the mobile roadmap, scrolled to and wiggling the locked
+    // node (the search param); at >= 1024px CoursePage itself redirects on to Home instead
+    // (ui.md "Lesson pages redesign") — this one target still fits both.
     return <Navigate to="/courses/$courseId" params={{ courseId }} search={{ open: lessonId }} replace />
   }
   if (content.isPending) return frame(showSkeleton ? <PlayerSkeleton /> : null)
   if (!content.data || content.data.lesson.courseId !== courseId) {
-    return frame(<LessonUnavailableScreen courseId={courseId} />)
+    return frame(<LessonUnavailableScreen />)
   }
 
   return (
@@ -128,8 +135,11 @@ function PlayerLesson({
   const complete = useCompleteLesson(courseId)
   const completeGame = useCompleteGame(courseId)
   const path = useModulePath(courseId, states, lesson.id)
+  const xpOn = useFeature('xp')
+  const { term } = useTerms()
 
-  // Back brings the child to this lesson's node on the roadmap (`roadmapReturn`).
+  // Back brings the child to Home now, on every width (ui.md "Lesson pages redesign");
+  // this memory still serves the mobile roadmap, which Home itself renders (see roadmapReturn.ts).
   useEffect(() => rememberLessonLeft(lesson.id), [lesson.id])
   const isVideo = lesson.type === 'video'
   // A doc lesson with content blocks (migration 023) shows its blocks; one without keeps the
@@ -178,7 +188,6 @@ function PlayerLesson({
   // Completed somewhere else (another tab): show it as a replay, with no XP promised.
   const shownMode: PlayerMode = mode === 'play' && clock.completedRemotely ? 'replay' : mode
   const fatal = refusal ?? clock.fatal
-  const nextLessonId = nextOpenLesson(states, lesson.id)?.lessonId ?? null
   // A game in play: Android Back asks "Leave this lesson?" first (video and doc lessons do not).
   useLeaveGuard(isGame && shownMode === 'play' && !fatal)
 
@@ -262,7 +271,7 @@ function PlayerLesson({
   if (fatal) {
     return (
       <PlayerFrame courseId={courseId}>
-        <LessonUnavailableScreen courseId={courseId} variant="mid-session" />
+        <LessonUnavailableScreen variant="mid-session" />
       </PlayerFrame>
     )
   }
@@ -292,7 +301,7 @@ function PlayerLesson({
       break
     case 'game':
       width = 'game'
-      media = <GameLesson game={game} courseId={courseId} onComplete={onGameComplete} ack={replayAck} />
+      media = <GameLesson game={game} onComplete={onGameComplete} ack={replayAck} />
       break
     case 'quiz':
       width = 'quiz'
@@ -312,109 +321,127 @@ function PlayerLesson({
       break
     default:
       width = 'doc'
-      media = hasBlocks ? (
-        <DocBlocks blocks={blocks.data ?? []} />
-      ) : (
-        <DocLesson html={lesson.contentHtml} title={lesson.title} courseId={courseId} />
-      )
+      media = hasBlocks ? <DocBlocks blocks={blocks.data ?? []} /> : <DocLesson html={lesson.contentHtml} title={lesson.title} />
   }
 
   const lessonDone = shownMode !== 'play'
-  // The action area: one gold action per state, "Previous" as a quiet link. A quiz runs its
-  // own buttons, so it gets none here.
-  const following = path.following
-  const followingOpen = !!following && states.find((s) => s.lessonId === following.id)?.state !== 'locked'
-  let primary: ReactNode = null
-  let hint: string | null = null
-  if (lessonDone) {
-    primary =
-      following && followingOpen ? (
-        <PrimaryLink
-          variant="candy"
-          to="/courses/$courseId/lessons/$lessonId"
-          params={{ courseId, lessonId: following.id }}
-          replace
-          testId="next-lesson"
-        >
-          {playerCopy.button.nextLessonShort}
-        </PrimaryLink>
-      ) : (
-        <PrimaryLink variant="candy" to="/courses/$courseId" params={{ courseId }} replace testId="back-to-path">
-          {playerCopy.button.backToRoadmap}
-        </PrimaryLink>
-      )
-  } else if (finishError) {
-    hint = finishError
-    primary = (
-      <PrimaryButton
-        variant="candy"
-        // A game lesson finishes through completeGame, not complete: both, or a game retry stays tappable mid-request.
-        loading={complete.isPending || completeGame.isPending}
-        onClick={() => void finish()}
-        testId="finish-retry"
-      >
-        {playerCopy.button.tryAgain}
-      </PrimaryButton>
-    )
-  } else if (manualVideo) {
-    hint = clock.timeMet ? null : playerCopy.video.manualHint
-    primary = (
-      <PrimaryButton
-        variant={clock.timeMet ? 'candy' : 'muted'}
-        loading={complete.isPending}
-        onClick={() => void finish()}
-        testId="mark-complete"
-      >
-        {playerCopy.button.markComplete}
-      </PrimaryButton>
-    )
-  } else if (tracked) {
-    // Played to the end but the server's minimum time is longer than one viewing.
-    hint = videoEnded && !clock.timeMet ? playerCopy.video.watchAgain : playerCopy.video.watchToEnd
-  } else if (isDoc && !clock.timeMet && clock.minTimeSeconds > 0) {
-    hint = playerCopy.doc.keepReading
-  }
+  const gamified = lesson.gamificationEnabled && xpOn
+  const effectiveXp = gamified ? lesson.xp : null
 
-  const previous = path.previous
-  const actions = isQuiz ? null : (
+  // The chip row: type, minimum time (if any), and XP (gated the same way every other
+  // reward is — ui.md "Gamification-off courses hide every reward").
+  const { label: typeLabel, Icon: TypeIcon } = LESSON_TYPE_META[lesson.type]
+  const minutes = Math.round(lesson.minTimeSeconds / 60)
+  const chips = (
     <>
-      {lessonDone ? (
-        <p className="flex items-center gap-2 font-bold text-teal-d" data-testid="lesson-complete">
-          <Check className="size-5" strokeWidth={3} aria-hidden />
-          {playerCopy.page.complete}
-        </p>
+      <span className="rm-chip" data-testid="chip-type">
+        <TypeIcon className="size-3.5" aria-hidden />
+        {typeLabel}
+      </span>
+      {minutes > 0 ? (
+        <span className="rm-chip" data-testid="chip-time">
+          <Clock className="size-3.5" aria-hidden />
+          {minutes} min
+        </span>
       ) : null}
-      {hint ? (
-        <p className="text-base text-ink/80" data-testid="lesson-hint">
-          {hint}
-        </p>
-      ) : null}
-      {primary}
-      {previous ? (
-        <Link
-          to="/courses/$courseId/lessons/$lessonId"
-          params={{ courseId, lessonId: previous.id }}
-          replace
-          className="kid-tap inline-flex min-h-11 items-center text-base text-ink/70 underline underline-offset-4"
-          data-testid="previous-lesson"
-        >
-          {playerCopy.button.previous}
-        </Link>
+      {effectiveXp && effectiveXp > 0 ? (
+        <span className="rm-chip" data-testid="chip-xp">
+          <Sparkles className="size-3.5" aria-hidden />+{effectiveXp} {term('xp')}
+        </span>
       ) : null}
     </>
   )
 
-  const context = path.moduleTitle && path.position > 0 ? playerCopy.page.context(path.moduleTitle, path.position, path.total) : null
+  // The status card and the Next/Previous row: one teal Next per state (ui.md "Lesson
+  // pages redesign"), never the app-wide gold `candy` button. A quiz runs its own internal
+  // flow (its own Continue/Try again/Finish, already inside `media`) and gets neither here.
+  let statusCard: ReactNode = null
+  let actions: ReactNode = null
+  let nav: LessonNav | null = null
+  if (!isQuiz) {
+    if (lessonDone) {
+      const justEarned = shownMode === 'done' && !alreadyDone && gamified && xpAwarded > 0
+      statusCard = (
+        <LessonStatusCard
+          done
+          icon={<Check className="size-5" strokeWidth={3} />}
+          heading={playerCopy.status.done}
+          sub={justEarned ? playerCopy.status.xpEarnedChip(xpAwarded) : null}
+        />
+      )
+      nav = { previous: path.previous, next: path.next }
+    } else if (finishError) {
+      actions = (
+        <div className="flex flex-col items-start gap-2" data-testid="lesson-hint">
+          <p className="text-coral-d text-sm font-semibold" role="alert">
+            {finishError}
+          </p>
+          <PrimaryButton
+            variant="candy"
+            // A game lesson finishes through completeGame, not complete: both, or a game retry stays tappable mid-request.
+            loading={complete.isPending || completeGame.isPending}
+            onClick={() => void finish()}
+            testId="finish-retry"
+          >
+            {playerCopy.button.tryAgain}
+          </PrimaryButton>
+        </div>
+      )
+    } else if (manualVideo) {
+      statusCard = (
+        <LessonStatusCard
+          done={false}
+          icon={<TypeIcon className="size-5" />}
+          heading={playerCopy.status.notDone.video}
+          sub={effectiveXp && effectiveXp > 0 ? playerCopy.status.unlockHint(effectiveXp) : null}
+        />
+      )
+      actions = (
+        <PrimaryButton variant={clock.timeMet ? 'candy' : 'muted'} loading={complete.isPending} onClick={() => void finish()} testId="mark-complete">
+          {clock.timeMet ? playerCopy.button.markComplete : playerCopy.video.manualHint}
+        </PrimaryButton>
+      )
+    } else {
+      const notDoneText = isGame ? playerCopy.status.notDone.game : isDoc ? playerCopy.status.notDone.text : playerCopy.status.notDone.video
+      statusCard = (
+        <LessonStatusCard
+          done={false}
+          icon={<TypeIcon className="size-5" />}
+          heading={notDoneText}
+          sub={effectiveXp && effectiveXp > 0 ? playerCopy.status.unlockHint(effectiveXp) : null}
+        />
+      )
+      nav = { previous: path.previous, next: path.next }
+    }
+  }
+
+  const rail: LessonRailInfo | null =
+    path.moduleTitle && path.rows
+      ? {
+          sectionNumber: path.sectionNumber,
+          moduleTitle: path.moduleTitle,
+          position: path.position,
+          total: path.total,
+          done: path.done,
+          percent: path.percent,
+          rows: path.rows,
+          gamified,
+        }
+      : null
 
   return (
     <>
       <LessonLayout
         courseId={courseId}
+        courseTitle={path.courseTitle}
         width={width}
-        context={context}
+        rail={rail}
         title={lesson.title}
+        chips={chips}
         description={lesson.summary?.trim() || null}
         notice={<PausedNotice reason={shownMode === 'play' ? clock.pause : null} />}
+        statusCard={statusCard}
+        nav={nav}
         actions={actions}
       >
         <div className="contents" data-testid="lesson-player" data-mode={shownMode} data-type={lesson.type}>
@@ -427,7 +454,7 @@ function PlayerLesson({
         courseId={courseId}
         xpAwarded={xpAwarded}
         alreadyDone={alreadyDone}
-        nextLessonId={nextLessonId}
+        nextLessonId={path.next && !path.next.locked ? path.next.id : null}
       />
     </>
   )

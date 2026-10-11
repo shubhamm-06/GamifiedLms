@@ -28,7 +28,7 @@ function readTheme(): DocTheme {
  * size it; it cannot help scripts, because none can run. Links inside are inert
  * (no popups are allowed).
  */
-export function DocLesson({ html, title, courseId }: { html: string | null; title: string; courseId: string }) {
+export function DocLesson({ html, title }: { html: string | null; title: string }) {
   const frame = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(280)
   const srcDoc = useMemo(() => (html?.trim() ? buildDocSrcDoc(html, readTheme()) : null), [html])
@@ -63,7 +63,7 @@ export function DocLesson({ html, title, courseId }: { html: string | null; titl
         heading={playerCopy.doc.empty.heading}
         body={playerCopy.doc.empty.body}
         icon={<BookOpen className="size-7" />}
-        action={{ kind: 'back', courseId }}
+        action={{ kind: 'back' }}
         testId="doc-empty"
       />
     )

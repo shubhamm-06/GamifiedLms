@@ -15,15 +15,14 @@ export const playerCopy = {
     check: 'Check',
     continueReview: 'Continue',
     tryAgain: 'Try again',
-    backToRoadmap: 'Back to roadmap',
+    backToHome: 'Back to Home',
     get nextLesson() { return `Continue to next ${t().lower('lesson')}` },
-    get nextLessonShort() { return `Next ${t().lower('lesson')}` },
-    previous: 'Previous',
+    /** The shared shell's own Next button (ui.md "Lesson pages redesign"): the next lesson's title, or Home at the end of the course. */
+    next: (title: string) => `Next: ${title}`,
     markComplete: 'Mark as complete',
     finishing: 'Finishing',
     checking: 'Checking',
     back: 'Back',
-    next: 'Next',
   },
   ring: {
     label: 'Learning time',
@@ -98,6 +97,18 @@ export const playerCopy = {
     encouragement: 'Great job. Keep it up!',
     alreadyDone: "You already finished this one",
     xp: (n: number) => `+${n} ${t().term('xp')}`,
+  },
+  /** The lesson shell's one-line status card (ui.md "Lesson pages redesign"): never a timer. */
+  status: {
+    notDone: {
+      video: 'Watch to the end to finish',
+      get text() { return `Read to the end to finish this ${t().lower('lesson')}` },
+      quiz: 'Pass the quiz to finish',
+      game: 'Finish the game to earn your reward',
+    },
+    unlockHint: (xp: number) => (xp > 0 ? `You earn +${xp} ${t().term('xp')} and unlock the next ${t().lower('lesson')}.` : `Unlocks the next ${t().lower('lesson')}.`),
+    get done() { return `${t().term('lesson')} complete` },
+    xpEarnedChip: (n: number) => `+${n} ${t().term('xp')} earned`,
   },
   replay: {
     quizPracticeNote: 'You can practice this quiz again. It will not change your score.',

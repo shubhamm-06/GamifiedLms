@@ -33,7 +33,11 @@ export function KidLayout({ children }: { children?: ReactNode }) {
   const desktop = useMediaQuery(LG_UP)
   // A lesson page draws its own slim bar inside its column (LessonLayout), so this one keeps only its safe-area padding.
   const lesson = useRouterState({ select: (st) => /^\/courses\/[^/]+\/lessons\/[^/]+\/?$/.test(st.location.pathname) })
-  const side = !!tab && desktop
+  // Lesson pages get the same sidebar as the four nav screens from 1024px (ui.md "Lesson
+  // pages redesign"): the mobile bottom nav never existed there (the lesson player has
+  // always drawn its own bottom edge), so `side` only needs to also reserve the sidebar's
+  // space on this one non-tab route.
+  const side = (!!tab || lesson) && desktop
   const [title, setTitle] = useState('')
   const [fallbackPath, setFallbackPath] = useState('/')
   const [rightSlot, setRightSlot] = useState<HTMLElement | null>(null)
@@ -67,8 +71,15 @@ export function KidLayout({ children }: { children?: ReactNode }) {
         data-shell={side ? 'side' : undefined}
         data-own-header={side && tab?.ownsDesktopHeader ? 'true' : undefined}
       >
-        {/* First in the DOM so keyboard order is sidebar, then the page; it is fixed-position, so this moves nothing on screen. */}
-        {tab && side ? <KidSidebar activeTo={tab.to} /> : null}
+        {/* First in the DOM so keyboard order is sidebar, then the page; it is fixed-position, so this moves nothing on screen.
+            A lesson page has no tab of its own, so it always shows Home as the active item (there is no
+            "lesson" destination in the sidebar) — `forceNavigable` lets that highlighted Home link still
+            be clicked, since it is not really the current route. */}
+        {tab && side ? (
+          <KidSidebar activeTo={tab.to} />
+        ) : lesson && side ? (
+          <KidSidebar activeTo="/" forceNavigable />
+        ) : null}
         <header className="kid-topbar">
           <div className="kid-topbar-row">
             {tab ? (

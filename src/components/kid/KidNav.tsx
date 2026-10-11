@@ -29,6 +29,7 @@ export function KidNav({ activeTo }: { activeTo: string }) {
             <li key={to}>
               <Link
                 to={to}
+                activeOptions={{ exact: true }}
                 className="kid-nav-tab kid-tap"
                 aria-current={active ? 'page' : undefined}
                 data-testid={`nav-${id}`}

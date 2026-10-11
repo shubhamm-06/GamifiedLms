@@ -6,7 +6,7 @@ import { CircleAlert } from 'lucide-react'
  * The one inline pattern for content that can't be shown inside a lesson
  * (spec Part A7): an icon, a friendly headline, one sentence of help, and
  * either a Try again button (something failed and might work on retry) or a
- * Back to roadmap link (there is nothing here to retry). It fills whatever
+ * Back to Home link (there is nothing here to retry). It fills whatever
  * frame it is placed in (the video/game 16:9 or tall frame, or the lesson
  * body), never a raw error code or stack trace.
  */
@@ -20,7 +20,7 @@ export function PlayerError({
   heading: string
   body: string
   icon?: ReactNode
-  action: { kind: 'retry'; onRetry: () => void } | { kind: 'back'; courseId: string } | null
+  action: { kind: 'retry'; onRetry: () => void } | { kind: 'back' } | null
   testId?: string
 }) {
   return (
@@ -35,8 +35,8 @@ export function PlayerError({
           Try again
         </button>
       ) : action?.kind === 'back' ? (
-        <Link to="/courses/$courseId" params={{ courseId: action.courseId }} className="candy-btn-quiet kid-tap">
-          Back to roadmap
+        <Link to="/" className="candy-btn-quiet kid-tap">
+          Back to Home
         </Link>
       ) : null}
     </div>

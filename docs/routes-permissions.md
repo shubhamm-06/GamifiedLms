@@ -98,7 +98,9 @@ finding below), `lesson_effective_xp` (a second request in parallel; the view
 can't be embedded in the first — no FK path from `lessons` to it, confirmed
 live as `PGRST200`), and `fn_course_lesson_states` (the lock-state source of
 truth). One content query plus one RPC call per page load, verified over the
-real network log. **Admins get no special treatment on this page.** The admin panel's "View course" links here in a new tab; an admin who is **not enrolled** in that course sees the "not enrolled" screen — **by design for now** (no preview mode, no enrollment bypass; `state.md` lists a preview mode as a follow-up). The same URL shows the roadmap to an enrolled student. Opening it from an unenrolled admin session logs one expected `400` on `rpc/fn_course_lesson_states` (the engine's `not_enrolled` refusal) in that tab's console.
+real network log. **Admins get no special treatment on this page.** The admin panel's "View course" links here in a new tab; an admin who is **not enrolled** in that course sees the "not enrolled" screen — **by design for now** (no preview mode, no enrollment bypass; `state.md` lists a preview mode as a follow-up). The same URL shows the roadmap to an enrolled student **below 1024px**; from 1024px it redirects to Home instead (next paragraph) — an enrolled admin's "View course" click now lands on Home too, the same as any other enrolled visitor at that width. Opening it from an unenrolled admin session logs one expected `400` on `rpc/fn_course_lesson_states` (the engine's `not_enrolled` refusal) in that tab's console.
+
+**Desktop redirects the roadmap to Home (2026-10-08, "Lesson pages redesign").** The winding-path roadmap is a mobile design (`ui.md` "Desktop shell and Home"); `/courses/$courseId` kept rendering it at every width as a deep link until now. `CourseRoadmapView` now checks the same `LG_UP` (1024px) media query `KidHomePage` already uses: once the course is enrolled and ready (the `screen.kind === 'ready'` case — never the not-enrolled course-info page, the empty/unavailable/error/loading screens, or anything below 1024px), it renders `<Navigate to="/" replace>` instead of the path. This covers every way the route can be reached (a link, a notification, a locked-lesson redirect's `?open=`, or typing the URL directly) in one place, with no need to special-case each caller.
 
 **Student visibility (migration 029).** A student reaches only **published,
 non-trashed** courses and lessons; `archived` means unavailable to every
@@ -126,9 +128,10 @@ page shows is chosen from the server's answers, in this order:
 2. The lesson is absent from the states (unpublished, trashed, or the id belongs to
    another course): the unavailable screen. Nothing is fetched for it.
 3. The lesson's state is `locked`: `<Navigate>` to `/courses/$courseId?open=<lessonId>`
-   (replace), which opens the friendly locked sheet. **The lesson row (title, body,
-   video link, quiz questions) is not requested at all for a locked lesson**, although
-   the `lessons` policy would allow the read.
+   (replace), which opens the friendly locked sheet below 1024px, or (the redirect above)
+   lands on Home from 1024px — the `?open=` param is simply ignored there, since there is
+   no sheet to open on Home. **The lesson row (title, body, video link, quiz questions) is
+   not requested at all for a locked lesson**, although the `lessons` policy would allow the read.
 4. Otherwise the lesson row (`lessons` filtered to `status = 'published'`, with the
    course's `gamification_enabled`), `lesson_effective_xp`, and for a game lesson the
    `games` row are read, and quiz questions come from `quiz_questions_public` only.
@@ -146,6 +149,18 @@ never decides it and reads the course's flag only to hide XP UI (it already load
 with the course/lesson row, so no extra request). Not retroactive: flipping the flag
 never deletes or recomputes existing XP, badges or counters. Manual admin XP awards
 are not gated by it.
+
+**A Previous button (2026-10-09) is a new navigation target inside the lesson player**: the
+literal previous lesson in course order, any module, shown next to Next wherever Next already
+appears (never for a quiz) — `ui.md` "Lesson pages redesign, follow-up" has the full detail; no
+access-control change, it's the same lesson route any other link already reaches.
+
+**Back always goes Home now, on every width** (not `router.history.back()`, and not the
+roadmap): the lesson shell's own Back control, every "exit the lesson" link inside it
+(an error screen's retry-or-back action, a quiz's practice/fail exits, the completion
+sheet's end-of-course fallback), and the Android hardware-back fallback (`fallbackFor`,
+`lib/backButton.ts`) all target `/` directly. This replaced the previous
+`/courses/$courseId` target; `ui.md` "Lesson pages redesign" has the full shell.
 
 While a lesson is open the same rules apply live: a heartbeat, quiz submission or
 completion refused with `locked`, `not_enrolled` or `lesson_unavailable` swaps the

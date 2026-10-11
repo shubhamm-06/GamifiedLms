@@ -27,9 +27,16 @@ const VM_ORIGIN = 'https://player.vimeo.com'
  * `source` must come from `parseVideoSource`; `null` (an empty, unsupported or
  * unsafe value) shows the friendly unavailable state inside the same frame.
  */
+/** The container clamps to this range so a very wide or very tall clip never makes
+ * the frame itself absurdly short or tall — ui.md "Lesson pages redesign" follow-up. */
+const MIN_RATIO = 4 / 3
+const MAX_RATIO = 16 / 9
+
 export function VideoPlayer({ source, title, ...events }: { source: VideoSource | null; title: string } & VideoEvents) {
   const [playing, setPlaying] = useState(false)
   const [failed, setFailed] = useState(false)
+  // null until loadedmetadata: the container stays 16:9 (aspect-video) so nothing jumps.
+  const [frame, setFrame] = useState<{ ratio: number; narrow: boolean } | null>(null)
   const frameRef = useRef<HTMLIFrameElement>(null)
   const ref = useRef(events)
   useEffect(() => {
@@ -60,7 +67,12 @@ export function VideoPlayer({ source, title, ...events }: { source: VideoSource 
   } else if (source.provider === 'file') {
     body = (
       <video
-        className="size-full object-contain"
+        // Narrow (portrait/square) source: cropping to fill would cut the picture too
+        // much, so it keeps the whole frame visible (contain) on an ink letterbox
+        // instead. Every other clip fills the rounded container completely (cover) —
+        // the container's own aspect ratio already matches the clip, clamped to
+        // 4:3-16:9, so this almost never actually crops a meaningful part of the frame.
+        className={frame?.narrow ? 'size-full bg-ink object-contain' : 'size-full object-cover'}
         src={source.url}
         controls
         playsInline
@@ -71,7 +83,14 @@ export function VideoPlayer({ source, title, ...events }: { source: VideoSource 
         onPause={() => report(false)}
         onWaiting={() => report(false)}
         onEnded={ended}
-        onLoadedMetadata={(e) => ref.current.onDuration?.(e.currentTarget.duration)}
+        onLoadedMetadata={(e) => {
+          const v = e.currentTarget
+          ref.current.onDuration?.(v.duration)
+          if (v.videoWidth > 0 && v.videoHeight > 0) {
+            const natural = v.videoWidth / v.videoHeight
+            setFrame({ ratio: Math.min(MAX_RATIO, Math.max(MIN_RATIO, natural)), narrow: natural < MIN_RATIO })
+          }
+        }}
         onError={() => setFailed(true)}
       />
     )
@@ -92,8 +111,16 @@ export function VideoPlayer({ source, title, ...events }: { source: VideoSource 
     )
   }
 
+  // Embeds (iframe) keep a fixed 16:9 frame always — only a file's own <video> adapts
+  // to the clip's natural ratio, since that is the only case we control the pixels in.
+  const ratio = source?.provider === 'file' && frame ? frame.ratio : 16 / 9
   return (
-    <div className="aspect-video w-full overflow-hidden rounded-2xl bg-black" data-testid="video-player">
+    <div
+      className="w-full overflow-hidden rounded-[26px] bg-black shadow-[var(--kid-shadow)]"
+      style={{ aspectRatio: ratio }}
+      data-testid="video-player"
+      data-frame-narrow={frame?.narrow ? 'true' : undefined}
+    >
       {body}
     </div>
   )

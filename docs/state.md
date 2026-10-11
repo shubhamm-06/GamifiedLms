@@ -203,6 +203,41 @@ The schema or docs anticipate each of these; no working code exists for any.
   sweep) and UI-level feature toggles, all verified in the browser; all settings back to `{}` and test files deleted.
   Open: a real Android check of the cached settings offline and of uploaded favicons in the WebView; the Android app
   name/icon and the Supabase email templates stay build-time / dashboard items.
+- **Lesson pages redesign follow-up (2026-10-09, uncommitted, same branch).** Three visual/nav
+  fixes on top of the redesign below: a file video's container now adopts the clip's own aspect
+  ratio (clamped 4:3-16:9) with `object-fit: cover`, so there are no more black pillarbox bars —
+  a clip narrower than 4:3 (portrait/square) is the one case that still letterboxes (`contain` on
+  ink), since cropping those would cut the picture too much; the Next button gets its own
+  `lesson-next` style (teal-d fill, a candy edge via `color-mix`) instead of the app-wide gold
+  `candy` button, so gold no longer appears anywhere in the lesson player (it stays on the rail's
+  next-up row only); a new Previous button (`lesson-previous` variant) sits next to Next
+  wherever Next already appears, crossing module boundaries the same way Next already did.
+  Verified live (disposable fixture course + two disposable accounts, all removed after):
+  16:9/4:3/portrait clips and an embed all got the right fit; first/middle/last lesson of the
+  course, both sides of a module boundary, a quiz (still no row at all), the real teal (not gold)
+  Next fill, and the mobile 56x56 icon-only Previous square + Next-fills-the-rest layout. Open:
+  same as below (a real device/the Capacitor webview, a screen reader).
+- **Lesson pages redesign (2026-10-08, uncommitted, branch `feat/settings-phase1`).** Desktop
+  (>= 1024px) gets the same left sidebar as Home plus a right rail showing the current
+  module; mobile gets a segmented per-module progress bar. Both get an eyebrow, a type/time/XP
+  chip row, a one-line status card, and a single Next button ("Next: <title>" locked-preview
+  or gold-and-linked once unlocked, "Back to Home" at the course's last lesson) in place of the
+  old title/hint/Previous composition. Back inside the lesson player always goes to `/` now (the
+  roadmap is mobile-only and discarded for desktop — `routes-permissions.md`, `ui.md` "Lesson
+  pages redesign"); `/courses/$courseId` itself redirects an enrolled, ready visitor to Home
+  from 1024px. Visual/layout only — heartbeat, min-time, completion, XP, quiz grading, the game
+  `postMessage` contract, unlock rules and schema are unchanged. A real, previously-latent
+  TanStack Router bug was caught and fixed along the way: `KidNav`/`KidSidebar` links needed
+  `activeOptions={{ exact: true }}` or a nested route (any lesson page) lit up "Courses" as
+  active too (`rules.md`). Verified live (a disposable fixture course + two disposable test
+  accounts, all removed after): every lesson type, a real heartbeat-driven completion
+  walkthrough across a module boundary and to the literal last lesson of the course, a
+  gamification-off course, keyboard focus, and a clean console throughout. Open: a real
+  Android device/WebView check; a screen reader pass; the game-lesson "bundle never loads"
+  timeout path was found to be slow/flaky even in this redesign's own verification (a
+  pre-existing characteristic of the game-cache fetch-timeout chaining, not touched here — see
+  "Game hosting, partly verified" below) — the synchronous "no game attached" error path was
+  used instead to confirm the shared `PlayerError` Back-to-Home fix.
 - **Font selection (2026-10-06, uncommitted, same branch).** Colors tab renamed Appearance, gains a Fonts section:
   an admin picks a heading and a body font (12-face curated catalog + default) for every learner-facing and auth
   screen, no DB migration (`theme.fonts`, `ui.md` "Settings system > Fonts"). Self-hosted, lazy-loaded (one chunk

@@ -13,16 +13,16 @@ import { playerCopy } from '@/lib/playerCopy'
  */
 export function PlayerFrame({ courseId, children }: { courseId: string; children: ReactNode }) {
   return (
-    <LessonLayout courseId={courseId} width="doc" context={null}>
+    <LessonLayout courseId={courseId} courseTitle={null} width="doc" rail={null}>
       {children}
     </LessonLayout>
   )
 }
 
-function BackToPath({ courseId }: { courseId: string }) {
+function BackToHome() {
   return (
-    <Link to="/courses/$courseId" params={{ courseId }} className="candy-btn kid-tap">
-      {playerCopy.button.backToRoadmap}
+    <Link to="/" className="candy-btn kid-tap">
+      {playerCopy.button.backToHome}
     </Link>
   )
 }
@@ -45,11 +45,11 @@ export function EnrollmentExpiredScreen() {
  * refused `lesson_unavailable` after the lesson was already on screen, most
  * likely because it was just unpublished — different, more specific copy.
  */
-export function LessonUnavailableScreen({ courseId, variant = 'initial' }: { courseId: string; variant?: 'initial' | 'mid-session' }) {
+export function LessonUnavailableScreen({ variant = 'initial' }: { variant?: 'initial' | 'mid-session' }) {
   const copy = variant === 'mid-session' ? playerCopy.edge.unavailableMidSession : playerCopy.edge.unavailableInitial
   return (
     <Screen testId="state-lesson-unavailable" icon={<Compass className="size-8" aria-hidden />} title={copy.heading} body={copy.body}>
-      <BackToPath courseId={courseId} />
+      <BackToHome />
     </Screen>
   )
 }

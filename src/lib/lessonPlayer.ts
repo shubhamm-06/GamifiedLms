@@ -1,4 +1,3 @@
-import type { LessonStateRow } from '@/lib/lessonEngine'
 import { formatClock } from '@/lib/lessonSettings'
 
 /**
@@ -88,14 +87,6 @@ export function safeMediaUrl(url: string | null | undefined, allowHttp = false):
     /* not a URL */
   }
   return null
-}
-
-/** The lesson right after this one in course order, if it is open (not locked). */
-export function nextOpenLesson(states: LessonStateRow[], lessonId: string): LessonStateRow | null {
-  const current = states.find((s) => s.lessonId === lessonId)
-  if (!current) return null
-  const next = states.find((s) => s.sortIndex === current.sortIndex + 1)
-  return next && next.state !== 'locked' ? next : null
 }
 
 /** "1:05" for the ring and helper text. */
