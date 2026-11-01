@@ -1988,6 +1988,8 @@ not implemented.**
   - **Empty trash** (per tab) runs the same dialog over every trashed item in
     the tab and skips blocked ones, with a summary.
   - The sidebar's Trash entry carries the total count badge.
+- **Users list and detail.** The admin list shows sortable child age and phone / WhatsApp, searches phone numbers as well as name and email, and filters by age group alongside role. Empty values show Not provided; the table scrolls horizontally. The Account section of the user detail shows both fields and a WhatsApp link for a valid international phone number. These fields are read-only here.
+
 - **CSV export and import (Users).** Shared helpers live in `lib/csv.ts`:
   `toCsv(rows, columns)` (RFC 4180 quoting, CRLF, and a formula-injection
   guard — a string cell starting with `=`, `+`, `-`, `@`, TAB or CR gets one
@@ -2000,11 +2002,11 @@ not implemented.**
   guard.
   - **Export** — an Export menu in the Users header: *Selected rows* (disabled
     with nothing selected), *Current filtered results* (every page of the
-    current search + role filter, in the table's sort order) and *All users*,
+    current search + role and age filters, in the table's sort order) and *All users*,
     plus an *Include trashed users* toggle (off by default; it has no effect on
     *Selected rows*, since a trashed user can't be ticked in the list).
     *Export selected* is repeated in the bulk bar. Columns: `id, display_name,
-    email, role, xp, level, phone_number, created_at, status` (`active` or
+    email, role, xp, level, phone_number, age_group, child_age, created_at, status` (`active` or
     `trashed`); `xp` and `level` are blank for a user with no `user_stats` row.
     No password or hash is ever exported. The file is
     `skillxp-users-YYYY-MM-DD.csv` (the admin's local date) and a toast

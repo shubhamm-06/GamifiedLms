@@ -15,6 +15,8 @@ const USER_EXPORT_COLUMNS: CsvColumn<AdminUserRow>[] = [
   { header: 'xp', value: (u) => u.user_stats?.total_xp },
   { header: 'level', value: (u) => u.user_stats?.level },
   { header: 'phone_number', value: (u) => u.phone_number },
+  { header: 'age_group', value: (u) => u.age_group },
+  { header: 'child_age', value: (u) => u.child_age },
   { header: 'created_at', value: (u) => u.created_at },
   { header: 'status', value: (u) => (u.deleted_at ? 'trashed' : 'active') },
 ]
@@ -28,6 +30,7 @@ export interface UserExportSource {
   filtered: AdminUserRow[]
   search: string
   roleFilter: RoleFilter
+  ageFilter: string
 }
 
 /** `skillxp-users-YYYY-MM-DD.csv`, dated in the admin's own timezone. */
@@ -52,7 +55,7 @@ export async function collectUsersForExport(
     const trashed = await fetchUsers('trashed')
     return [
       ...source.filtered,
-      ...trashed.filter((u) => matchesUserFilter(u, source.search, source.roleFilter)),
+      ...trashed.filter((u) => matchesUserFilter(u, source.search, source.roleFilter, source.ageFilter)),
     ]
   }
 

@@ -1035,6 +1035,9 @@ export type Database = {
       }
       profiles: {
         Row: {
+          age_group: string | null
+          child_age: number | null
+          onboarding_completed_at: string | null
           avatar_config: Json | null
           avatar_url: string | null
           created_at: string
@@ -1047,6 +1050,9 @@ export type Database = {
           role: string
         }
         Insert: {
+          age_group?: string | null
+          child_age?: number | null
+          onboarding_completed_at?: string | null
           avatar_config?: Json | null
           avatar_url?: string | null
           created_at?: string
@@ -1059,6 +1065,9 @@ export type Database = {
           role?: string
         }
         Update: {
+          age_group?: string | null
+          child_age?: number | null
+          onboarding_completed_at?: string | null
           avatar_config?: Json | null
           avatar_url?: string | null
           created_at?: string

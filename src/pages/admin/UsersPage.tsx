@@ -22,6 +22,7 @@ import { ExportUsersMenu } from '@/components/admin/users/ExportUsersMenu'
 import { ImportUsersDialog } from '@/components/admin/users/import/ImportUsersDialog'
 import { useUsers, type AdminUserRow, type RoleFilter } from '@/hooks/admin/useUsers'
 import { useUsersExport } from '@/hooks/admin/useUsersExport'
+import { AGE_GROUP_FILTER_OPTIONS } from '@/lib/ageGroup'
 import { adminSessionQueryOptions } from '@/lib/adminSession'
 
 type DialogKind = 'edit' | 'email' | 'password'
@@ -36,6 +37,7 @@ export function UsersPage() {
   // Filtering is client-side over an already-fetched list, so the input is
   // read directly — there is no request to debounce.
   const [search, setSearch] = useState('')
+  const [ageFilter, setAgeFilter] = useState('all')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
 
   const [createOpen, setCreateOpen] = useState(false)
@@ -50,7 +52,7 @@ export function UsersPage() {
   const { data: session } = useQuery(adminSessionQueryOptions)
 
   // A selection is only meaningful under the search/filter it was made in.
-  const selection = useTableSelection([search, roleFilter])
+  const selection = useTableSelection([search, roleFilter, ageFilter])
 
   // Rows passing the search + role filter, across every page, in the table's
   // sort order (reported up by the table). Selected rows follow the same order.
@@ -61,6 +63,7 @@ export function UsersPage() {
     filtered: tableRows,
     search,
     roleFilter,
+    ageFilter,
   })
 
   function openDialog(kind: DialogKind, user: AdminUserRow) {
@@ -104,7 +107,7 @@ export function UsersPage() {
           <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input
             className="pl-8"
-            placeholder="Search name or email…"
+            placeholder="Search name, email or phone…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search users"
@@ -120,6 +123,12 @@ export function UsersPage() {
             <SelectItem value="admin">Admins</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={ageFilter} onValueChange={setAgeFilter}>
+          <SelectTrigger className="w-44" aria-label="Filter by age group"><SelectValue /></SelectTrigger>
+          <SelectContent><SelectItem value="all">All age groups</SelectItem>
+            {AGE_GROUP_FILTER_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       <UserTable
@@ -128,6 +137,7 @@ export function UsersPage() {
         isError={isError}
         search={search}
         roleFilter={roleFilter}
+        ageFilter={ageFilter}
         onRowClick={(user) =>
           navigate({ to: '/admin/users/$userId', params: { userId: user.id } })
         }

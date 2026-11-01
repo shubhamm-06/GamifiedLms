@@ -36,10 +36,15 @@ Extends `auth.users`. `role` anchors every admin-gated RLS policy.
 | avatar_url | text | nullable | Paste-a-URL image, unused by the kid app since migration 026 (see `avatar_config`) |
 | avatar_config | jsonb | nullable, CHECK via `avatar_config_is_valid` (migrations 026, 032) | The procedural avatar. v2 (written by the builder since 2026-09-30): `{v: 2, base, eyes, mouth, glasses, head, extra, backdrop, tints?}`, every key required except `tints`, which may only hold `glasses`/`head`/`extra`/`backdrop` mapped to a swatch (gold, teal, coral, plum, ink, cream); at most 1 KB. Legacy (migration 026, still accepted, rows stay as they are): exactly `{base, topper, face, accent}`. The option sets are defined in `src/lib/avatar.ts` and mirrored in the function; change both together. `NULL` = never customized; the app renders `DEFAULT_AVATAR`. Read back only through `normalizeAvatarConfig`. Self-read/write under the existing whole-row policies — no RLS change. Not on `profiles_public` |
 | email | text | unique, not null | **Not kept in sync by any trigger** after signup — see below. Stays a plain unique constraint even though profiles can be trashed (section 7) |
-| phone_number | text | nullable | |
+| phone_number | text | nullable | Website WhatsApp number |
+| age_group | text | nullable | Child age group |
+| child_age | smallint | nullable | Individual age for custom age groups |
+| onboarding_completed_at | timestamptz | nullable | Onboarding completion time |
 | role | text | not null, default `'student'` | `CHECK (role IN ('student','admin'))` — plain text, not an enum |
 | created_at | timestamptz | not null, default now() | |
 | deleted_at, deleted_by | timestamptz, uuid | nullable | Migration 013 trash columns — `service_role`-writable only; see section 7 |
+
+- The age and onboarding columns were applied outside the logged migrations; no migration adding them is present in this repository.
 
 - `role` must never be client-writable except by an admin acting
   deliberately. `fn_prevent_role_change()` (`BEFORE UPDATE`) raises an

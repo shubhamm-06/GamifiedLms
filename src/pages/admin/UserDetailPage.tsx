@@ -25,6 +25,7 @@ import {
   type EnrollmentWithCourse,
   type UserProfileDetail,
 } from '@/hooks/admin/useUserDetail'
+import { formatAgeGroup } from '@/lib/ageGroup'
 import type { AdminUserRow } from '@/hooks/admin/useUsers'
 import { dateFormatter, PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
 import { adminSessionQueryOptions } from '@/lib/adminSession'
@@ -50,6 +51,8 @@ function toAdminUserRow(profile: UserProfileDetail): AdminUserRow {
     email: profile.email,
     avatar_url: profile.avatar_url,
     phone_number: profile.phone_number,
+    age_group: profile.age_group,
+    child_age: profile.child_age,
     role: profile.role,
     created_at: profile.created_at,
     deleted_at: profile.deleted_at,
@@ -183,6 +186,17 @@ export function UserDetailPage() {
               <Badge variant={profile.role === 'admin' ? 'default' : 'secondary'}>
                 {profile.role === 'admin' ? 'Admin' : 'Student'}
               </Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs">Child age</dt>
+            <dd className={`mt-0.5 ${formatAgeGroup(profile.age_group, profile.child_age) ? '' : 'text-muted-foreground'}`}>{formatAgeGroup(profile.age_group, profile.child_age) ?? 'Not provided'}</dd>
+          </div>
+          <div>
+            <dt className="text-muted-foreground text-xs">Phone / WhatsApp</dt>
+            <dd className={`mt-0.5 ${profile.phone_number ? '' : 'text-muted-foreground'}`}>
+              {profile.phone_number || 'Not provided'}
+              {profile.phone_number && /^\+[1-9][0-9]{6,14}$/.test(profile.phone_number) ? <> {' '}<a className="text-teal-d hover:underline" href={`https://wa.me/${profile.phone_number.slice(1)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a></> : null}
             </dd>
           </div>
           <div>

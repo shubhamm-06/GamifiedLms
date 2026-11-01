@@ -5,6 +5,11 @@ of the last commit on `master`. No remote is configured; nothing has been
 pushed anywhere. How each piece landed, and how it was verified, is in
 `changelog.md`; this file says only what exists now and what is still open.
 
+## Known issues (Users age data)
+
+- The profile age and onboarding columns have no repository migration; see schema.md section 1. Generated database types were hand-updated from the supplied schema description because the database generator was unavailable; regenerate and compare against live when connectivity is restored.
+- The live signup trigger fn_handle_new_user accepts only age groups '7-10', '11-13', '14+' and 'custom'. Website signups with '5-8' or '9-15' are silently stored as NULL in profiles; auth metadata reportedly has seven '5-8' and one '9-15' users with NULL or missing profile values. The trigger remains unchanged.
+
 ## Built
 
 Everything in this section exists in code and, where it touches the database,
@@ -14,6 +19,8 @@ live.
 nav entry is a real route):
 - Auth: `/login`, `/signup` (redesigned 2026-10-04: simple card, shared `AuthCard`/`AuthField`, `ui.md` "Auth screens"),
   role-aware post-login routing, the `/admin` guard (role re-read from the database on every run), open-redirect protection.
+
+- Users list and account detail show child age and phone / WhatsApp; Users CSV includes age fields. Live browser and role-switched read verification remain outstanding.
 
 **Student app** (routes and access rules: `routes-permissions.md`; visuals:
 `ui.md`):

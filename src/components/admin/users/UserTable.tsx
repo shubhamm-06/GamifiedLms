@@ -53,6 +53,7 @@ import { TableSelectionBar } from '@/components/admin/selection/BulkActionBar'
 import type { TableSelection } from '@/components/admin/selection/useTableSelection'
 import { useStableCallbacks } from '@/hooks/useStableCallbacks'
 import type { AdminUserRow, RoleFilter } from '@/hooks/admin/useUsers'
+import { formatAgeGroup, normalizeUserSearch } from '@/lib/ageGroup'
 import { dateFormatter, PRIMARY_ADMIN_ID } from '@/lib/adminConstants'
 import { getTerms as tw } from '@/lib/settings/terms'
 
@@ -119,6 +120,7 @@ interface UserTableProps {
   /** Matched against name and email; owned by the page toolbar. */
   search: string
   roleFilter: RoleFilter
+  ageFilter: string
   /** Clicking anywhere in a row except the actions cell navigates to the detail page. */
   onRowClick: (user: AdminUserRow) => void
   onEdit: (user: AdminUserRow) => void
@@ -183,6 +185,19 @@ function buildColumns({
       header: 'Email',
       sortFn: 'text',
       cell: (info) => <span className="text-muted-foreground">{info.getValue()}</span>,
+    }),
+    columnHelper.accessor((user) => user.age_group || '__not_provided__', {
+      id: 'age_group', header: 'Child age', filterFn: 'equalsString', enableGlobalFilter: false,
+      sortFn: (a, b) => (formatAgeGroup(a.original.age_group, a.original.child_age) ?? '')
+        .localeCompare(formatAgeGroup(b.original.age_group, b.original.child_age) ?? '', undefined, { numeric: true }),
+      cell: ({ row }) => {
+        const age = formatAgeGroup(row.original.age_group, row.original.child_age)
+        return <span className={age ? 'whitespace-nowrap' : 'text-muted-foreground whitespace-nowrap'}>{age ?? 'Not provided'}</span>
+      },
+    }),
+    columnHelper.accessor('phone_number', {
+      id: 'phone_number', header: 'Phone / WhatsApp', sortFn: 'text', enableGlobalFilter: true,
+      cell: (info) => <span className="text-muted-foreground whitespace-nowrap">{info.getValue() || 'Not provided'}</span>,
     }),
     columnHelper.accessor('role', {
       id: 'role',
@@ -292,6 +307,7 @@ export function UserTable({
   isError,
   search,
   roleFilter,
+  ageFilter,
   onRowClick,
   onEdit,
   onChangeEmail,
@@ -307,13 +323,16 @@ export function UserTable({
   // fires the model's autoResetPageIndex and snaps the table back to page 1.
   // The visible symptom is Next appearing to do nothing.
   const columnFilters = useMemo(
-    () => (roleFilter === 'all' ? [] : [{ id: 'role', value: roleFilter }]),
-    [roleFilter],
+    () => [
+      ...(roleFilter === 'all' ? [] : [{ id: 'role', value: roleFilter }]),
+      ...(ageFilter === 'all' ? [] : [{ id: 'age_group', value: ageFilter }]),
+    ],
+    [roleFilter, ageFilter],
   )
   // `rowSelection` joins the state object but never touches `columnFilters`'s
   // identity, so ticking a checkbox can't trigger the page-reset bug above.
   const state = useMemo(
-    () => ({ globalFilter: search, columnFilters, rowSelection: selection.rowSelection }),
+    () => ({ globalFilter: normalizeUserSearch(search), columnFilters, rowSelection: selection.rowSelection }),
     [search, columnFilters, selection.rowSelection],
   )
 
@@ -356,12 +375,12 @@ export function UserTable({
   const rangeEnd = Math.min((pageIndex + 1) * pageSize, filteredCount)
   // "No users at all" and "nothing matched" are different problems for an
   // admin to act on, so they don't share copy.
-  const isFiltered = search.trim() !== '' || roleFilter !== 'all'
+  const isFiltered = search.trim() !== '' || roleFilter !== 'all' || ageFilter !== 'all'
 
   return (
     <div className="space-y-3">
       <div className="rounded-lg border">
-        <Table>
+        <Table className="min-w-max">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>

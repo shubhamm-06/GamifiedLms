@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { normalizeUserSearch } from '@/lib/ageGroup'
 import { supabase } from '@/lib/supabase'
 import type { UserRole } from '@/lib/adminUserApi'
 
@@ -11,6 +12,8 @@ export interface AdminUserRow {
   email: string
   avatar_url: string | null
   phone_number: string | null
+  age_group: string | null
+  child_age: number | null
   role: string
   created_at: string
   /** Null for a live user. The list never shows trashed users; the export can. */
@@ -30,7 +33,7 @@ type UserScope = 'live' | 'trashed' | 'all'
 const BATCH_SIZE = 1000
 
 const USER_COLUMNS =
-  'id, display_name, email, avatar_url, phone_number, role, created_at, deleted_at, user_stats(total_xp, level)'
+  'id, display_name, email, avatar_url, phone_number, age_group, child_age, role, created_at, deleted_at, user_stats(total_xp, level)'
 
 /**
  * Every profile in the scope, fetched in batches of 1000 until a short page
@@ -88,12 +91,13 @@ export async function fetchAccountStates(): Promise<Map<string, 'active' | 'tras
  * match over name and email — TanStack's `includesString`, where an empty
  * search means "no filter" and nothing is trimmed — plus an exact role match.
  */
-export function matchesUserFilter(user: AdminUserRow, search: string, role: RoleFilter): boolean {
+export function matchesUserFilter(user: AdminUserRow, search: string, role: RoleFilter, ageFilter = 'all'): boolean {
   if (role !== 'all' && user.role !== role) return false
+  if (ageFilter !== 'all' && (ageFilter === '__not_provided__' ? !!user.age_group : user.age_group !== ageFilter)) return false
   if (!search) return true
-  const needle = search.toLowerCase()
+  const needle = normalizeUserSearch(search).toLowerCase()
   return (
-    user.display_name.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle)
+    user.display_name.toLowerCase().includes(needle) || user.email.toLowerCase().includes(needle) || (user.phone_number ?? '').toLowerCase().includes(needle)
   )
 }
 
